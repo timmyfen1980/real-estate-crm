@@ -48,7 +48,7 @@ export default function SignupPage() {
     }
 
     // Create auth user with metadata
-  const { data: signupData, error: authError } = await supabase.auth.signUp({
+const { error: authError } = await supabase.auth.signUp({
   email,
   password,
   options: {
@@ -65,14 +65,16 @@ if (authError) {
   return
 }
 
-const user = signupData?.user
+// Always fetch user after signup
+const {
+  data: { user },
+} = await supabase.auth.getUser()
 
 if (!user) {
-  setError('User creation failed.')
+  setError('User not available yet. Please try logging in.')
   setLoading(false)
   return
 }
-
     // =============================
     // CREATE MODE
     // =============================
