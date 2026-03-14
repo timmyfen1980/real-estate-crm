@@ -71,7 +71,7 @@ setUserRole(membership.role)
           'name, brokerage_name, invite_code, logo_url, brokerage_logo_url, team_enabled, team_name, team_logo_url'
         )
         .eq('id', membership.account_id)
-        .single()
+      .maybeSingle()
 
       if (account) {
         const loaded = {
