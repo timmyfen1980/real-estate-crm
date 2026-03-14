@@ -81,12 +81,12 @@ export default function LoginPage() {
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
 
-          <button
-            onClick={() => router.push('/signup')}
-            className="w-full text-sm text-gray-500 underline"
-          >
-            Create an Account
-          </button>
+          <button          
+  onClick={() => window.location.href = '/signup'}
+  className="w-full text-sm text-gray-500 underline"
+>
+  Create an Account
+</button>
 
         </div>
       </div>
