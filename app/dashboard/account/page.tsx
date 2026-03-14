@@ -56,8 +56,7 @@ const [userRole, setUserRole] = useState<string | null>(null)
   .from('account_users')
   .select('account_id, role')
   .eq('user_id', user.id)
-  .single()
-
+  .maybeSingle()
       if (!membership) {
         setLoading(false)
         return
