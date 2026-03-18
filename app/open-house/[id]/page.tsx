@@ -239,7 +239,7 @@ export default function OpenHousePage() {
                   branding.brokerage_logo_url
                 }
                 alt="Logo"
-                className="h-16 object-contain mb-3 mx-auto md:mx-0"
+                className="h-24 md:h-28 object-contain mb-3 mx-auto md:mx-0"
               />
             )}
 
