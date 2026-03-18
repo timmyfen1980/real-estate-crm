@@ -209,114 +209,113 @@ export default function OpenHousePage() {
   return (
   <div className="min-h-screen bg-gray-100">
 
-    {branding && (
-      <div className="max-w-6xl mx-auto px-10 pt-10 pb-4 text-center">
-         <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">
-  Presented by
-</p>
-        {(branding.team_logo_url || branding.logo_url) && (
-          <img
-            src={branding.team_logo_url || branding.logo_url}
-            alt="Logo"
-            className="mx-auto h-20 object-contain mb-4"
-          />
+    <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 p-10">
+
+      <div>
+        <h2 className="text-2xl font-bold mb-4">
+          {property.address}
+        </h2>
+
+        <p className="text-gray-500 mb-6">
+          {new Date(event.event_date).toLocaleDateString()}
+        </p>
+
+        {property.image_url && (
+          <img src={property.image_url} className="rounded-xl shadow" />
         )}
 
-        {branding.name && (
-          <h1 className="text-2xl font-bold text-gray-900">
-            {branding.name}
-          </h1>
-        )}
+        {branding && (
+          <div className="mt-6 text-center md:text-left">
 
-        {branding.brokerage_name && (
-          <p className="text-sm text-gray-500 mt-1">
-            {branding.brokerage_name}
-          </p>
-        )}
+            <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">
+              Presented by
+            </p>
 
-        {branding.brokerage_logo_url && (
-          <img
-            src={branding.brokerage_logo_url}
-            alt="Brokerage Logo"
-            className="mx-auto h-10 object-contain mt-3"
-          />
-        )}
+            {(branding.team_logo_url || branding.logo_url || branding.brokerage_logo_url) && (
+              <img
+                src={
+                  branding.team_logo_url ||
+                  branding.logo_url ||
+                  branding.brokerage_logo_url
+                }
+                alt="Logo"
+                className="h-16 object-contain mb-3 mx-auto md:mx-0"
+              />
+            )}
 
-        {(branding.phone || branding.owner_email) && (
-          <div className="mt-3 text-sm text-gray-600">
-            {branding.phone && <div>{branding.phone}</div>}
-            {branding.owner_email && <div>{branding.owner_email}</div>}
+            {branding.name && (
+              <p className="text-lg font-semibold text-gray-900">
+                {branding.name}
+              </p>
+            )}
+
+            {branding.brokerage_name && (
+              <p className="text-sm text-gray-500">
+                {branding.brokerage_name}
+              </p>
+            )}
+
+            {(branding.phone || branding.owner_email) && (
+              <div className="text-sm text-gray-600 mt-2">
+                {branding.phone && <div>{branding.phone}</div>}
+                {branding.owner_email && <div>{branding.owner_email}</div>}
+              </div>
+            )}
+
           </div>
         )}
       </div>
-    )}
 
-      <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 p-10">
+      <div className="bg-white p-8 rounded-xl shadow-lg">
+        <h3 className="text-xl font-semibold mb-6">
+          Open House Sign-In
+        </h3>
 
-        <div>
-          <h2 className="text-2xl font-bold mb-4">
-            {property.address}
-          </h2>
+        <input
+          className="w-full mb-4 p-3 border rounded-lg"
+          placeholder="First Name *"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+        />
 
-          <p className="text-gray-500 mb-6">
-            {new Date(event.event_date).toLocaleDateString()}
-          </p>
+        <input
+          className="w-full mb-4 p-3 border rounded-lg"
+          placeholder="Last Name"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+        />
 
-          {property.image_url && (
-            <img src={property.image_url} className="rounded-xl shadow" />
-          )}
-        </div>
+        <input
+          className="w-full mb-4 p-3 border rounded-lg"
+          placeholder="Email *"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
-        <div className="bg-white p-8 rounded-xl shadow-lg">
-          <h3 className="text-xl font-semibold mb-6">
-            Open House Sign-In
-          </h3>
+        <input
+          className="w-full mb-6 p-3 border rounded-lg"
+          placeholder="Phone"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
 
-          <input
-            className="w-full mb-4 p-3 border rounded-lg"
-            placeholder="First Name *"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-          />
-
-          <input
-            className="w-full mb-4 p-3 border rounded-lg"
-            placeholder="Last Name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-          />
-
-          <input
-            className="w-full mb-4 p-3 border rounded-lg"
-            placeholder="Email *"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
-          <input
-            className="w-full mb-6 p-3 border rounded-lg"
-            placeholder="Phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-
-          {event.ask_buyer_stage && (
-            <div className="mb-6">
-              <p className="text-sm font-medium mb-2">What stage are you in?</p>
-              {['Just Looking', 'Buying Soon', 'Actively Buying', 'Selling Also'].map(option => (
-                <label key={option} className="block mb-2">
-                  <input
-                    type="radio"
-                    value={option}
-                    checked={buyerStage === option}
-                    onChange={(e) => setBuyerStage(e.target.value)}
-                    className="mr-2"
-                  />
-                  {option}
-                </label>
-              ))}
-            </div>
-          )}
+        {event.ask_buyer_stage && (
+          <div className="mb-6">
+            <p className="text-sm font-medium mb-2">What stage are you in?</p>
+            {['Just Looking', 'Buying Soon', 'Actively Buying', 'Selling Also'].map(option => (
+              <label key={option} className="block mb-2">
+                <input
+                  type="radio"
+                  value={option}
+                  checked={buyerStage === option}
+                  onChange={(e) => setBuyerStage(e.target.value)}
+                  className="mr-2"
+                />
+                {option}
+              </label>
+            ))}
+          </div>
+        )}
 
           {event.ask_working_with_realtor && (
             <div className="mb-6">
