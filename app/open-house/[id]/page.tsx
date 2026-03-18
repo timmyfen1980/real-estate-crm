@@ -162,18 +162,95 @@ export default function OpenHousePage() {
   if (submitted) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="bg-white p-10 rounded-xl shadow text-center">
-          <h1 className="text-3xl font-bold mb-4">
-            Thank You For Visiting
-          </h1>
-          <p className="text-gray-600">{property.address}</p>
-        </div>
+        <div className="bg-white p-10 rounded-xl shadow text-center w-full max-w-md">
+
+  {branding && (
+    <>
+      {(branding.team_logo_url || branding.logo_url) && (
+        <img
+          src={branding.team_logo_url || branding.logo_url}
+          alt="Logo"
+          className="mx-auto h-16 object-contain mb-4"
+        />
+      )}
+
+      {branding.name && (
+        <p className="text-lg font-semibold text-gray-900">
+          {branding.name}
+        </p>
+      )}
+
+      {branding.brokerage_name && (
+        <p className="text-sm text-gray-500 mb-4">
+          {branding.brokerage_name}
+        </p>
+      )}
+    </>
+  )}
+
+  <h1 className="text-2xl font-bold mb-3 mt-2">
+    Thank You For Visiting
+  </h1>
+
+  <p className="text-gray-600 mb-4">{property.address}</p>
+
+  {(branding?.phone || branding?.owner_email) && (
+    <div className="text-sm text-gray-500 mt-4">
+      {branding.phone && <div>{branding.phone}</div>}
+      {branding.owner_email && <div>{branding.owner_email}</div>}
+    </div>
+  )}
+
+</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+  <div className="min-h-screen bg-gray-100">
+
+    {branding && (
+      <div className="max-w-6xl mx-auto px-10 pt-10 pb-4 text-center">
+         <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">
+  Presented by
+</p>
+        {(branding.team_logo_url || branding.logo_url) && (
+          <img
+            src={branding.team_logo_url || branding.logo_url}
+            alt="Logo"
+            className="mx-auto h-20 object-contain mb-4"
+          />
+        )}
+
+        {branding.name && (
+          <h1 className="text-2xl font-bold text-gray-900">
+            {branding.name}
+          </h1>
+        )}
+
+        {branding.brokerage_name && (
+          <p className="text-sm text-gray-500 mt-1">
+            {branding.brokerage_name}
+          </p>
+        )}
+
+        {branding.brokerage_logo_url && (
+          <img
+            src={branding.brokerage_logo_url}
+            alt="Brokerage Logo"
+            className="mx-auto h-10 object-contain mt-3"
+          />
+        )}
+
+        {(branding.phone || branding.owner_email) && (
+          <div className="mt-3 text-sm text-gray-600">
+            {branding.phone && <div>{branding.phone}</div>}
+            {branding.owner_email && <div>{branding.owner_email}</div>}
+          </div>
+        )}
+      </div>
+    )}
+
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 p-10">
 
         <div>
