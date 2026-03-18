@@ -88,7 +88,7 @@ setUserRole(membership.role)
         setAccountName(loaded.name)
         setBrokerage(loaded.brokerage)
         setInviteCode(loaded.invite)
-        setLogoUrl(userRole === 'owner' ? loaded.logo : null)
+        setLogoUrl(loaded.logo)
         setBrokerageLogoUrl(loaded.brokerageLogo)
         setTeamEnabled(loaded.teamEnabled)
         setTeamName(loaded.teamName)
@@ -343,63 +343,76 @@ setUserRole(membership.role)
           </div>
         </div>
 
-        {teamEnabled && (
-          <div className="border border-black p-10 mb-12">
-            <h2 className="text-xl font-semibold mb-8">Team</h2>
+       <div className="border border-black p-10 mb-12">
+  <h2 className="text-xl font-semibold mb-8">Team</h2>
 
-            <div className="grid grid-cols-2 gap-12 mb-10">
-              <div>
-                <label className="text-sm font-medium block mb-2">Team Name</label>
-                <input
-                  className="w-full border border-black p-3"
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                />
-              </div>
+  {/* Enable Team Toggle */}
+  <label className="flex items-center mb-6">
+    <input
+      type="checkbox"
+      checked={teamEnabled}
+      onChange={(e) => setTeamEnabled(e.target.checked)}
+      className="mr-2"
+    />
+    Enable Team
+  </label>
 
-              {renderLogoBlock(
-                'Team Logo',
-                teamLogoFile,
-                teamLogoUrl,
-                setTeamLogoFile,
-                'teamLogoUpload'
-              )}
-            </div>
+  {teamEnabled && (
+    <>
+      <div className="grid grid-cols-2 gap-12 mb-10">
+        <div>
+          <label className="text-sm font-medium block mb-2">Team Name</label>
+          <input
+            className="w-full border border-black p-3"
+            value={teamName}
+            onChange={(e) => setTeamName(e.target.value)}
+          />
+        </div>
 
-            {userRole === 'owner' && (
-  <div>
-    <p className="text-sm font-medium mb-2">Team Invite Code</p>
-    <div className="border border-black p-4 flex justify-between items-center">
-      <span className="tracking-widest">{inviteCode}</span>
-      <button
-        onClick={() => {
-          navigator.clipboard.writeText(inviteCode)
-          setInviteCopied(true)
-          setTimeout(() => setInviteCopied(false), 2000)
-        }}
-        className="text-sm underline"
-      >
-        {inviteCopied ? 'Copied ✓' : 'Copy'}
-      </button>
-    </div>
-  </div>
-)}
-          </div>
+        {renderLogoBlock(
+          'Team Logo',
+          teamLogoFile,
+          teamLogoUrl,
+          setTeamLogoFile,
+          'teamLogoUpload'
         )}
-
-        <button
-          onClick={handleSave}
-          disabled={!hasChanges || saving}
-          className={`px-10 py-4 transition ${
-            hasChanges
-              ? 'bg-black text-white hover:bg-gray-900'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
-
       </div>
-    </div>
-  )
+
+      {userRole === 'owner' && (
+        <div>
+          <p className="text-sm font-medium mb-2">Team Invite Code</p>
+          <div className="border border-black p-4 flex justify-between items-center">
+            <span className="tracking-widest">{inviteCode}</span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(inviteCode)
+                setInviteCopied(true)
+                setTimeout(() => setInviteCopied(false), 2000)
+              }}
+              className="text-sm underline"
+            >
+              {inviteCopied ? 'Copied ✓' : 'Copy'}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )}
+</div>
+
+<button
+  onClick={handleSave}
+  disabled={!hasChanges || saving}
+  className={`px-10 py-4 transition ${
+    hasChanges
+      ? 'bg-black text-white hover:bg-gray-900'
+      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+  }`}
+>
+  {saving ? 'Saving...' : 'Save Changes'}
+</button>
+
+</div>
+</div>
+)
 }
