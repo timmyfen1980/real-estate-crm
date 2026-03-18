@@ -227,21 +227,41 @@ export default function OpenHousePage() {
         {branding && (
           <div className="mt-6 text-center md:text-left">
 
-            <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">
+            <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">
               Presented by
             </p>
 
-            {(branding.team_logo_url || branding.logo_url || branding.brokerage_logo_url) && (
-              <img
-                src={
-                  branding.team_logo_url ||
-                  branding.logo_url ||
-                  branding.brokerage_logo_url
-                }
-                alt="Logo"
-                className="h-24 md:h-28 object-contain mb-3 mx-auto md:mx-0"
-              />
-            )}
+            {/* Logos side-by-side */}
+            <div className="flex items-center justify-center md:justify-start gap-6 mb-4">
+
+              {/* Agent Logo */}
+              {branding.logo_url && (
+                <img
+                  src={branding.logo_url}
+                  alt="Agent Logo"
+                  className="h-16 md:h-20 object-contain"
+                />
+              )}
+
+              {/* Team Logo */}
+              {branding.team_logo_url && (
+                <img
+                  src={branding.team_logo_url}
+                  alt="Team Logo"
+                  className="h-20 md:h-24 object-contain"
+                />
+              )}
+
+              {/* Fallback (only if both missing) */}
+              {!branding.logo_url && !branding.team_logo_url && branding.brokerage_logo_url && (
+                <img
+                  src={branding.brokerage_logo_url}
+                  alt="Brokerage Logo"
+                  className="h-20 object-contain"
+                />
+              )}
+
+            </div>
 
             {branding.name && (
               <p className="text-lg font-semibold text-gray-900">
