@@ -432,9 +432,9 @@ setTimeout(() => {
 
           <div className="bg-white rounded-2xl shadow p-8 space-y-3 text-sm">
             <h3 className="font-semibold text-lg mb-4">Property & Attendance</h3>
-            <p>
+           <p>
   <strong>Address:</strong>{' '}
-  {property ? property.address : 'Not available'}
+  {property?.address || (lead as any)?.address || 'Not available'}
 </p>
             {event && (
               <p><strong>First Visit:</strong> {new Date(event.event_date).toLocaleDateString()}</p>
