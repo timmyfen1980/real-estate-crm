@@ -7,7 +7,36 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // 🔴 SET THIS
 const DEFAULT_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 
+// ✅ ALLOWED ORIGINS
+const ALLOWED_ORIGINS = [
+  "https://finwise-saas-landing-page-chi-five.vercel.app",
+  "https://crm.thefcgroup.ca",
+];
+
+// ✅ ALWAYS RETURN STRING (FIXES YOUR ERROR)
+function getCorsHeaders(origin: string | null) {
+  const safeOrigin =
+    origin && ALLOWED_ORIGINS.includes(origin)
+      ? origin
+      : ALLOWED_ORIGINS[0];
+
+  return {
+    "Access-Control-Allow-Origin": safeOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  } as Record<string, string>;
+}
+
+// ✅ PRE-FLIGHT
+export async function OPTIONS(req: Request) {
+  const origin = req.headers.get("origin");
+  return NextResponse.json({}, { headers: getCorsHeaders(origin) });
+}
+
 export async function POST(req: Request) {
+  const origin = req.headers.get("origin");
+  const headers = getCorsHeaders(origin);
+
   try {
     const body = await req.json();
 
@@ -21,7 +50,10 @@ export async function POST(req: Request) {
     } = body;
 
     if (!first_name || !email) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400, headers }
+      );
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -121,9 +153,15 @@ export async function POST(req: Request) {
       `,
     });
 
-    return NextResponse.json({ success: true, lead_id: leadId });
+    return NextResponse.json(
+      { success: true, lead_id: leadId },
+      { headers }
+    );
   } catch (err) {
     console.error("HOME VALUATION ERROR:", err);
-    return NextResponse.json({ success: false }, { status: 500 });
+    return NextResponse.json(
+      { success: false },
+      { status: 500, headers }
+    );
   }
 }
