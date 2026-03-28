@@ -4,16 +4,13 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// 🔴 SET THIS
 const DEFAULT_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 
-// ✅ ALLOWED ORIGINS
 const ALLOWED_ORIGINS = [
   "https://finwise-saas-landing-page-chi-five.vercel.app",
   "https://crm.thefcgroup.ca",
 ];
 
-// ✅ ALWAYS RETURN STRING (FIXES YOUR ERROR)
 function getCorsHeaders(origin: string | null) {
   const safeOrigin =
     origin && ALLOWED_ORIGINS.includes(origin)
@@ -27,7 +24,6 @@ function getCorsHeaders(origin: string | null) {
   } as Record<string, string>;
 }
 
-// ✅ PRE-FLIGHT
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
   return NextResponse.json({}, { headers: getCorsHeaders(origin) });
@@ -38,16 +34,14 @@ export async function POST(req: Request) {
   const headers = getCorsHeaders(origin);
 
   try {
-    const body = await req.json();
+    const formData = await req.formData();
 
-    const {
-      first_name,
-      last_name,
-      email,
-      phone,
-      address,
-      comments,
-    } = body;
+    const first_name = formData.get("first_name") as string;
+    const last_name = formData.get("last_name") as string;
+    const email = formData.get("email") as string;
+    const phone = formData.get("phone") as string;
+    const address = formData.get("address") as string;
+    const comments = formData.get("comments") as string;
 
     if (!first_name || !email) {
       return NextResponse.json(
@@ -58,18 +52,14 @@ export async function POST(req: Request) {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. LOAD ACCOUNT
     const { data: account } = await supabaseAdmin
       .from("accounts")
       .select("id, owner_user_id, owner_email")
       .eq("id", DEFAULT_ACCOUNT_ID)
       .single();
 
-    if (!account) {
-      throw new Error("Account not found");
-    }
+    if (!account) throw new Error("Account not found");
 
-    // 2. DUPLICATE LEAD CHECK
     const { data: existingLead } = await supabaseAdmin
       .from("leads")
       .select("id")
@@ -80,7 +70,6 @@ export async function POST(req: Request) {
     let contactId: string | null = null;
     let leadId: string | null = existingLead?.id || null;
 
-    // 3. CONTACT CHECK / CREATE
     const { data: existingContact } = await supabaseAdmin
       .from("contacts")
       .select("id")
@@ -108,11 +97,9 @@ export async function POST(req: Request) {
         .single();
 
       if (contactError) throw contactError;
-
       contactId = newContact.id;
     }
 
-    // 4. CREATE LEAD IF NOT EXISTS
     if (!existingLead) {
       const { data: newLead, error: leadError } = await supabaseAdmin
         .from("leads")
@@ -133,27 +120,60 @@ export async function POST(req: Request) {
         .single();
 
       if (leadError) throw leadError;
-
       leadId = newLead.id;
     }
 
-    // 5. SEND EMAIL
-  const emailResult = await resend.emails.send({
-  from: "info@thefcgroup.ca",
-  to: account.owner_email,
-  subject: "New Home Valuation Lead",
-  html: `
-    <h2>New Home Valuation Request</h2>
+    // 🔥 FILE UPLOAD (CORRECT WAY)
+    const files = formData.getAll("images") as File[];
+    const uploadedUrls: string[] = [];
 
-    <p><strong>Name:</strong> ${first_name} ${last_name || ""}</p>
-    <p><strong>Email:</strong> ${normalizedEmail}</p>
-    <p><strong>Phone:</strong> ${phone || "N/A"}</p>
-    <p><strong>Address:</strong> ${address || "N/A"}</p>
-    <p><strong>Comments:</strong> ${comments || "N/A"}</p>
-  `,
-});
+    for (const file of files) {
+      if (!file || file.size === 0) continue;
 
-console.log("RESEND RESULT:", emailResult);
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from("account-assets")
+        .upload(fileName, buffer);
+
+      if (uploadError) {
+        console.error("UPLOAD ERROR:", uploadError);
+        continue;
+      }
+
+      const { data } = supabaseAdmin.storage
+        .from("account-assets")
+        .getPublicUrl(fileName);
+
+      uploadedUrls.push(data.publicUrl);
+    }
+
+    // attach images to lead notes
+    if (uploadedUrls.length > 0 && leadId) {
+      await supabaseAdmin.from("notes").insert({
+        lead_id: leadId,
+        content: `Uploaded Images:\n${uploadedUrls.join("\n")}`,
+      });
+    }
+
+    await resend.emails.send({
+      from: "info@thefcgroup.ca",
+      to: account.owner_email,
+      subject: "New Home Valuation Lead",
+      html: `
+        <h2>New Home Valuation Request</h2>
+        <p><strong>Name:</strong> ${first_name} ${last_name || ""}</p>
+        <p><strong>Email:</strong> ${normalizedEmail}</p>
+        <p><strong>Phone:</strong> ${phone || "N/A"}</p>
+        <p><strong>Address:</strong> ${address || "N/A"}</p>
+        <p><strong>Comments:</strong> ${comments || "N/A"}</p>
+        <p><strong>Images:</strong><br/>${uploadedUrls.join("<br/>")}</p>
+      `,
+    });
 
     return NextResponse.json(
       { success: true, lead_id: leadId },
