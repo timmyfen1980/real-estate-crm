@@ -22,6 +22,7 @@ const [accountId, setAccountId] = useState<string | null>(null)
 const [userRole, setUserRole] = useState<string | null>(null)
 
 const [overdueCount, setOverdueCount] = useState(0)
+const [newLeadsCount, setNewLeadsCount] = useState(0)
 const [closedBuyers, setClosedBuyers] = useState(0)
 const [closedSellers, setClosedSellers] = useState(0)
 const [closedLeases, setClosedLeases] = useState(0)
@@ -132,7 +133,14 @@ if (membership.role === 'owner') {
 const { count } = await query
 
       setOverdueCount(count || 0)
+// 🔴 NEW LEADS COUNT
+const { count: newLeads } = await supabase
+  .from('leads')
+  .select('id', { count: 'exact', head: true })
+  .eq('account_id', membership.account_id)
+  .eq('status', 'New')
 
+setNewLeadsCount(newLeads || 0)
       setChecking(false)
     }
 
@@ -185,8 +193,16 @@ const handleLogout = async () => {
           </Link>
 
           <Link href="/dashboard/leads" className={navItemClass('/dashboard/leads')}>
-            Leads
-          </Link>
+  <div className="flex items-center justify-between w-full">
+    <span>Leads</span>
+
+    {newLeadsCount > 0 && (
+      <span className="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
+        {newLeadsCount}
+      </span>
+    )}
+  </div>
+</Link>
 
           <Link href="/dashboard/contacts" className={navItemClass('/dashboard/contacts')}>
             Contacts
