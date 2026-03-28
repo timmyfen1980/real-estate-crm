@@ -141,8 +141,9 @@ export async function POST(req: Request) {
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from("account-assets")
-        .upload(fileName, buffer);
-
+        .upload(fileName, buffer, {
+  contentType: file.type,
+});
       if (uploadError) {
         console.error("UPLOAD ERROR:", uploadError);
         continue;
