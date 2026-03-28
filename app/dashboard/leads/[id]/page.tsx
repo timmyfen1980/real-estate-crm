@@ -472,14 +472,37 @@ setTimeout(() => {
           </button>
 
           <div className="mt-6 space-y-4">
-  {notes.map(note => (
+  {notes.map(note => {
+  const urls = (note.content.match(/https?:\/\/[^\s]+/g) || []).filter(u =>
+    u.match(/\.(jpg|jpeg|png|webp|gif)$/i)
+  )
+
+  return (
     <div key={note.id} className="border rounded-lg p-4 bg-gray-50">
-      <p className="text-sm">{note.content}</p>
+      {/* TEXT */}
+      <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+
+      {/* IMAGES */}
+      {urls.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+          {urls.map((url, i) => (
+            <a key={i} href={url} target="_blank">
+              <img
+                src={url}
+                alt="Uploaded"
+                className="w-full h-32 object-cover rounded-lg border hover:opacity-80"
+              />
+            </a>
+          ))}
+        </div>
+      )}
+
       <p className="text-xs text-gray-500 mt-2">
         {new Date(note.created_at).toLocaleString()}
       </p>
     </div>
-  ))}
+  )
+})}
 </div>
 </div>
 
