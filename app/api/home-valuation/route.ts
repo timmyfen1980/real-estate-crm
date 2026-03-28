@@ -138,20 +138,22 @@ export async function POST(req: Request) {
     }
 
     // 5. SEND EMAIL
-    await resend.emails.send({
-      from: "onboarding@resend.dev",
-      to: account.owner_email,
-      subject: "New Home Valuation Lead",
-      html: `
-        <h2>New Home Valuation Request</h2>
+  const emailResult = await resend.emails.send({
+  from: "onboarding@resend.dev",
+  to: account.owner_email,
+  subject: "New Home Valuation Lead",
+  html: `
+    <h2>New Home Valuation Request</h2>
 
-        <p><strong>Name:</strong> ${first_name} ${last_name || ""}</p>
-        <p><strong>Email:</strong> ${normalizedEmail}</p>
-        <p><strong>Phone:</strong> ${phone || "N/A"}</p>
-        <p><strong>Address:</strong> ${address || "N/A"}</p>
-        <p><strong>Comments:</strong> ${comments || "N/A"}</p>
-      `,
-    });
+    <p><strong>Name:</strong> ${first_name} ${last_name || ""}</p>
+    <p><strong>Email:</strong> ${normalizedEmail}</p>
+    <p><strong>Phone:</strong> ${phone || "N/A"}</p>
+    <p><strong>Address:</strong> ${address || "N/A"}</p>
+    <p><strong>Comments:</strong> ${comments || "N/A"}</p>
+  `,
+});
+
+console.log("RESEND RESULT:", emailResult);
 
     return NextResponse.json(
       { success: true, lead_id: leadId },
