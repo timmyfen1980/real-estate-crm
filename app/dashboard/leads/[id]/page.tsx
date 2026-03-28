@@ -473,9 +473,9 @@ setTimeout(() => {
 
           <div className="mt-6 space-y-4">
   {notes.map(note => {
-  const urls = (note.content.match(/https?:\/\/[^\s]+/g) || []).filter(u =>
-    u.match(/\.(jpg|jpeg|png|webp|gif)$/i)
-  )
+ const urls = (note.content.match(/https?:\/\/[^\s]+/g) || []).filter(u =>
+  u.match(/\.(jpg|jpeg|png|webp|gif)/i)
+)
 
   return (
     <div key={note.id} className="border rounded-lg p-4 bg-gray-50">
