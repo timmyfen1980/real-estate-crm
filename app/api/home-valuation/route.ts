@@ -7,6 +7,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const DEFAULT_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 
 const ALLOWED_ORIGINS = [
+  "https://www.thefcgroup.ca",
+  "https://thefcgroup.ca",
   "https://finwise-saas-landing-page-chi-five.vercel.app",
   "https://crm.thefcgroup.ca",
 ];
@@ -15,7 +17,7 @@ function getCorsHeaders(origin: string | null) {
   const safeOrigin =
     origin && ALLOWED_ORIGINS.includes(origin)
       ? origin
-      : ALLOWED_ORIGINS[0];
+      : "https://www.thefcgroup.ca";
 
   return {
     "Access-Control-Allow-Origin": safeOrigin,
