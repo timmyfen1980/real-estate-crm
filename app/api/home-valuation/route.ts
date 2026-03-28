@@ -102,22 +102,23 @@ export async function POST(req: Request) {
 
     if (!existingLead) {
       const { data: newLead, error: leadError } = await supabaseAdmin
-        .from("leads")
-        .insert({
-          account_id: account.id,
-          contact_id: contactId,
-          assigned_user_id: account.owner_user_id,
-          user_id: account.owner_user_id,
-          first_name,
-          last_name,
-          email: normalizedEmail,
-          phone,
-          source: "Home Valuation",
-          status: "New",
-          deal_type: "Seller",
-        })
-        .select("id")
-        .single();
+  .from("leads")
+  .insert({
+    account_id: account.id,
+    contact_id: contactId,
+    assigned_user_id: account.owner_user_id,
+    user_id: account.owner_user_id,
+    first_name,
+    last_name,
+    email: normalizedEmail,
+    phone,
+    address,
+    source: "Home Valuation",
+    status: "New",
+    deal_type: "Seller",
+  })
+  .select("id")
+  .single();
 
       if (leadError) throw leadError;
       leadId = newLead.id;
