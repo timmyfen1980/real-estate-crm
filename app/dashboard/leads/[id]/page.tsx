@@ -303,13 +303,13 @@ setTimeout(() => {
     }
   }
 
-  if (loading || !lead || !property) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    )
-  }
+  if (loading || !lead) {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      Loading...
+    </div>
+  )
+}
 
   return (
     <div className="min-h-screen bg-gray-50 p-10">
@@ -432,7 +432,10 @@ setTimeout(() => {
 
           <div className="bg-white rounded-2xl shadow p-8 space-y-3 text-sm">
             <h3 className="font-semibold text-lg mb-4">Property & Attendance</h3>
-            <p><strong>Address:</strong> {property.address}</p>
+            <p>
+  <strong>Address:</strong>{' '}
+  {property ? property.address : 'Not available'}
+</p>
             {event && (
               <p><strong>First Visit:</strong> {new Date(event.event_date).toLocaleDateString()}</p>
             )}
