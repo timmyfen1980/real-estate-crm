@@ -139,7 +139,7 @@ export async function POST(req: Request) {
 
     // 5. SEND EMAIL
     await resend.emails.send({
-      from: "info@thefcgroup.ca",
+      from: "onboarding@resend.dev",
       to: account.owner_email,
       subject: "New Home Valuation Lead",
       html: `
