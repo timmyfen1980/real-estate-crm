@@ -16,20 +16,24 @@ type Property = {
   address: string
 }
 
+type TeamMember = {
+  user_id: string
+  full_name: string
+}
+
 export default function NewDealPage() {
   const router = useRouter()
 
   const [contacts, setContacts] = useState<Contact[]>([])
   const [properties, setProperties] = useState<Property[]>([])
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
 
   const [selectedContact, setSelectedContact] = useState<string>('')
 
-  // ✅ CONTACT SEARCH
   const [contactSearch, setContactSearch] = useState('')
   const [contactResults, setContactResults] = useState<Contact[]>([])
   const [selectedContactData, setSelectedContactData] = useState<Contact | null>(null)
 
-  // ✅ CREATE CONTACT
   const [newFirstName, setNewFirstName] = useState('')
   const [newLastName, setNewLastName] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -42,15 +46,23 @@ export default function NewDealPage() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
 
   const [newAddress, setNewAddress] = useState('')
+  const [assignedUserId, setAssignedUserId] = useState<string>('')
+
+  useEffect(() => {
+    loadData()
+  }, [])
 
   const loadData = async () => {
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
 
+    const userId = userData.user.id
+    setAssignedUserId(userId)
+
     const { data: membership } = await supabase
       .from('account_users')
       .select('account_id')
-      .eq('user_id', userData.user.id)
+      .eq('user_id', userId)
       .single()
 
     if (!membership) return
@@ -70,12 +82,37 @@ export default function NewDealPage() {
       .eq('account_id', accountId)
 
     setProperties(propertyData || [])
+
+    const { data: members } = await supabase
+      .from('account_users')
+      .select('user_id, profiles(full_name)')
+      .eq('account_id', accountId)
+
+    if (members) {
+      setTeamMembers(
+        members.map((m: any) => ({
+          user_id: m.user_id,
+          full_name: m.profiles?.full_name || 'User',
+        }))
+      )
+    }
   }
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  // ✅ PROPERTY SEARCH (FIXED)
+  const searchProperties = (query: string) => {
+    if (!query.trim()) {
+      setPropertyResults([])
+      return
+    }
 
+    const results = properties.filter((p) =>
+      p.address.toLowerCase().includes(query.toLowerCase())
+    )
+
+    setPropertyResults(results.slice(0, 10))
+  }
+
+  // ✅ CONTACT SEARCH
   const searchContacts = (query: string) => {
     if (!query.trim()) {
       setContactResults([])
@@ -89,19 +126,6 @@ export default function NewDealPage() {
     )
 
     setContactResults(results.slice(0, 10))
-  }
-
-  const searchProperties = (query: string) => {
-    if (!query.trim()) {
-      setPropertyResults([])
-      return
-    }
-
-    const results = properties.filter((p) =>
-      p.address.toLowerCase().includes(query.toLowerCase())
-    )
-
-    setPropertyResults(results.slice(0, 10))
   }
 
   const createDeal = async () => {
@@ -120,7 +144,6 @@ export default function NewDealPage() {
 
     let contactId = selectedContact
 
-    // ✅ CREATE CONTACT IF NEEDED
     if (!contactId) {
       if (!newFirstName.trim() || !newEmail.trim()) {
         alert('Enter contact info')
@@ -176,21 +199,16 @@ export default function NewDealPage() {
       propertyId = propertyData.id
     }
 
-    const { error: dealError } = await supabase.from('deals').insert([
+    await supabase.from('deals').insert([
       {
         account_id: accountId,
         contact_id: contactId,
-        assigned_user_id: userData.user.id,
+        assigned_user_id: assignedUserId,
         property_id: propertyId,
         deal_type: dealType,
         status: dealStatus,
       },
     ])
-
-    if (dealError) {
-      alert('Error creating deal')
-      return
-    }
 
     await supabase.from('property_contacts').insert([
       {
@@ -209,6 +227,50 @@ export default function NewDealPage() {
 
         <h1 className="text-2xl font-semibold">Create Deal</h1>
 
+        {/* PROPERTY SEARCH */}
+        <div>
+          <label className="text-sm text-gray-600">Property</label>
+
+          <input
+            value={propertySearch}
+            onChange={(e) => {
+              setPropertySearch(e.target.value)
+              searchProperties(e.target.value)
+            }}
+            className="w-full border rounded-lg px-3 py-2 mt-1"
+            placeholder="Search property..."
+          />
+
+          {propertyResults.length > 0 && (
+            <div className="border mt-2 rounded-lg max-h-40 overflow-y-auto">
+              {propertyResults.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    setSelectedProperty(p)
+                    setPropertySearch(p.address)
+                    setNewAddress(p.address)
+                    setPropertyResults([])
+                  }}
+                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                >
+                  {p.address}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ADDRESS */}
+        <div>
+          <label className="text-sm text-gray-600">Property Address</label>
+          <input
+            value={newAddress}
+            onChange={(e) => setNewAddress(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 mt-1"
+          />
+        </div>
+
         {/* CONTACT SEARCH */}
         <div>
           <label className="text-sm text-gray-600">Contact</label>
@@ -219,26 +281,24 @@ export default function NewDealPage() {
               setContactSearch(e.target.value)
               searchContacts(e.target.value)
               setSelectedContact('')
-              setSelectedContactData(null)
             }}
             className="w-full border rounded-lg px-3 py-2 mt-1"
             placeholder="Search contact..."
           />
 
-          {contactResults.length > 0 && !selectedContactData && (
+          {contactResults.length > 0 && (
             <div className="border rounded-lg mt-2 max-h-40 overflow-y-auto">
               {contactResults.map((c) => (
                 <div
                   key={c.id}
                   onClick={() => {
                     setSelectedContact(c.id)
-                    setSelectedContactData(c)
                     setContactSearch(`${c.first_name} ${c.last_name}`)
                     setContactResults([])
                   }}
                   className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                 >
-                  {c.first_name} {c.last_name} ({c.email})
+                  {c.first_name} {c.last_name}
                 </div>
               ))}
             </div>
@@ -248,22 +308,12 @@ export default function NewDealPage() {
         {/* CREATE CONTACT */}
         {!selectedContact && (
           <div className="border rounded-lg p-4 bg-gray-50 space-y-2">
-            <div className="text-sm font-medium">Create New Contact</div>
-
             <input
               value={newFirstName}
               onChange={(e) => setNewFirstName(e.target.value)}
               placeholder="First Name"
               className="w-full border rounded-lg px-3 py-2"
             />
-
-            <input
-              value={newLastName}
-              onChange={(e) => setNewLastName(e.target.value)}
-              placeholder="Last Name"
-              className="w-full border rounded-lg px-3 py-2"
-            />
-
             <input
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
@@ -273,83 +323,37 @@ export default function NewDealPage() {
           </div>
         )}
 
-        {/* DEAL TYPE */}
-        <div>
-          <label className="text-sm text-gray-600">Deal Type</label>
-          <select
-            value={dealType}
-            onChange={(e) =>
-              setDealType(e.target.value as 'Buyer' | 'Seller')
-            }
-            className="w-full border rounded-lg px-3 py-2 mt-1"
-          >
-            <option value="Buyer">Buyer</option>
-            <option value="Seller">Seller</option>
-          </select>
-        </div>
+        {/* ASSIGNED */}
+        <select
+          value={assignedUserId}
+          onChange={(e) => setAssignedUserId(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2"
+        >
+          {teamMembers.map((m) => (
+            <option key={m.user_id} value={m.user_id}>
+              {m.full_name}
+            </option>
+          ))}
+        </select>
 
-        {/* PROPERTY SEARCH */}
-        {dealType === 'Seller' && (
-          <div>
-            <label className="text-sm text-gray-600">Search Property</label>
-            <input
-              value={propertySearch}
-              onChange={(e) => {
-                setPropertySearch(e.target.value)
-                searchProperties(e.target.value)
-                setSelectedProperty(null)
-              }}
-              className="w-full border rounded-lg px-3 py-2 mt-1"
-              placeholder="Search existing properties..."
-            />
+        {/* TYPE + STATUS */}
+        <select
+          value={dealType}
+          onChange={(e) => setDealType(e.target.value as any)}
+          className="w-full border rounded-lg px-3 py-2"
+        >
+          <option value="Buyer">Buyer</option>
+          <option value="Seller">Seller</option>
+        </select>
 
-            {propertyResults.length > 0 && (
-              <div className="border mt-2 rounded-lg max-h-40 overflow-y-auto">
-                {propertyResults.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => {
-                      setSelectedProperty(p)
-                      setPropertySearch(p.address)
-                      setPropertyResults([])
-                    }}
-                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                  >
-                    {p.address}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ADDRESS */}
-        {!selectedProperty && (
-          <div>
-            <label className="text-sm text-gray-600">Property Address</label>
-            <input
-              value={newAddress}
-              onChange={(e) => setNewAddress(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 mt-1"
-              placeholder="Enter address"
-            />
-          </div>
-        )}
-
-        {/* STATUS */}
-        <div>
-          <label className="text-sm text-gray-600">Deal Status</label>
-          <select
-            value={dealStatus}
-            onChange={(e) => setDealStatus(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 mt-1"
-          >
-            <option value="Active">Active</option>
-            <option value="Sold Conditional">Sold Conditional</option>
-            <option value="Sold Firm">Sold Firm</option>
-            <option value="Closed">Closed</option>
-          </select>
-        </div>
+        <select
+          value={dealStatus}
+          onChange={(e) => setDealStatus(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2"
+        >
+          <option value="Active">Active</option>
+          <option value="Closed">Closed</option>
+        </select>
 
         <button
           onClick={createDeal}
