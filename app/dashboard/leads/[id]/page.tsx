@@ -136,10 +136,13 @@ const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
     setAttendances(attendanceData || [])
 
-    const { data: accountUsers } = await supabase
-      .from('account_users')
-      .select('user_id, role')
-      .eq('account_id', leadData.account_id)
+    const { data: accountUsers, error: accountUsersError } = await supabase
+  .from('account_users')
+  .select('user_id, role, account_id')
+  .eq('account_id', leadData.account_id)
+
+console.log('ACCOUNT USERS RESULT:', accountUsers)
+console.log('ACCOUNT USERS ERROR:', accountUsersError)
 
     const { data: currentUser } = await supabase.auth.getUser()
 
