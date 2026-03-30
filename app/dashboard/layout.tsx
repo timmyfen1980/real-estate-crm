@@ -241,7 +241,7 @@ const handleLogout = async () => {
 
 {/* BUYERS */}
 <button
-  onClick={() => router.push('/dashboard/leads?status=Closed&deal=buyer')}
+  onClick={() => router.push('/dashboard/deals')}
   className="group cursor-pointer flex items-baseline gap-2 transition hover:scale-[1.05]"
   title="View Closed Buyers"
 >
@@ -261,7 +261,7 @@ const handleLogout = async () => {
 
 {/* SELLERS */}
 <button
-  onClick={() => router.push('/dashboard/leads?status=Closed&deal=seller')}
+  onClick={() => router.push('/dashboard/deals')}
   className="group cursor-pointer flex items-baseline gap-2 transition hover:scale-[1.05]"
   title="View Closed Sellers"
 >
@@ -281,7 +281,7 @@ const handleLogout = async () => {
 
 {/* LEASES */}
 <button
-  onClick={() => router.push('/dashboard/leads?status=Closed&deal=lease')}
+  onClick={() => router.push('/dashboard/deals')}
   className="group cursor-pointer flex items-baseline gap-2 transition hover:scale-[1.05]"
   title="View Closed Leases"
 >
@@ -299,17 +299,17 @@ const handleLogout = async () => {
   </span>
 </button>
 
-  {/* TOTAL */}
-  <button
-    onClick={() => router.push('/dashboard/leads?status=Closed')}
-    className="group cursor-pointer bg-black text-white px-4 py-2 rounded-md transition hover:scale-[1.05]"
-    title="View All Closed Deals"
-  >
-    <div className="flex items-baseline gap-2">
-      <span className="text-lg font-bold">{totalClosed}</span>
-      <span className="opacity-80">Total</span>
-    </div>
-  </button>
+{/* TOTAL */}
+<button
+  onClick={() => router.push('/dashboard/deals')}
+  className="group cursor-pointer bg-black text-white px-4 py-2 rounded-md transition hover:scale-[1.05]"
+  title="View All Closed Deals"
+>
+  <div className="flex items-baseline gap-2">
+    <span className="text-lg font-bold">{totalClosed}</span>
+    <span className="opacity-80">Total</span>
+  </div>
+</button>
 
 </div>
 </div>
