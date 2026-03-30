@@ -257,6 +257,23 @@ setTimeout(() => {
     setActivities((prev) => [insertedActivity, ...prev])
   }
 }
+// DEAL STATUS UPDATE
+const updateDealStatus = async (status: string) => {
+  if (!deal) return
+
+  const { error } = await supabase
+    .from('deals')
+    .update({ status })
+    .eq('id', deal.id)
+
+  if (error) {
+    console.error('Deal update error:', error)
+    alert('Error updating deal')
+    return
+  }
+
+  setDeal({ ...deal, status })
+}
 const updateAssignment = async (userId: string) => {
   if (!lead || !isOwner) return
   setSavingAssignment(true)
@@ -486,6 +503,24 @@ setTimeout(() => {
   >
     Convert Seller
   </button>
+  {deal && (
+  <div className="flex flex-col min-w-[180px] ml-2">
+    <label className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+      Deal Status
+    </label>
+
+    <select
+      value={deal.status}
+      onChange={(e) => updateDealStatus(e.target.value)}
+      className="border rounded-lg px-4 py-2"
+    >
+      <option value="Active">Active</option>
+      <option value="Sold Conditional">Sold Conditional</option>
+      <option value="Sold Firm">Sold Firm</option>
+      <option value="Closed">Closed</option>
+    </select>
+  </div>
+)}
 
 </div>
 
