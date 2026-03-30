@@ -728,18 +728,96 @@ const createDealWithProperty = async (
 </div>
 
             {taskModalOpen && lead && (
-        <TaskModal
-          mode={taskMode}
-          task={selectedTask}
-          onClose={() => setTaskModalOpen(false)}
-          onSaved={loadData}
-          currentUserId={lead.assigned_user_id}
-          isOwner={isOwner}
-          leadId={lead.id}
-        />
-      )}
+  <TaskModal
+    mode={taskMode}
+    task={selectedTask}
+    onClose={() => setTaskModalOpen(false)}
+    onSaved={loadData}
+    currentUserId={lead.assigned_user_id}
+    isOwner={isOwner}
+    leadId={lead.id}
+  />
+)}
 
+{convertModalOpen && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4">
+      
+      <h2 className="text-lg font-semibold">
+        Convert to {convertType} Deal
+      </h2>
+
+      <div>
+        <label className="text-sm text-gray-600">Property Address *</label>
+        <input
+          value={convertAddress}
+          onChange={(e) => setConvertAddress(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2 mt-1"
+          placeholder="Enter address"
+        />
       </div>
+
+      <div>
+        <label className="text-sm text-gray-600">Deal Status *</label>
+        <select
+          value={convertStatus}
+          onChange={(e) => setConvertStatus(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2 mt-1"
+        >
+          <option value="Active">Active</option>
+          <option value="Sold Conditional">Sold Conditional</option>
+          <option value="Sold Firm">Sold Firm</option>
+          <option value="Closed">Closed</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="text-sm text-gray-600">Phone (optional)</label>
+        <input
+          value={convertPhone}
+          onChange={(e) => setConvertPhone(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2 mt-1"
+          placeholder="Update phone if needed"
+        />
+      </div>
+
+      <div className="flex justify-end gap-3 pt-2">
+        <button
+          onClick={() => setConvertModalOpen(false)}
+          className="px-4 py-2 border rounded-lg"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={async () => {
+            if (!convertAddress.trim()) {
+              alert('Address is required')
+              return
+            }
+
+            await createDealWithProperty(
+              convertType,
+              convertStatus,
+              convertAddress,
+              convertPhone
+            )
+
+            setConvertModalOpen(false)
+            setConvertAddress('')
+            setConvertPhone('')
+          }}
+          className="bg-black text-white px-4 py-2 rounded-lg"
+        >
+          Create Deal
+        </button>
+      </div>
+
     </div>
-  )
+  </div>
+)}
+
+</div>
+</div>
+)
 }
