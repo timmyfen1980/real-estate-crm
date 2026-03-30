@@ -77,43 +77,44 @@ setUserRole(membership.role)
       const currentYear = new Date().getFullYear()
       const startOfYear = `${currentYear}-01-01`
 
-      const { data: closedLeads } = await supabase
-  .from('leads')
+      const { data: closedDeals } = await supabase
+  .from('deals')
   .select('deal_type')
   .eq('account_id', membership.account_id)
   .eq('assigned_user_id', user.id)
   .eq('status', 'Closed')
   .gte('created_at', startOfYear)
 
-      if (closedLeads) {
-  const buyers = closedLeads.filter(l => l.deal_type === 'buyer').length
-  const sellers = closedLeads.filter(l => l.deal_type === 'seller').length
-  const leases = closedLeads.filter(l => l.deal_type === 'lease').length
+if (closedDeals) {
+  const buyers = closedDeals.filter(d => d.deal_type === 'Buyer').length
+  const sellers = closedDeals.filter(d => d.deal_type === 'Seller').length
 
   setClosedBuyers(buyers)
   setClosedSellers(sellers)
-  setClosedLeases(leases)
-  setTotalClosed(buyers + sellers + leases)
+  setClosedLeases(0)
+  setTotalClosed(buyers + sellers)
 }
+
+      
 // TEAM PRODUCTION (OWNER ONLY)
 if (membership.role === 'owner') {
-  const { data: teamClosed } = await supabase
-    .from('leads')
-    .select('deal_type')
-    .eq('account_id', membership.account_id)
-    .eq('status', 'Closed')
-    .gte('created_at', startOfYear)
+ const { data: teamClosed } = await supabase
+  .from('deals')
+  .select('deal_type')
+  .eq('account_id', membership.account_id)
+  .eq('status', 'Closed')
+  .gte('created_at', startOfYear)
 
-  if (teamClosed) {
-    const buyers = teamClosed.filter(l => l.deal_type === 'buyer').length
-    const sellers = teamClosed.filter(l => l.deal_type === 'seller').length
-    const leases = teamClosed.filter(l => l.deal_type === 'lease').length
+if (teamClosed) {
+  const buyers = teamClosed.filter(d => d.deal_type === 'Buyer').length
+  const sellers = teamClosed.filter(d => d.deal_type === 'Seller').length
 
-    setTeamBuyers(buyers)
-    setTeamSellers(sellers)
-    setTeamLeases(leases)
-    setTeamTotal(buyers + sellers + leases)
-  }
+  setTeamBuyers(buyers)
+  setTeamSellers(sellers)
+  setTeamLeases(0)
+  setTeamTotal(buyers + sellers)
+}
+    
 }
       // 🔹 Overdue Tasks Count
       const today = new Date().toISOString().split('T')[0]
