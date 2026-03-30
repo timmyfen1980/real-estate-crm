@@ -23,6 +23,7 @@ type Lead = {
   open_house_event_id: string | null
   account_id: string
   assigned_user_id: string | null
+  contact_id: string   // ✅ ADD THIS
   created_at: string
 }
 
@@ -403,17 +404,71 @@ setTimeout(() => {
       )}
     </div>
 
-    {/* NEW TASK BUTTON */}
-    <button
-      onClick={() => {
-        setTaskMode('create')
-        setSelectedTask(null)
-        setTaskModalOpen(true)
-      }}
-      className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-900 transition"
-    >
-      + New Task
-    </button>
+   {/* NEW TASK BUTTON + CONVERT */}
+<div className="flex gap-3 items-center">
+
+  <button
+    onClick={() => {
+      setTaskMode('create')
+      setSelectedTask(null)
+      setTaskModalOpen(true)
+    }}
+    className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-900 transition"
+  >
+    + New Task
+  </button>
+
+  <button
+    onClick={async () => {
+      if (!lead) return
+      const { error } = await supabase.from('deals').insert([
+        {
+          account_id: lead.account_id,
+          contact_id: lead.contact_id,
+          assigned_user_id: lead.assigned_user_id,
+          property_id: lead.property_id,
+          deal_type: 'Buyer',
+          status: 'Active',
+        },
+      ])
+      if (error) {
+        console.error(error)
+        alert('Error creating deal')
+      } else {
+        alert('Buyer deal created')
+      }
+    }}
+    className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+  >
+    Convert Buyer
+  </button>
+
+  <button
+    onClick={async () => {
+      if (!lead) return
+      const { error } = await supabase.from('deals').insert([
+        {
+          account_id: lead.account_id,
+          contact_id: lead.contact_id,
+          assigned_user_id: lead.assigned_user_id,
+          property_id: lead.property_id,
+          deal_type: 'Seller',
+          status: 'Active',
+        },
+      ])
+      if (error) {
+        console.error(error)
+        alert('Error creating deal')
+      } else {
+        alert('Seller deal created')
+      }
+    }}
+    className="bg-green-600 text-white px-4 py-2 rounded-lg"
+  >
+    Convert Seller
+  </button>
+
+</div>
 
   </div>
 )}
