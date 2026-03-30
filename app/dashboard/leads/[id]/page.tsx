@@ -146,28 +146,22 @@ console.log('ACCOUNT USERS ERROR:', accountUsersError)
 
     const { data: currentUser } = await supabase.auth.getUser()
 
-    if (accountUsers && currentUser.user) {
-      const ownerMatch = accountUsers.find(
-        u => u.user_id === currentUser.user.id && u.role === 'owner'
-      )
-      setIsOwner(!!ownerMatch)
+    if (currentUser.user) {
+  const { data: membership } = await supabase
+    .from('account_users')
+    .select('account_id, role')
+    .eq('user_id', currentUser.user.id)
+    .single()
 
-      const userIds = accountUsers.map(u => u.user_id)
+  if (!membership) return
 
-      console.log('ACCOUNT USERS:', accountUsers)
-console.log('USER IDS:', userIds)
+  setIsOwner(membership.role === 'owner')
 
-const response = await supabase
-  .from('profiles')
-  .select('id, full_name')
-  .in('id', userIds)
+  const res = await fetch(`/api/team-members?accountId=${membership.account_id}`)
+  const team = await res.json()
 
-console.log('PROFILES RESULT:', response.data)
-console.log('PROFILES ERROR:', response.error)
-
-setTeamMembers(response.data || [])
-    }
-
+  setTeamMembers(team || [])
+}
     const { data: notesData } = await supabase
       .from('notes')
       .select('*')
