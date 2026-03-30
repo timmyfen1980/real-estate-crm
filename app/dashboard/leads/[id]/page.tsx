@@ -151,12 +151,18 @@ const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
       const userIds = accountUsers.map(u => u.user_id)
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', userIds)
+      console.log('ACCOUNT USERS:', accountUsers)
+console.log('USER IDS:', userIds)
 
-      setTeamMembers(profiles || [])
+const response = await supabase
+  .from('profiles')
+  .select('id, full_name')
+  .in('id', userIds)
+
+console.log('PROFILES RESULT:', response.data)
+console.log('PROFILES ERROR:', response.error)
+
+setTeamMembers(response.data || [])
     }
 
     const { data: notesData } = await supabase
