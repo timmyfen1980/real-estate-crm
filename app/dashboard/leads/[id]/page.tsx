@@ -471,7 +471,8 @@ setTimeout(() => {
         console.error(error)
         alert('Error creating deal')
       } else {
-        alert('Buyer deal created')
+        await loadData()
+alert('Buyer deal created')
       }
     }}
     className="bg-blue-600 text-white px-4 py-2 rounded-lg"
@@ -496,7 +497,8 @@ setTimeout(() => {
         console.error(error)
         alert('Error creating deal')
       } else {
-        alert('Seller deal created')
+        await loadData()
+alert('Seller deal created')
       }
     }}
     className="bg-green-600 text-white px-4 py-2 rounded-lg"
