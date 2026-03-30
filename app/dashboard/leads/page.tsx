@@ -267,6 +267,7 @@ const createLead = async () => {
         status: 'New',
         created_at: new Date().toISOString(),
         source: 'Manual Entry',
+         property_id: null,
       },
     ])
 
