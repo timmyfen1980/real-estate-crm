@@ -203,18 +203,21 @@ const handleLogout = async () => {
     )}
   </div>
 </Link>
+<Link href="/dashboard/contacts" className={navItemClass('/dashboard/contacts')}>
+  Contacts
+</Link>
 
-          <Link href="/dashboard/contacts" className={navItemClass('/dashboard/contacts')}>
-            Contacts
-          </Link>
+<Link href="/dashboard/deals" className={navItemClass('/dashboard/deals')}>
+  Deals
+</Link>
 
-          <Link href="/dashboard/properties" className={navItemClass('/dashboard/properties')}>
-            Properties
-          </Link>
+<Link href="/dashboard/properties" className={navItemClass('/dashboard/properties')}>
+  Properties
+</Link>
 
-          <Link href="/dashboard/open-houses" className={navItemClass('/dashboard/open-houses')}>
-            Open Houses
-          </Link>
+<Link href="/dashboard/open-houses" className={navItemClass('/dashboard/open-houses')}>
+  Open Houses
+</Link>
         </nav>
       </aside>
 
