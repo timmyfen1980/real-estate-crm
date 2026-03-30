@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useParams, useRouter } from 'next/navigation'
-
 type Lead = {
   id: string
   first_name: string
@@ -11,6 +10,11 @@ type Lead = {
   email: string
   phone: string
   status: string
+
+  account_id: string
+  contact_id: string
+  assigned_user_id: string
+  property_id: string | null
 }
 
 type Note = {
@@ -84,7 +88,33 @@ export default function LeadDetailPage() {
 
     loadLead()
   }
+const convertToDeal = async (dealType: 'Buyer' | 'Seller') => {
+  if (!lead) return
 
+  try {
+    const { error } = await supabase.from('deals').insert([
+      {
+        account_id: lead.account_id,
+        contact_id: lead.contact_id,
+        assigned_user_id: lead.assigned_user_id,
+        property_id: lead.property_id,
+        deal_type: dealType,
+        status: 'Active',
+      },
+    ])
+
+    if (error) {
+      console.error('Deal creation error:', error)
+      alert('Error creating deal')
+      return
+    }
+
+    alert(`${dealType} deal created`)
+  } catch (err) {
+    console.error(err)
+    alert('Unexpected error')
+  }
+}
   const addNote = async () => {
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
@@ -119,7 +149,21 @@ export default function LeadDetailPage() {
 
         <p>Email: {lead.email}</p>
         <p>Phone: {lead.phone}</p>
+<div className="mt-6 flex gap-3">
+  <button
+    onClick={() => convertToDeal('Buyer')}
+    className="bg-blue-600 text-white px-4 py-2 rounded"
+  >
+    Convert to Buyer
+  </button>
 
+  <button
+    onClick={() => convertToDeal('Seller')}
+    className="bg-green-600 text-white px-4 py-2 rounded"
+  >
+    Convert to Seller
+  </button>
+</div>
         <div className="mt-4">
           <label className="font-semibold mr-2">Status:</label>
           <select
