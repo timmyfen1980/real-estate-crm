@@ -224,12 +224,21 @@ const { data: newContact, error } = await supabase
       return
     }
 
-    await supabase.from('property_contacts').insert([
-      {
-        contact_id: contactId,
-        property_id: propertyId,
-      },
-    ])
+    const { data: existingLink } = await supabase
+  .from('property_contacts')
+  .select('id')
+  .eq('contact_id', contactId)
+  .eq('property_id', propertyId)
+  .maybeSingle()
+
+if (!existingLink) {
+  await supabase.from('property_contacts').insert([
+    {
+      contact_id: contactId,
+      property_id: propertyId,
+    },
+  ])
+}
 
     alert('Deal created')
     router.push('/dashboard/contacts')
