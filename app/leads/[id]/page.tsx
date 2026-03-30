@@ -11,11 +11,6 @@ type Lead = {
   email: string
   phone: string
   status: string
-
-  account_id: string
-  contact_id: string
-  assigned_user_id: string
-  property_id: string | null
 }
 
 type Note = {
@@ -105,33 +100,7 @@ export default function LeadDetailPage() {
     setNewNote('')
     loadNotes()
   }
-const convertToDeal = async (dealType: 'Buyer' | 'Seller') => {
-  if (!lead) return
 
-  try {
-    const { error } = await supabase.from('deals').insert([
-      {
-        account_id: lead.account_id,
-        contact_id: lead.contact_id,
-        assigned_user_id: lead.assigned_user_id,
-        property_id: lead.property_id,
-        deal_type: dealType,
-        status: 'Active',
-      },
-    ])
-
-    if (error) {
-      console.error('Deal creation error:', error)
-      alert('Error creating deal')
-      return
-    }
-
-    alert(`${dealType} deal created successfully`)
-  } catch (err) {
-    console.error('Unexpected error:', err)
-    alert('Unexpected error creating deal')
-  }
-}
   if (!lead) return <div className="p-8">Loading...</div>
 
   return (
@@ -151,37 +120,20 @@ const convertToDeal = async (dealType: 'Buyer' | 'Seller') => {
         <p>Email: {lead.email}</p>
         <p>Phone: {lead.phone}</p>
 
-       <div className="mt-4">
-  <label className="font-semibold mr-2">Status:</label>
-  <select
-    value={lead.status}
-    onChange={(e) => updateStatus(e.target.value)}
-    className="border p-2 rounded"
-  >
-    <option>New</option>
-    <option>Contacted</option>
-    <option>Hot</option>
-    <option>Cold</option>
-    <option>Closed</option>
-  </select>
-</div>
-
-{/* 🔹 CONVERT TO DEAL BUTTONS */}
-<div className="mt-6 flex gap-4">
-  <button
-    onClick={() => convertToDeal('Buyer')}
-    className="bg-blue-600 text-white px-4 py-2 rounded"
-  >
-    Convert to Buyer Deal
-  </button>
-
-  <button
-    onClick={() => convertToDeal('Seller')}
-    className="bg-green-600 text-white px-4 py-2 rounded"
-  >
-    Convert to Seller Deal
-  </button>
-</div>
+        <div className="mt-4">
+          <label className="font-semibold mr-2">Status:</label>
+          <select
+            value={lead.status}
+            onChange={(e) => updateStatus(e.target.value)}
+            className="border p-2 rounded"
+          >
+            <option>New</option>
+            <option>Contacted</option>
+            <option>Hot</option>
+            <option>Cold</option>
+            <option>Closed</option>
+          </select>
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded shadow">
