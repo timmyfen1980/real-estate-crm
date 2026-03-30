@@ -32,7 +32,6 @@ export default function NewDealPage() {
 
   const [contactSearch, setContactSearch] = useState('')
   const [contactResults, setContactResults] = useState<Contact[]>([])
-  const [selectedContactData, setSelectedContactData] = useState<Contact | null>(null)
 
   const [newFirstName, setNewFirstName] = useState('')
   const [newLastName, setNewLastName] = useState('')
@@ -98,7 +97,6 @@ export default function NewDealPage() {
     }
   }
 
-  // ✅ PROPERTY SEARCH (FIXED)
   const searchProperties = (query: string) => {
     if (!query.trim()) {
       setPropertyResults([])
@@ -112,7 +110,6 @@ export default function NewDealPage() {
     setPropertyResults(results.slice(0, 10))
   }
 
-  // ✅ CONTACT SEARCH
   const searchContacts = (query: string) => {
     if (!query.trim()) {
       setContactResults([])
@@ -199,7 +196,7 @@ export default function NewDealPage() {
       propertyId = propertyData.id
     }
 
-    await supabase.from('deals').insert([
+    const { error: dealError } = await supabase.from('deals').insert([
       {
         account_id: accountId,
         contact_id: contactId,
@@ -209,6 +206,11 @@ export default function NewDealPage() {
         status: dealStatus,
       },
     ])
+
+    if (dealError) {
+      alert('Error creating deal')
+      return
+    }
 
     await supabase.from('property_contacts').insert([
       {
@@ -227,7 +229,7 @@ export default function NewDealPage() {
 
         <h1 className="text-2xl font-semibold">Create Deal</h1>
 
-        {/* PROPERTY SEARCH */}
+        {/* PROPERTY */}
         <div>
           <label className="text-sm text-gray-600">Property</label>
 
@@ -271,7 +273,7 @@ export default function NewDealPage() {
           />
         </div>
 
-        {/* CONTACT SEARCH */}
+        {/* CONTACT */}
         <div>
           <label className="text-sm text-gray-600">Contact</label>
 
@@ -298,7 +300,7 @@ export default function NewDealPage() {
                   }}
                   className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                 >
-                  {c.first_name} {c.last_name}
+                  {c.first_name} {c.last_name} ({c.email})
                 </div>
               ))}
             </div>
@@ -315,6 +317,12 @@ export default function NewDealPage() {
               className="w-full border rounded-lg px-3 py-2"
             />
             <input
+              value={newLastName}
+              onChange={(e) => setNewLastName(e.target.value)}
+              placeholder="Last Name"
+              className="w-full border rounded-lg px-3 py-2"
+            />
+            <input
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="Email"
@@ -324,19 +332,22 @@ export default function NewDealPage() {
         )}
 
         {/* ASSIGNED */}
-        <select
-          value={assignedUserId}
-          onChange={(e) => setAssignedUserId(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2"
-        >
-          {teamMembers.map((m) => (
-            <option key={m.user_id} value={m.user_id}>
-              {m.full_name}
-            </option>
-          ))}
-        </select>
+        <div>
+          <label className="text-sm text-gray-600">Assigned Agent</label>
+          <select
+            value={assignedUserId}
+            onChange={(e) => setAssignedUserId(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 mt-1"
+          >
+            {teamMembers.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        {/* TYPE + STATUS */}
+        {/* TYPE */}
         <select
           value={dealType}
           onChange={(e) => setDealType(e.target.value as any)}
@@ -346,12 +357,15 @@ export default function NewDealPage() {
           <option value="Seller">Seller</option>
         </select>
 
+        {/* STATUS */}
         <select
           value={dealStatus}
           onChange={(e) => setDealStatus(e.target.value)}
           className="w-full border rounded-lg px-3 py-2"
         >
           <option value="Active">Active</option>
+          <option value="Sold Conditional">Sold Conditional</option>
+          <option value="Sold Firm">Sold Firm</option>
           <option value="Closed">Closed</option>
         </select>
 
