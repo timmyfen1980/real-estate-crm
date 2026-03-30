@@ -23,6 +23,7 @@ export default function NewDealPage() {
   const [properties, setProperties] = useState<Property[]>([])
 
   const [selectedContact, setSelectedContact] = useState<string>('')
+
   const [dealType, setDealType] = useState<'Buyer' | 'Seller'>('Buyer')
   const [dealStatus, setDealStatus] = useState('Active')
 
@@ -97,9 +98,12 @@ export default function NewDealPage() {
 
     const accountId = membership.account_id
 
+    // ✅ FIX: DEFINE contactId PROPERLY
+    const contactId = selectedContact
+
     let propertyId = selectedProperty?.id
 
-    // CREATE PROPERTY IF BUYER OR NO EXISTING
+    // CREATE PROPERTY IF NEEDED
     if (!propertyId) {
       if (!newAddress.trim()) {
         alert('Address required')
@@ -129,7 +133,7 @@ export default function NewDealPage() {
     const { error: dealError } = await supabase.from('deals').insert([
       {
         account_id: accountId,
-        contact_id: selectedContact,
+        contact_id: contactId,
         assigned_user_id: userData.user.id,
         property_id: propertyId,
         deal_type: dealType,
@@ -141,6 +145,14 @@ export default function NewDealPage() {
       alert('Error creating deal')
       return
     }
+
+    // ✅ FIX: NOW THIS WORKS
+    await supabase.from('property_contacts').insert([
+      {
+        contact_id: contactId,
+        property_id: propertyId,
+      },
+    ])
 
     alert('Deal created')
     router.push('/dashboard/contacts')
@@ -184,7 +196,7 @@ export default function NewDealPage() {
           </select>
         </div>
 
-        {/* PROPERTY SEARCH (SELLER ONLY) */}
+        {/* PROPERTY SEARCH */}
         {dealType === 'Seller' && (
           <div>
             <label className="text-sm text-gray-600">Search Property</label>
@@ -219,7 +231,7 @@ export default function NewDealPage() {
           </div>
         )}
 
-        {/* NEW ADDRESS */}
+        {/* ADDRESS */}
         {!selectedProperty && (
           <div>
             <label className="text-sm text-gray-600">Property Address</label>
