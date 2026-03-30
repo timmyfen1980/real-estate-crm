@@ -219,7 +219,12 @@ const overdueTasksCount = tasks.filter(
       <div className="max-w-7xl mx-auto space-y-8">
        {/* COMMAND BAR — PERFORMANCE MODE */}
 <div className="bg-gray-900 text-white rounded-xl px-8 py-5 flex gap-16 text-sm items-center shadow-md">
-
+<button
+    onClick={() => router.push('/dashboard/deals/new')}
+    className="bg-white text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
+  >
+    + New Deal
+  </button>
   <div className="flex items-baseline gap-2">
     <span className={`text-xl font-bold ${
       pendingTasksCount > 0 ? 'text-amber-600' : 'text-gray-400'
