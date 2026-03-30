@@ -24,6 +24,16 @@ export default function NewDealPage() {
 
   const [selectedContact, setSelectedContact] = useState<string>('')
 
+  // ✅ CONTACT SEARCH
+  const [contactSearch, setContactSearch] = useState('')
+  const [contactResults, setContactResults] = useState<Contact[]>([])
+  const [selectedContactData, setSelectedContactData] = useState<Contact | null>(null)
+
+  // ✅ CREATE CONTACT
+  const [newFirstName, setNewFirstName] = useState('')
+  const [newLastName, setNewLastName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+
   const [dealType, setDealType] = useState<'Buyer' | 'Seller'>('Buyer')
   const [dealStatus, setDealStatus] = useState('Active')
 
@@ -66,6 +76,21 @@ export default function NewDealPage() {
     loadData()
   }, [])
 
+  const searchContacts = (query: string) => {
+    if (!query.trim()) {
+      setContactResults([])
+      return
+    }
+
+    const results = contacts.filter((c) =>
+      `${c.first_name} ${c.last_name} ${c.email}`
+        .toLowerCase()
+        .includes(query.toLowerCase())
+    )
+
+    setContactResults(results.slice(0, 10))
+  }
+
   const searchProperties = (query: string) => {
     if (!query.trim()) {
       setPropertyResults([])
@@ -80,11 +105,6 @@ export default function NewDealPage() {
   }
 
   const createDeal = async () => {
-    if (!selectedContact) {
-      alert('Select a contact')
-      return
-    }
-
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
 
@@ -98,12 +118,38 @@ export default function NewDealPage() {
 
     const accountId = membership.account_id
 
-    // ✅ FIX: DEFINE contactId PROPERLY
-    const contactId = selectedContact
+    let contactId = selectedContact
+
+    // ✅ CREATE CONTACT IF NEEDED
+    if (!contactId) {
+      if (!newFirstName.trim() || !newEmail.trim()) {
+        alert('Enter contact info')
+        return
+      }
+
+      const { data: newContact, error } = await supabase
+        .from('contacts')
+        .insert([
+          {
+            first_name: newFirstName,
+            last_name: newLastName,
+            email: newEmail,
+            account_id: accountId,
+          },
+        ])
+        .select()
+        .single()
+
+      if (error || !newContact) {
+        alert('Error creating contact')
+        return
+      }
+
+      contactId = newContact.id
+    }
 
     let propertyId = selectedProperty?.id
 
-    // CREATE PROPERTY IF NEEDED
     if (!propertyId) {
       if (!newAddress.trim()) {
         alert('Address required')
@@ -146,7 +192,6 @@ export default function NewDealPage() {
       return
     }
 
-    // ✅ FIX: NOW THIS WORKS
     await supabase.from('property_contacts').insert([
       {
         contact_id: contactId,
@@ -164,22 +209,69 @@ export default function NewDealPage() {
 
         <h1 className="text-2xl font-semibold">Create Deal</h1>
 
-        {/* CONTACT */}
+        {/* CONTACT SEARCH */}
         <div>
           <label className="text-sm text-gray-600">Contact</label>
-          <select
-            value={selectedContact}
-            onChange={(e) => setSelectedContact(e.target.value)}
+
+          <input
+            value={contactSearch}
+            onChange={(e) => {
+              setContactSearch(e.target.value)
+              searchContacts(e.target.value)
+              setSelectedContact('')
+              setSelectedContactData(null)
+            }}
             className="w-full border rounded-lg px-3 py-2 mt-1"
-          >
-            <option value="">Select contact</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.first_name} {c.last_name} ({c.email})
-              </option>
-            ))}
-          </select>
+            placeholder="Search contact..."
+          />
+
+          {contactResults.length > 0 && !selectedContactData && (
+            <div className="border rounded-lg mt-2 max-h-40 overflow-y-auto">
+              {contactResults.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedContact(c.id)
+                    setSelectedContactData(c)
+                    setContactSearch(`${c.first_name} ${c.last_name}`)
+                    setContactResults([])
+                  }}
+                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                >
+                  {c.first_name} {c.last_name} ({c.email})
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* CREATE CONTACT */}
+        {!selectedContact && (
+          <div className="border rounded-lg p-4 bg-gray-50 space-y-2">
+            <div className="text-sm font-medium">Create New Contact</div>
+
+            <input
+              value={newFirstName}
+              onChange={(e) => setNewFirstName(e.target.value)}
+              placeholder="First Name"
+              className="w-full border rounded-lg px-3 py-2"
+            />
+
+            <input
+              value={newLastName}
+              onChange={(e) => setNewLastName(e.target.value)}
+              placeholder="Last Name"
+              className="w-full border rounded-lg px-3 py-2"
+            />
+
+            <input
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="Email"
+              className="w-full border rounded-lg px-3 py-2"
+            />
+          </div>
+        )}
 
         {/* DEAL TYPE */}
         <div>
