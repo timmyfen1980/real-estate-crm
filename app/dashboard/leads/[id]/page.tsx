@@ -334,16 +334,23 @@ const createDealWithProperty = async (
   if (!lead) return
 
   // 1. CREATE PROPERTY
-  const { data: propertyData, error: propertyError } = await supabase
-    .from('properties')
-    .insert([
-      {
-        account_id: lead.account_id,
-        address: address,
-      },
-    ])
-    .select()
-    .single()
+ const { data: userData } = await supabase.auth.getUser()
+if (!userData.user) {
+  alert('User not authenticated')
+  return
+}
+
+const { data: propertyData, error: propertyError } = await supabase
+  .from('properties')
+  .insert([
+    {
+      account_id: lead.account_id,
+      address: address,
+      user_id: userData.user.id,
+    },
+  ])
+  .select()
+  .single()
 
   if (propertyError || !propertyData) {
     console.error('Property creation error:', propertyError)
