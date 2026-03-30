@@ -41,11 +41,11 @@ export default function SignupPage() {
       return
     }
 
-    if (mode === 'join' && !inviteCode) {
-      setError('Invite code is required.')
-      setLoading(false)
-      return
-    }
+    if (mode === 'join' && (!inviteCode || !fullName)) {
+  setError('Invite code and full name are required.')
+  setLoading(false)
+  return
+}
 
     // Create auth user with metadata
 const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -74,6 +74,27 @@ if (!user) {
   setError('User not available yet. Please try logging in.')
   setLoading(false)
   return
+}
+
+const { data: existingProfile } = await supabase
+  .from('profiles')
+  .select('id')
+  .eq('id', user.id)
+  .maybeSingle()
+
+if (!existingProfile) {
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .insert([
+      {
+        id: user.id,
+        full_name: fullName || '',
+      },
+    ])
+
+  if (profileError) {
+    console.error('Profile insert error:', profileError)
+  }
 }
     // =============================
     // CREATE MODE
