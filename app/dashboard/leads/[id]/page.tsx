@@ -383,12 +383,13 @@ setTimeout(() => {
       savingStatus ? 'opacity-60 cursor-not-allowed' : ''
     }`}
   >
-    <option value="New">New</option>
-    <option value="Contacted">Contacted</option>
-    <option value="Hot">Hot</option>
-    <option value="Cold">Cold</option>
-    <option value="Closed">Closed</option>
-    <option value="Lost">Lost</option>
+   <option value="New">New</option>
+<option value="Contacted">Contacted</option>
+<option value="Hot">Hot</option>
+<option value="Cold">Cold</option>
+<option value="Client">Client</option>
+<option value="Closed">Closed</option>
+<option value="Lost">Lost</option>
   </select>
 
   {savingStatus && (
@@ -486,8 +487,14 @@ setTimeout(() => {
             return
           }
 
-          await loadData()
-          alert('Buyer deal created')
+          // ✅ SET LEAD TO CLIENT
+await supabase
+  .from('leads')
+  .update({ status: 'Client' })
+  .eq('id', lead.id)
+
+await loadData()
+alert('Buyer deal created')
         }}
         className="bg-blue-600 text-white px-4 py-2 rounded-lg"
       >
@@ -522,8 +529,14 @@ setTimeout(() => {
             return
           }
 
-          await loadData()
-          alert('Seller deal created')
+          // ✅ SET LEAD TO CLIENT
+await supabase
+  .from('leads')
+  .update({ status: 'Client' })
+  .eq('id', lead.id)
+
+await loadData()
+alert('Seller deal created')
         }}
         className="bg-green-600 text-white px-4 py-2 rounded-lg"
       >
