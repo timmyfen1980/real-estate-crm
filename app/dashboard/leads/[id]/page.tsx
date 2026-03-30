@@ -96,6 +96,11 @@ const [savingAssignment, setSavingAssignment] = useState(false)
 const [statusSaved, setStatusSaved] = useState(false)
 const [assignmentSaved, setAssignmentSaved] = useState(false)
 const [taskModalOpen, setTaskModalOpen] = useState(false)
+const [convertModalOpen, setConvertModalOpen] = useState(false)
+const [convertType, setConvertType] = useState<'Buyer' | 'Seller'>('Buyer')
+const [convertAddress, setConvertAddress] = useState('')
+const [convertStatus, setConvertStatus] = useState('Active')
+const [convertPhone, setConvertPhone] = useState('')
 const [taskMode, setTaskMode] = useState<'create' | 'edit'>('create')
 const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const loadData = async () => {
@@ -320,7 +325,69 @@ setTimeout(() => {
   setAssignmentSaved(false)
 }, 2000)
 }
+const createDealWithProperty = async (
+  dealType: 'Buyer' | 'Seller',
+  dealStatus: string,
+  address: string,
+  phone?: string
+) => {
+  if (!lead) return
 
+  // 1. CREATE PROPERTY
+  const { data: propertyData, error: propertyError } = await supabase
+    .from('properties')
+    .insert([
+      {
+        account_id: lead.account_id,
+        address: address,
+      },
+    ])
+    .select()
+    .single()
+
+  if (propertyError || !propertyData) {
+    console.error('Property creation error:', propertyError)
+    alert('Error creating property')
+    return
+  }
+
+  // 2. CREATE DEAL
+  const { error: dealError } = await supabase.from('deals').insert([
+    {
+      account_id: lead.account_id,
+      contact_id: lead.contact_id,
+      assigned_user_id: lead.assigned_user_id,
+      property_id: propertyData.id,
+      deal_type: dealType,
+      status: dealStatus,
+    },
+  ])
+
+  if (dealError) {
+    console.error('Deal creation error:', dealError)
+    alert('Error creating deal')
+    return
+  }
+
+  // 3. OPTIONAL PHONE UPDATE
+  if (phone && phone.trim()) {
+    await supabase
+      .from('leads')
+      .update({ phone })
+      .eq('id', lead.id)
+  }
+
+  // 4. UPDATE LEAD STATUS → CLIENT
+  await supabase
+    .from('leads')
+    .update({ status: 'Client' })
+    .eq('id', lead.id)
+
+  // 5. RELOAD UI
+  await loadData()
+
+  alert(`${dealType} deal created`)
+}
   const addNote = async () => {
     if (!newNote.trim() || !lead) return
 
@@ -444,7 +511,7 @@ setTimeout(() => {
     </div>
 
 {/* NEW TASK BUTTON + CONVERT */}
-<div className="flex gap-3 items-center">
+<div className="flex flex-col gap-3">
 
   <button
     onClick={() => {
@@ -458,43 +525,11 @@ setTimeout(() => {
   </button>
 
   {!deal && (
-    <>
+    <div className="flex gap-3">
       <button
-        onClick={async () => {
-          if (!lead) return
-
-          const status = prompt(
-            'Enter deal status:\nActive\nSold Conditional\nSold Firm\nClosed',
-            'Active'
-          )
-
-          if (!status) return
-
-          const { error } = await supabase.from('deals').insert([
-            {
-              account_id: lead.account_id,
-              contact_id: lead.contact_id,
-              assigned_user_id: lead.assigned_user_id,
-              property_id: lead.property_id,
-              deal_type: 'Buyer',
-              status: status,
-            },
-          ])
-
-          if (error) {
-            console.error(error)
-            alert('Error creating deal')
-            return
-          }
-
-          // ✅ SET LEAD TO CLIENT
-await supabase
-  .from('leads')
-  .update({ status: 'Client' })
-  .eq('id', lead.id)
-
-await loadData()
-alert('Buyer deal created')
+        onClick={() => {
+          setConvertType('Buyer')
+          setConvertModalOpen(true)
         }}
         className="bg-blue-600 text-white px-4 py-2 rounded-lg"
       >
@@ -502,47 +537,15 @@ alert('Buyer deal created')
       </button>
 
       <button
-        onClick={async () => {
-          if (!lead) return
-
-          const status = prompt(
-            'Enter deal status:\nActive\nSold Conditional\nSold Firm\nClosed',
-            'Active'
-          )
-
-          if (!status) return
-
-          const { error } = await supabase.from('deals').insert([
-            {
-              account_id: lead.account_id,
-              contact_id: lead.contact_id,
-              assigned_user_id: lead.assigned_user_id,
-              property_id: lead.property_id,
-              deal_type: 'Seller',
-              status: status,
-            },
-          ])
-
-          if (error) {
-            console.error(error)
-            alert('Error creating deal')
-            return
-          }
-
-          // ✅ SET LEAD TO CLIENT
-await supabase
-  .from('leads')
-  .update({ status: 'Client' })
-  .eq('id', lead.id)
-
-await loadData()
-alert('Seller deal created')
+        onClick={() => {
+          setConvertType('Seller')
+          setConvertModalOpen(true)
         }}
         className="bg-green-600 text-white px-4 py-2 rounded-lg"
       >
         Convert Seller
       </button>
-    </>
+    </div>
   )}
 
   {deal && (
