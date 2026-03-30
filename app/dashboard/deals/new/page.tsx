@@ -83,18 +83,31 @@ export default function NewDealPage() {
     setProperties(propertyData || [])
 
     const { data: members } = await supabase
-      .from('account_users')
-      .select('user_id, profiles(full_name)')
-      .eq('account_id', accountId)
+  .from('account_users')
+  .select('user_id')
+  .eq('account_id', accountId)
 
-    if (members) {
-      setTeamMembers(
-        members.map((m: any) => ({
-          user_id: m.user_id,
-          full_name: m.profiles?.full_name || 'User',
-        }))
-      )
-    }
+if (!members) return
+
+const userIds = members.map((m) => m.user_id)
+
+const { data: profilesData } = await supabase
+  .from('profiles')
+  .select('id, full_name')
+  .in('id', userIds)
+
+const profileMap: Record<string, string> = {}
+
+profilesData?.forEach((p) => {
+  profileMap[p.id] = p.full_name
+})
+
+setTeamMembers(
+  members.map((m) => ({
+    user_id: m.user_id,
+    full_name: profileMap[m.user_id] || 'User',
+  }))
+)
   }
 
   const searchProperties = (query: string) => {
