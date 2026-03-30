@@ -117,6 +117,8 @@ const { data: dealData, error: dealError } = await supabase
   .from('deals')
   .select('*')
   .eq('contact_id', leadData.contact_id)
+  .order('created_at', { ascending: false })
+  .limit(1)
   .maybeSingle()
 
 if (dealError) {
@@ -440,7 +442,7 @@ setTimeout(() => {
       )}
     </div>
 
-   {/* NEW TASK BUTTON + CONVERT */}
+{/* NEW TASK BUTTON + CONVERT */}
 <div className="flex gap-3 items-center">
 
   <button
@@ -454,75 +456,100 @@ setTimeout(() => {
     + New Task
   </button>
 
-  <button
-    onClick={async () => {
-      if (!lead) return
-      const { error } = await supabase.from('deals').insert([
-        {
-          account_id: lead.account_id,
-          contact_id: lead.contact_id,
-          assigned_user_id: lead.assigned_user_id,
-          property_id: lead.property_id,
-          deal_type: 'Buyer',
-          status: 'Active',
-        },
-      ])
-      if (error) {
-        console.error(error)
-        alert('Error creating deal')
-      } else {
-        await loadData()
-alert('Buyer deal created')
-      }
-    }}
-    className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-  >
-    Convert Buyer
-  </button>
+  {!deal && (
+    <>
+      <button
+        onClick={async () => {
+          if (!lead) return
 
-  <button
-    onClick={async () => {
-      if (!lead) return
-      const { error } = await supabase.from('deals').insert([
-        {
-          account_id: lead.account_id,
-          contact_id: lead.contact_id,
-          assigned_user_id: lead.assigned_user_id,
-          property_id: lead.property_id,
-          deal_type: 'Seller',
-          status: 'Active',
-        },
-      ])
-      if (error) {
-        console.error(error)
-        alert('Error creating deal')
-      } else {
-        await loadData()
-alert('Seller deal created')
-      }
-    }}
-    className="bg-green-600 text-white px-4 py-2 rounded-lg"
-  >
-    Convert Seller
-  </button>
+          const status = prompt(
+            'Enter deal status:\nActive\nSold Conditional\nSold Firm\nClosed',
+            'Active'
+          )
+
+          if (!status) return
+
+          const { error } = await supabase.from('deals').insert([
+            {
+              account_id: lead.account_id,
+              contact_id: lead.contact_id,
+              assigned_user_id: lead.assigned_user_id,
+              property_id: lead.property_id,
+              deal_type: 'Buyer',
+              status: status,
+            },
+          ])
+
+          if (error) {
+            console.error(error)
+            alert('Error creating deal')
+            return
+          }
+
+          await loadData()
+          alert('Buyer deal created')
+        }}
+        className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+      >
+        Convert Buyer
+      </button>
+
+      <button
+        onClick={async () => {
+          if (!lead) return
+
+          const status = prompt(
+            'Enter deal status:\nActive\nSold Conditional\nSold Firm\nClosed',
+            'Active'
+          )
+
+          if (!status) return
+
+          const { error } = await supabase.from('deals').insert([
+            {
+              account_id: lead.account_id,
+              contact_id: lead.contact_id,
+              assigned_user_id: lead.assigned_user_id,
+              property_id: lead.property_id,
+              deal_type: 'Seller',
+              status: status,
+            },
+          ])
+
+          if (error) {
+            console.error(error)
+            alert('Error creating deal')
+            return
+          }
+
+          await loadData()
+          alert('Seller deal created')
+        }}
+        className="bg-green-600 text-white px-4 py-2 rounded-lg"
+      >
+        Convert Seller
+      </button>
+    </>
+  )}
+
   {deal && (
-  <div className="flex flex-col min-w-[180px] ml-2">
-    <label className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
-      Deal Status
-    </label>
+    <div className="flex flex-col min-w-[180px] ml-2">
+      <label className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+        Deal Status
+      </label>
 
-    <select
-      value={deal.status}
-      onChange={(e) => updateDealStatus(e.target.value)}
-      className="border rounded-lg px-4 py-2"
-    >
-      <option value="Active">Active</option>
-      <option value="Sold Conditional">Sold Conditional</option>
-      <option value="Sold Firm">Sold Firm</option>
-      <option value="Closed">Closed</option>
-    </select>
-  </div>
-)}
+      <select
+        value={deal.status}
+        onChange={(e) => updateDealStatus(e.target.value)}
+        className="border rounded-lg px-4 py-2"
+      >
+        <option value="Active">Active</option>
+        <option value="Sold Conditional">Sold Conditional</option>
+        <option value="Sold Firm">Sold Firm</option>
+        <option value="Closed">Closed</option>
+      </select>
+    </div>
+  )}
 
 </div>
 
