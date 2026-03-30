@@ -463,6 +463,59 @@ const createLead = async () => {
           </>
         )}
       </div>
+      {showModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-lg w-full max-w-md space-y-4">
+      <h2 className="text-xl font-semibold">New Lead</h2>
+
+      <input
+        type="text"
+        placeholder="First Name"
+        value={newLead.first_name}
+        onChange={(e) =>
+          setNewLead({ ...newLead, first_name: e.target.value })
+        }
+        className="w-full border p-2 rounded"
+      />
+
+      <input
+        type="text"
+        placeholder="Last Name"
+        value={newLead.last_name}
+        onChange={(e) =>
+          setNewLead({ ...newLead, last_name: e.target.value })
+        }
+        className="w-full border p-2 rounded"
+      />
+
+      <input
+        type="email"
+        placeholder="Email"
+        value={newLead.email}
+        onChange={(e) =>
+          setNewLead({ ...newLead, email: e.target.value })
+        }
+        className="w-full border p-2 rounded"
+      />
+
+      <div className="flex justify-between">
+        <button
+          onClick={() => setShowModal(false)}
+          className="px-4 py-2 border rounded"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={createLead}
+          className="px-4 py-2 bg-black text-white rounded"
+        >
+          Create Lead
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   )
 }
