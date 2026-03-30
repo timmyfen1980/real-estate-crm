@@ -81,6 +81,7 @@ export default function LeadProfilePage() {
   const leadId = params.id as string
 
   const [lead, setLead] = useState<Lead | null>(null)
+  const [deal, setDeal] = useState<any>(null)
   const [property, setProperty] = useState<Property | null>(null)
   const [event, setEvent] = useState<Event | null>(null)
   const [teamMembers, setTeamMembers] = useState<Profile[]>([])
@@ -111,13 +112,31 @@ const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
     setLead(leadData)
 
-    const { data: propertyData } = await supabase
-      .from('properties')
-      .select('id, address')
-      .eq('id', leadData.property_id)
-      .single()
+// LOAD DEAL FOR THIS CONTACT
+const { data: dealData, error: dealError } = await supabase
+  .from('deals')
+  .select('*')
+  .eq('contact_id', leadData.contact_id)
+  .maybeSingle()
 
-    setProperty(propertyData || null)
+if (dealError) {
+  console.error('Deal load error:', dealError)
+}
+
+setDeal(dealData || null)
+
+// LOAD PROPERTY
+const { data: propertyData, error: propertyError } = await supabase
+  .from('properties')
+  .select('id, address')
+  .eq('id', leadData.property_id)
+  .maybeSingle()
+
+if (propertyError) {
+  console.error('Property load error:', propertyError)
+}
+
+setProperty(propertyData || null)
 
     if (leadData.open_house_event_id) {
       const { data: eventData } = await supabase
