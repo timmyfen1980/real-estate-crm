@@ -91,21 +91,13 @@ if (!members) return
 
 const userIds = members.map((m) => m.user_id)
 
-const { data: profilesData } = await supabase
-  .from('profiles')
-  .select('id, full_name')
-  .in('id', userIds)
-
-const profileMap: Record<string, string> = {}
-
-profilesData?.forEach((p) => {
-  profileMap[p.id] = p.full_name
-})
+const res = await fetch(`/api/team-members?accountId=${accountId}`)
+const team = await res.json()
 
 setTeamMembers(
-  members.map((m) => ({
-    user_id: m.user_id,
-    full_name: profileMap[m.user_id] || 'User',
+  (team || []).map((m: any) => ({
+    user_id: m.id,
+    full_name: m.full_name,
   }))
 )
   }
@@ -160,18 +152,25 @@ setTeamMembers(
         return
       }
 
-      const { data: newContact, error } = await supabase
-        .from('contacts')
-        .insert([
-          {
-            first_name: newFirstName,
-            last_name: newLastName,
-            email: newEmail,
-            account_id: accountId,
-          },
-        ])
-        .select()
-        .single()
+      const normalizedEmail = newEmail.toLowerCase().trim()
+
+const { data: newContact, error } = await supabase
+  .from('contacts')
+  .insert([
+    {
+      account_id: accountId,
+      created_by: userData.user.id,
+      assigned_user_id: assignedUserId || userData.user.id,
+      first_name: newFirstName,
+      last_name: newLastName,
+      email: normalizedEmail,
+      lifecycle_stage: 'New',
+      source: 'Deal Creation',
+      original_source: 'Deal Creation',
+    },
+  ])
+  .select('id')
+  .single()
 
       if (error || !newContact) {
         alert('Error creating contact')
