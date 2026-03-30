@@ -82,7 +82,7 @@ setUserRole(membership.role)
   .select('deal_type')
   .eq('account_id', membership.account_id)
   .eq('assigned_user_id', user.id)
-  .eq('status', 'Closed')
+  .in('status', ['Sold Firm', 'Closed'])
   .gte('created_at', startOfYear)
 
 if (closedDeals) {
@@ -102,7 +102,7 @@ if (membership.role === 'owner') {
   .from('deals')
   .select('deal_type')
   .eq('account_id', membership.account_id)
-  .eq('status', 'Closed')
+  .in('status', ['Sold Firm', 'Closed'])
   .gte('created_at', startOfYear)
 
 if (teamClosed) {
