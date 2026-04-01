@@ -400,13 +400,31 @@ if (!membership) {
 
   if (inserts.length) {
     console.log("IMPORT inserting batch size:", inserts.length)
-    await supabase.from('contacts').insert(inserts)
+    const { error: insertError } = await supabase
+  .from('contacts')
+  .insert(inserts)
+
+if (insertError) {
+  console.log('IMPORT INSERT ERROR:', insertError)
+  alert('Import failed — check console')
+  setLoading(false)
+  return
+}
   }
 
 }
 
     else {
-      await supabase.from('contacts').insert(prepared)
+      const { error: insertError } = await supabase
+  .from('contacts')
+  .insert(prepared)
+
+if (insertError) {
+  console.log('IMPORT INSERT ERROR:', insertError)
+  alert('Import failed — check console')
+  setLoading(false)
+  return
+}
     }
   }
 
