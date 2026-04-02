@@ -164,9 +164,11 @@ const [formData, setFormData] = useState<any>(null)
 
     setContact(contactData)
   setFormData(contactData)
-    const res = await fetch('/api/team-members')
-const data = await res.json()
-setTeamMembers(data || [])
+    if (membership) {
+  const res = await fetch(`/api/team-members?accountId=${membership.account_id}`)
+  const data = await res.json()
+  setTeamMembers(data || [])
+}
 
     const { data: notesData } = await supabase
       .from('notes')
