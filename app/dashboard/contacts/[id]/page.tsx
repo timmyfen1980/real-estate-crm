@@ -119,7 +119,8 @@ const [newTask, setNewTask] = useState('')
 
   const [isOwner, setIsOwner] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [hasChanges, setHasChanges] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+const [formData, setFormData] = useState<any>(null) 
 
   const [openSections, setOpenSections] = useState({
     personal: false,
@@ -162,7 +163,7 @@ const [newTask, setNewTask] = useState('')
     }
 
     setContact(contactData)
-
+  setFormData(contactData)
     const { data: profileData } = await supabase
       .from('profiles')
       .select('id, full_name')
@@ -250,19 +251,14 @@ setDeals(parsedDeals)
   useEffect(() => {
     if (contactId) loadData()
   }, [contactId])
-  const updateField = async (field: string, value: any) => {
-    if (!contact) return
+  const updateField = (field: string, value: any) => {
+  if (!formData) return
 
-    await supabase
-      .from('contacts')
-      .update({ [field]: value })
-      .eq('id', contact.id)
-
-    setContact({
-      ...contact,
-      [field]: value
-    })
-  }
+  setFormData({
+    ...formData,
+    [field]: value
+  })
+}
 
   const addNote = async () => {
     if (!newNote.trim()) return
@@ -374,9 +370,22 @@ const completeTask = async (taskId: string) => {
     ])
 
 }
-const handleManualSave = async () => {
-  setHasChanges(false)
-  alert('Changes saved')
+const handleSave = async () => {
+  if (!formData || !contact) return
+
+  const { error } = await supabase
+    .from('contacts')
+    .update(formData)
+    .eq('id', contact.id)
+
+  if (error) {
+    alert('Error saving changes')
+    return
+  }
+
+  setContact(formData)
+  setIsEditing(false)
+  alert('Saved successfully')
 }
   if (loading || !contact) {
     return (
@@ -394,70 +403,82 @@ const handleManualSave = async () => {
 
         {/* HEADER */}
 
-        <div className="bg-white rounded-xl shadow p-6 flex justify-between">
+<div className="bg-white rounded-xl shadow p-6 flex justify-between">
 
-          <div>
-            <h1 className="text-3xl font-bold">
-              {contact.preferred_name || contact.first_name} {contact.last_name}
-            </h1>
+  <div>
+    <h1 className="text-3xl font-bold">
+      {formData?.preferred_name || formData?.first_name} {formData?.last_name}
+    </h1>
 
-            <p className="text-sm text-gray-500">
-              Created {new Date(contact.created_at).toLocaleDateString()}
-            </p>
-          </div>
+    <p className="text-sm text-gray-500">
+      Created {new Date(formData.created_at).toLocaleDateString()}
+    </p>
+  </div>
 
-          <div className="space-y-3 text-right">
+  <div className="flex items-start gap-4">
 
-            <div>
+    <div className="space-y-3 text-right">
 
-              <label className="text-xs text-gray-500 block mb-1">
-                Lifecycle Stage
-              </label>
+      <div>
 
-              <select
-                value={contact.lifecycle_stage || ''}
-                onChange={(e) =>
-                  updateField('lifecycle_stage', e.target.value)
-                }
-                className="border rounded px-3 py-2"
-              >
-                {LIFECYCLE_OPTIONS.map(stage => (
-                  <option key={stage}>{stage}</option>
-                ))}
-              </select>
+        <label className="text-xs text-gray-500 block mb-1">
+          Lifecycle Stage
+        </label>
 
-            </div>
+        <select
+          disabled={!isEditing}
+          value={formData?.lifecycle_stage || ''}
+          onChange={(e) =>
+            updateField('lifecycle_stage', e.target.value)
+          }
+          className="border rounded px-3 py-2"
+        >
+          {LIFECYCLE_OPTIONS.map(stage => (
+            <option key={stage}>{stage}</option>
+          ))}
+        </select>
 
-            {isOwner && (
+      </div>
 
-              <div>
+      {isOwner && (
 
-                <label className="text-xs text-gray-500 block mb-1">
-                  Assigned Agent
-                </label>
+        <div>
 
-                <select
-                  value={contact.assigned_user_id}
-                  onChange={(e) =>
-                    updateField('assigned_user_id', e.target.value)
-                  }
-                  className="border rounded px-3 py-2"
-                >
-                  {profiles.map(profile => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.full_name}
-                    </option>
-                  ))}
-                </select>
+          <label className="text-xs text-gray-500 block mb-1">
+            Assigned Agent
+          </label>
 
-              </div>
-
-            )}
-
-          </div>
+          <select
+            disabled={!isEditing}
+            value={formData?.assigned_user_id}
+            onChange={(e) =>
+              updateField('assigned_user_id', e.target.value)
+            }
+            className="border rounded px-3 py-2"
+          >
+            {profiles.map(profile => (
+              <option key={profile.id} value={profile.id}>
+                {profile.full_name}
+              </option>
+            ))}
+          </select>
 
         </div>
 
+      )}
+
+    </div>
+
+    <button
+      onClick={() => setIsEditing(true)}
+      className="bg-black text-white px-4 py-2 rounded"
+    >
+      Edit
+    </button>
+
+  </div>
+
+</div>
         {/* CONTACT + ADDRESS */}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -471,7 +492,8 @@ const handleManualSave = async () => {
 <div>
   <label className="text-xs text-gray-500">First Name</label>
   <input
-    value={contact.first_name || ''}
+    value={formData?.first_name || ''}
+disabled={!isEditing}
     onChange={(e) => updateField('first_name', e.target.value)}
     className="w-full border rounded p-2"
   />
@@ -1172,14 +1194,14 @@ value={contact.number_of_children ?? ''}
         </div>
 
       </div>
-{hasChanges && (
+{isEditing && (
   <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 flex justify-between items-center z-50">
     <span className="text-sm text-gray-600">
-      You have unsaved changes
+      Editing contact
     </span>
 
     <button
-      onClick={handleManualSave}
+      onClick={handleSave}
       className="bg-black text-white px-6 py-2 rounded"
     >
       Save Changes
