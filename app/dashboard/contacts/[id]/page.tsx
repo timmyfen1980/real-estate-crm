@@ -113,11 +113,13 @@ export default function ContactDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [properties, setProperties] = useState<Property[]>([])
+  const [deals, setDeals] = useState<any[]>([])
 const [newTask, setNewTask] = useState('')
   const [newNote, setNewNote] = useState('')
 
   const [isOwner, setIsOwner] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [hasChanges, setHasChanges] = useState(false)
 
   const [openSections, setOpenSections] = useState({
     personal: false,
@@ -218,6 +220,30 @@ const parsedProperties =
     .filter(Boolean) || []
 
 setProperties(parsedProperties)
+const { data: dealData } = await supabase
+  .from('deals')
+  .select(`
+    id,
+    status,
+    deal_type,
+    property_id,
+    properties (
+      address
+    )
+  `)
+  .eq('contact_id', contactId)
+
+const parsedDeals =
+  dealData?.map((d: any) => {
+    const prop = d.properties
+
+    return {
+      ...d,
+      address: Array.isArray(prop) ? prop[0]?.address : prop?.address
+    }
+  }) || []
+
+setDeals(parsedDeals)
     setLoading(false)
   }
 
@@ -347,6 +373,10 @@ const completeTask = async (taskId: string) => {
       }
     ])
 
+}
+const handleManualSave = async () => {
+  setHasChanges(false)
+  alert('Changes saved')
 }
   if (loading || !contact) {
     return (
@@ -998,6 +1028,55 @@ value={contact.number_of_children ?? ''}
   </div>
 
 </div>
+{/* DEALS */}
+
+<div className="bg-white rounded-xl shadow p-6">
+
+  <h3 className="font-semibold mb-4">Deals</h3>
+
+  {deals.length === 0 && (
+    <p className="text-sm text-gray-500">
+      No deals for this contact.
+    </p>
+  )}
+
+  <div className="space-y-3">
+
+    {deals.map(deal => (
+
+      <div
+        key={deal.id}
+        className="flex items-center justify-between border rounded p-3 bg-gray-50"
+      >
+
+        <div>
+
+          <p className="text-sm font-medium">
+            {deal.address || 'Property'}
+          </p>
+
+          <p className="text-xs text-gray-500">
+            {deal.deal_type} • {deal.status}
+          </p>
+
+        </div>
+
+        <button
+          onClick={() =>
+            router.push(`/dashboard/deals/${deal.id}`)
+          }
+          className="text-sm text-blue-600 hover:underline"
+        >
+          View
+        </button>
+
+      </div>
+
+    ))}
+
+  </div>
+
+</div>
 {/* PROPERTIES */}
 
 <div className="bg-white rounded-xl shadow p-6">
@@ -1093,7 +1172,20 @@ value={contact.number_of_children ?? ''}
         </div>
 
       </div>
+{hasChanges && (
+  <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 flex justify-between items-center z-50">
+    <span className="text-sm text-gray-600">
+      You have unsaved changes
+    </span>
 
+    <button
+      onClick={handleManualSave}
+      className="bg-black text-white px-6 py-2 rounded"
+    >
+      Save Changes
+    </button>
+  </div>
+)}
     </div>
 
   )
