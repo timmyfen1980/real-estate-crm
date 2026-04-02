@@ -108,7 +108,7 @@ export default function ContactDetailPage() {
   const contactId = params.id as string
 
   const [contact, setContact] = useState<Contact | null>(null)
-  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [teamMembers, setTeamMembers] = useState<Profile[]>([])
   const [notes, setNotes] = useState<Note[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -164,11 +164,9 @@ const [formData, setFormData] = useState<any>(null)
 
     setContact(contactData)
   setFormData(contactData)
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-
-    setProfiles(profileData || [])
+    const res = await fetch('/api/team-members')
+const data = await res.json()
+setTeamMembers(data || [])
 
     const { data: notesData } = await supabase
       .from('notes')
@@ -371,6 +369,11 @@ const completeTask = async (taskId: string) => {
 
 }
 const handleSave = async () => {
+  const handleCancel = () => {
+  if (!contact) return
+  setFormData(contact)
+  setIsEditing(false)
+}
   if (!formData || !contact) return
 
   const { error } = await supabase
@@ -456,11 +459,11 @@ const handleSave = async () => {
             }
             className="border rounded px-3 py-2"
           >
-            {profiles.map(profile => (
-              <option key={profile.id} value={profile.id}>
-                {profile.full_name}
-              </option>
-            ))}
+            {teamMembers.map(member => (
+  <option key={member.id} value={member.id}>
+    {member.full_name}
+  </option>
+))}
           </select>
 
         </div>
@@ -1138,16 +1141,29 @@ const handleSave = async () => {
       </div>
 {isEditing && (
   <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 flex justify-between items-center z-50">
+
     <span className="text-sm text-gray-600">
       Editing contact
     </span>
 
-    <button
-      onClick={handleSave}
-      className="bg-black text-white px-6 py-2 rounded"
-    >
-      Save Changes
-    </button>
+    <div className="flex gap-3">
+
+      <button
+        onClick={handleCancel}
+        className="px-6 py-2 rounded border"
+      >
+        Cancel
+      </button>
+
+      <button
+        onClick={handleSave}
+        className="bg-black text-white px-6 py-2 rounded"
+      >
+        Save Changes
+      </button>
+
+    </div>
+
   </div>
 )}
     </div>
