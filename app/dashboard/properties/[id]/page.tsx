@@ -146,8 +146,18 @@ const addSeller = async (contact: Seller) => {
     if (!property) return
 
     setSaving(true)
+const { data: userData } = await supabase.auth.getUser()
+if (!userData.user) return
 
-    const { error: updateError } = await supabase
+const { data: membership } = await supabase
+  .from('account_users')
+  .select('account_id')
+  .eq('user_id', userData.user.id)
+  .single()
+
+if (!membership) return
+
+const { error: updateError } = await supabase
   .from('properties')
   .update({
     address,
@@ -157,7 +167,14 @@ const addSeller = async (contact: Seller) => {
     status,
   })
   .eq('id', property.id)
-  .eq('account_id', property.account_id)
+  .eq('account_id', membership.account_id)
+
+if (updateError) {
+  console.log('PROPERTY UPDATE ERROR:', updateError)
+  alert('Failed to save changes — you may not have permission')
+  setSaving(false)
+  return
+}
 
 if (updateError) {
   console.log('PROPERTY UPDATE ERROR:', updateError)
