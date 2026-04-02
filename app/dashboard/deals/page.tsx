@@ -41,7 +41,6 @@ export default function DealsPage() {
 
     const accountId = membership.account_id
 
-    // 🔹 LOAD DEALS
     const { data: dealData } = await supabase
       .from('deals')
       .select('*')
@@ -51,7 +50,6 @@ export default function DealsPage() {
     const dealsList = dealData || []
     setDeals(dealsList)
 
-    // 🔹 CONTACT MAP
     const contactIds = [...new Set(dealsList.map(d => d.contact_id))]
 
     if (contactIds.length > 0) {
@@ -69,7 +67,6 @@ export default function DealsPage() {
       setContacts(contactMap)
     }
 
-    // 🔹 PROPERTY MAP
     const propertyIds = [...new Set(dealsList.map(d => d.property_id))]
 
     if (propertyIds.length > 0) {
@@ -87,7 +84,6 @@ export default function DealsPage() {
       setProperties(propertyMap)
     }
 
-    // 🔹 TEAM MEMBERS (REUSE YOUR WORKING API)
     const res = await fetch(`/api/team-members?accountId=${accountId}`)
     const team = await res.json()
 
@@ -102,6 +98,67 @@ export default function DealsPage() {
     setLoading(false)
   }
 
+  const renderSection = (title: string, statuses: string[]) => {
+    const sectionDeals = deals.filter(d => statuses.includes(d.status))
+
+    if (sectionDeals.length === 0) return null
+
+    return (
+      <div className="mb-10">
+        <h2 className="text-lg font-semibold mb-4 uppercase text-gray-500">
+          {title}
+        </h2>
+
+        <table className="w-full text-left text-sm bg-white rounded-xl overflow-hidden shadow">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="p-4 font-medium">Contact</th>
+              <th>Property</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Assigned</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {sectionDeals.map(deal => (
+              <tr
+                key={deal.id}
+                onClick={() => router.push(`/dashboard/deals/${deal.id}`)}
+                className="border-b hover:bg-gray-50 cursor-pointer"
+              >
+                <td className="p-4 font-medium">
+                  {contacts[deal.contact_id] || '-'}
+                </td>
+
+                <td>
+                  {properties[deal.property_id] || '-'}
+                </td>
+
+                <td className="capitalize">
+                  {deal.deal_type}
+                </td>
+
+                <td>
+                  {deal.status}
+                </td>
+
+                <td>
+                  {profiles[deal.assigned_user_id] || 'Unknown'}
+                </td>
+
+                <td className="text-gray-500">
+                  {new Date(deal.created_at).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -112,9 +169,10 @@ export default function DealsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-10">
-      <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow overflow-hidden">
 
-        <div className="p-8 border-b flex justify-between items-center">
+      <div className="max-w-6xl mx-auto">
+
+        <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-semibold">Deals</h1>
 
           <button
@@ -125,58 +183,19 @@ export default function DealsPage() {
           </button>
         </div>
 
-        {deals.length === 0 ? (
-          <div className="p-8 text-gray-500">
+        {deals.length === 0 && (
+          <div className="text-gray-500">
             No deals found.
           </div>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="p-4 font-medium">Contact</th>
-                <th>Property</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Assigned</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {deals.map(deal => (
-                <tr
-                  key={deal.id}
-                  className="border-b hover:bg-gray-50 cursor-pointer"
-                >
-                  <td className="p-4 font-medium">
-                    {contacts[deal.contact_id] || '-'}
-                  </td>
-
-                  <td>
-                    {properties[deal.property_id] || '-'}
-                  </td>
-
-                  <td className="capitalize">
-                    {deal.deal_type}
-                  </td>
-
-                  <td>
-                    {deal.status}
-                  </td>
-
-                  <td>
-                    {profiles[deal.assigned_user_id] || 'Unknown'}
-                  </td>
-
-                  <td className="text-gray-500">
-                    {new Date(deal.created_at).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         )}
+
+        {renderSection('Active', ['Active'])}
+        {renderSection('Sold Conditional', ['Sold Conditional'])}
+        {renderSection('Sold Firm', ['Sold Firm'])}
+        {renderSection('Closed', ['Closed'])}
+
       </div>
+
     </div>
   )
 }
