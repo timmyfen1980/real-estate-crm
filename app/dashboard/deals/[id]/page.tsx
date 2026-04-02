@@ -139,68 +139,96 @@ export default function DealDetailPage() {
   return (
     <div className="min-h-screen bg-gray-100 p-10 flex justify-center">
 
-      <div className="bg-white w-full max-w-3xl rounded-xl shadow p-10 space-y-8">
+      <div className="bg-white w-full max-w-5xl rounded-xl shadow p-10 space-y-8">
 
-        <h1 className="text-2xl font-semibold">
-          Edit Deal
-        </h1>
+        <h1 className="text-2xl font-semibold">Edit Deal</h1>
 
-        {/* CONTACT */}
-        <div>
-          <label className="text-sm font-medium block mb-2">Contact</label>
-          <div className="border p-3 rounded bg-gray-50">
-            {contact ? `${contact.first_name} ${contact.last_name}` : '-'}
+        {/* TOP SECTION */}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* CONTACT */}
+
+          <div className="border rounded p-4 bg-gray-50">
+
+            <p className="text-xs text-gray-500 mb-1">Contact</p>
+
+            <button
+              onClick={() => router.push(`/dashboard/contacts/${contact?.id}`)}
+              className="text-lg font-medium text-blue-600 hover:underline"
+            >
+              {contact ? `${contact.first_name} ${contact.last_name}` : '-'}
+            </button>
+
           </div>
-        </div>
 
-        {/* PROPERTY */}
-        <div>
-          <label className="text-sm font-medium block mb-2">Property</label>
-          <div className="border p-3 rounded bg-gray-50">
-            {property?.address || '-'}
+          {/* PROPERTY */}
+
+          <div className="border rounded p-4 bg-gray-50">
+
+            <p className="text-xs text-gray-500 mb-1">Property</p>
+
+            <button
+              onClick={() => router.push(`/dashboard/properties/${property?.id}`)}
+              className="text-lg font-medium text-blue-600 hover:underline"
+            >
+              {property?.address || '-'}
+            </button>
+
           </div>
+
         </div>
 
-        {/* DEAL TYPE */}
-        <div>
-          <label className="text-sm font-medium block mb-2">Deal Type</label>
-          <div className="border p-3 rounded bg-gray-50">
-            {deal.deal_type}
+        {/* DEAL DETAILS */}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* DEAL TYPE */}
+
+          <div>
+            <label className="text-sm font-medium block mb-2">Deal Type</label>
+            <div className="border p-3 rounded bg-gray-50">
+              {deal.deal_type}
+            </div>
           </div>
-        </div>
 
-        {/* STATUS */}
-        <div>
-          <label className="text-sm font-medium block mb-2">Status</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="w-full border p-3 rounded"
-          >
-            <option value="Active">Active</option>
-            <option value="Sold Conditional">Sold Conditional</option>
-            <option value="Sold Firm">Sold Firm</option>
-            <option value="Closed">Closed</option>
-          </select>
-        </div>
+          {/* STATUS */}
 
-        {/* ASSIGNED AGENT */}
-        <div>
-          <label className="text-sm font-medium block mb-2">Assigned Agent</label>
-          <select
-            value={assignedUserId}
-            onChange={(e) => setAssignedUserId(e.target.value)}
-            className="w-full border p-3 rounded"
-          >
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="text-sm font-medium block mb-2">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full border p-3 rounded"
+            >
+              <option value="Active">Active</option>
+              <option value="Sold Conditional">Sold Conditional</option>
+              <option value="Sold Firm">Sold Firm</option>
+              <option value="Closed">Closed</option>
+            </select>
+          </div>
+
+          {/* ASSIGNED AGENT */}
+
+          <div>
+            <label className="text-sm font-medium block mb-2">Assigned Agent</label>
+            <select
+              value={assignedUserId}
+              onChange={(e) => setAssignedUserId(e.target.value)}
+              className="w-full border p-3 rounded"
+            >
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
         </div>
 
         {/* SAVE */}
+
         <button
           onClick={handleSave}
           disabled={saving}
