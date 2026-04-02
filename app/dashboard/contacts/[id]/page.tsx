@@ -438,6 +438,33 @@ const completeTask = async (taskId: string) => {
 
             <h3 className="font-semibold">Contact Information</h3>
 
+<div>
+  <label className="text-xs text-gray-500">First Name</label>
+  <input
+    value={contact.first_name || ''}
+    onChange={(e) => updateField('first_name', e.target.value)}
+    className="w-full border rounded p-2"
+  />
+</div>
+
+<div>
+  <label className="text-xs text-gray-500">Last Name</label>
+  <input
+    value={contact.last_name || ''}
+    onChange={(e) => updateField('last_name', e.target.value)}
+    className="w-full border rounded p-2"
+  />
+</div>
+
+<div>
+  <label className="text-xs text-gray-500">Preferred Name</label>
+  <input
+    value={contact.preferred_name || ''}
+    onChange={(e) => updateField('preferred_name', e.target.value)}
+    className="w-full border rounded p-2"
+  />
+</div>
+
             <div>
               <label className="text-xs text-gray-500">Cell Phone</label>
               <input
