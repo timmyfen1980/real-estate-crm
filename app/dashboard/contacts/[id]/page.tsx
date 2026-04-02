@@ -368,12 +368,13 @@ const completeTask = async (taskId: string) => {
     ])
 
 }
-const handleSave = async () => {
-  const handleCancel = () => {
+const handleCancel = () => {
   if (!contact) return
   setFormData(contact)
   setIsEditing(false)
 }
+
+const handleSave = async () => {
   if (!formData || !contact) return
 
   const { error } = await supabase
