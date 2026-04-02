@@ -207,7 +207,19 @@ const { data: newContact, error } = await supabase
 
       propertyId = propertyData.id
     }
+// 🚨 PREVENT DUPLICATE DEALS
 
+const { data: existingDeal } = await supabase
+  .from('deals')
+  .select('id, status')
+  .eq('property_id', propertyId)
+  .eq('account_id', accountId)
+  .maybeSingle()
+
+if (existingDeal) {
+  alert(`A deal already exists for this property (${existingDeal.status})`)
+  return
+}
     const { error: dealError } = await supabase.from('deals').insert([
       {
         account_id: accountId,
