@@ -147,16 +147,24 @@ const addSeller = async (contact: Seller) => {
 
     setSaving(true)
 
-    await supabase
-      .from('properties')
-      .update({
-        address,
-        city,
-        province,
-        postal_code: postalCode,
-        status,
-      })
-      .eq('id', property.id)
+    const { error: updateError } = await supabase
+  .from('properties')
+  .update({
+    address,
+    city,
+    province,
+    postal_code: postalCode,
+    status,
+  })
+  .eq('id', property.id)
+  .eq('account_id', property.account_id)
+
+if (updateError) {
+  console.log('PROPERTY UPDATE ERROR:', updateError)
+  alert('Failed to save changes — you may not have permission')
+  setSaving(false)
+  return
+}
 
     if (newImage) {
       const imagePath = `${property.account_id}/${property.id}/image.${newImage.name
