@@ -796,86 +796,91 @@ const handleSave = async () => {
 
         {/* SOCIAL PROFILES */}
 
-        <div className="bg-white rounded-xl shadow">
+<div className="bg-white rounded-xl shadow">
 
-          <button
-  onClick={() => toggleSection('social')}
-  className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition border-b cursor-pointer"
->
+  <button
+    onClick={() => toggleSection('social')}
+    className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition border-b cursor-pointer"
+  >
 
-  <span className="font-semibold text-gray-800">
-    Social Profiles
-  </span>
+    <span className="font-semibold text-gray-800">
+      Social Profiles
+    </span>
 
-  <ChevronDown
-    className={`h-5 w-5 text-gray-400 transition-transform ${
-      openSections.social ? 'rotate-180' : ''
-    }`}
-  />
+    <ChevronDown
+      className={`h-5 w-5 text-gray-400 transition-transform ${
+        openSections.social ? 'rotate-180' : ''
+      }`}
+    />
 
-</button>
+  </button>
 
-          {openSections.social && (
+  {openSections.social && (
 
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
 
-              <div>
-                <label className="text-xs text-gray-500">
-                  Instagram
-                </label>
-                <input
-                  value={contact.instagram || ''}
-                  onChange={(e) =>
-                    updateField('instagram', e.target.value)
-                  }
-                  className="w-full border rounded p-2"
-                />
-              </div>
+      <div>
+        <label className="text-xs text-gray-500">
+          Instagram
+        </label>
+        <input
+          value={formData?.instagram || ''}
+          disabled={!isEditing}
+          onChange={(e) =>
+            updateField('instagram', e.target.value)
+          }
+          className="w-full border rounded p-2"
+        />
+      </div>
 
-              <div>
-                <label className="text-xs text-gray-500">
-                  Facebook
-                </label>
-                <input
-                  value={contact.facebook || ''}
-                  onChange={(e) =>
-                    updateField('facebook', e.target.value)
-                  }
-                  className="w-full border rounded p-2"
-                />
-              </div>
+      <div>
+        <label className="text-xs text-gray-500">
+          Facebook
+        </label>
+        <input
+          value={formData?.facebook || ''}
+          disabled={!isEditing}
+          onChange={(e) =>
+            updateField('facebook', e.target.value)
+          }
+          className="w-full border rounded p-2"
+        />
+      </div>
 
-              <div>
-                <label className="text-xs text-gray-500">
-                  LinkedIn
-                </label>
-                <input
-                  value={contact.linkedin || ''}
-                  onChange={(e) =>
-                    updateField('linkedin', e.target.value)
-                  }
-                  className="w-full border rounded p-2"
-                />
-              </div>
+      <div>
+        <label className="text-xs text-gray-500">
+          LinkedIn
+        </label>
+        <input
+          value={formData?.linkedin || ''}
+          disabled={!isEditing}
+          onChange={(e) =>
+            updateField('linkedin', e.target.value)
+          }
+          className="w-full border rounded p-2"
+        />
+      </div>
 
-              <div>
-                <label className="text-xs text-gray-500">
-                  Twitter
-                </label>
-                <input
-                  value={contact.twitter || ''}
-                  onChange={(e) =>
-                    updateField('twitter', e.target.value)
-                  }
-                  className="w-full border rounded p-2"
-                />
-              </div>
+      <div>
+        <label className="text-xs text-gray-500">
+          Twitter
+        </label>
+        <input
+          value={formData?.twitter || ''}
+          disabled={!isEditing}
+          onChange={(e) =>
+            updateField('twitter', e.target.value)
+          }
+          className="w-full border rounded p-2"
+        />
+      </div>
 
-            </div>
+    </div>
 
-          )}
+  )}
 
-        </div>
+</div>
+        
         {/* TASKS */}
 
 <div className="bg-white rounded-xl shadow p-6">
