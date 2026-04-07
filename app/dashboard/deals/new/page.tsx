@@ -270,11 +270,7 @@ if (existingLead) {
   ])
 }
 
-    if (dealError) {
-      alert('Error creating deal')
-      return
-    }
-
+    
     const { data: existingLink } = await supabase
   .from('property_contacts')
   .select('id')
