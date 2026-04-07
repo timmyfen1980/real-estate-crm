@@ -37,7 +37,7 @@ export default function NewDealPage() {
   const [newLastName, setNewLastName] = useState('')
   const [newEmail, setNewEmail] = useState('')
 
-  const [dealType, setDealType] = useState<'Buyer' | 'Seller' | 'Lease'>('Buyer')
+  const [dealType, setDealType] = useState<'Buyer' | 'Seller' | 'lease'>('Buyer')
   const [dealStatus, setDealStatus] = useState('Active')
 
   const [propertySearch, setPropertySearch] = useState('')
@@ -388,7 +388,7 @@ if (!existingLink) {
         >
           <option value="Buyer">Buyer</option>
 <option value="Seller">Seller</option>
-<option value="Lease">Lease</option>
+<option value="lease">Lease</option>
         </select>
 
         {/* STATUS */}
