@@ -37,7 +37,7 @@ export default function NewDealPage() {
   const [newLastName, setNewLastName] = useState('')
   const [newEmail, setNewEmail] = useState('')
 
-  const [dealType, setDealType] = useState<'Buyer' | 'Seller' | 'lease'>('Buyer')
+  const [dealType, setDealType] = useState<'buyer' | 'seller' | 'lease'>('buyer')
   const [dealStatus, setDealStatus] = useState('Active')
 
   const [propertySearch, setPropertySearch] = useState('')
@@ -221,15 +221,54 @@ if (existingDeal) {
   return
 }
     const { error: dealError } = await supabase.from('deals').insert([
-      {
-        account_id: accountId,
-        contact_id: contactId,
-        assigned_user_id: assignedUserId,
-        property_id: propertyId,
-        deal_type: dealType,
-        status: dealStatus,
-      },
-    ])
+  {
+    account_id: accountId,
+    contact_id: contactId,
+    assigned_user_id: assignedUserId,
+    property_id: propertyId,
+    deal_type: dealType,
+    status: dealStatus,
+  },
+])
+
+if (dealError) {
+  alert('Error creating deal')
+  return
+}
+
+// 🔍 STEP 1 — CHECK FOR EXISTING LEAD
+const { data: existingLead } = await supabase
+  .from('leads')
+  .select('id')
+  .eq('contact_id', contactId)
+  .eq('account_id', accountId)
+  .maybeSingle()
+
+// 🟢 STEP 2 — UPDATE OR CREATE
+
+if (existingLead) {
+  // UPDATE EXISTING LEAD
+  await supabase
+    .from('leads')
+    .update({
+      deal_type: dealType,
+      status: dealStatus === 'Closed' ? 'Closed' : 'Client',
+      assigned_user_id: assignedUserId,
+    })
+    .eq('id', existingLead.id)
+} else {
+  // CREATE NEW LEAD
+  await supabase.from('leads').insert([
+    {
+      account_id: accountId,
+      contact_id: contactId,
+      assigned_user_id: assignedUserId,
+      deal_type: dealType,
+      status: dealStatus === 'Closed' ? 'Closed' : 'Client',
+      source: 'Deal Creation',
+    },
+  ])
+}
 
     if (dealError) {
       alert('Error creating deal')
@@ -386,10 +425,10 @@ if (!existingLink) {
           onChange={(e) => setDealType(e.target.value as any)}
           className="w-full border rounded-lg px-3 py-2"
         >
-          <option value="Buyer">Buyer</option>
-<option value="Seller">Seller</option>
+          <option value="buyer">Buyer</option>
+<option value="seller">Seller</option>
 <option value="lease">Lease</option>
-        </select>
+        </select>``
 
         {/* STATUS */}
         <select
