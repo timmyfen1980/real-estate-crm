@@ -99,9 +99,9 @@ setCurrentUserId(user.id)
       .select('*')
       .eq('account_id', accountId)
 
-    const scopedLeadQuery = isOwner
-      ? leadQuery
-      : leadQuery.eq('assigned_user_id', user.id)
+    const scopedLeadQuery = owner
+  ? leadQuery
+  : leadQuery.eq('assigned_user_id', user.id)
 
     const { data: leadData } = await scopedLeadQuery.order('created_at', {
       ascending: false,
