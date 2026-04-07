@@ -258,16 +258,39 @@ if (existingLead) {
     .eq('id', existingLead.id)
 } else {
   // CREATE NEW LEAD
-  await supabase.from('leads').insert([
+  // GET CONTACT DETAILS (REQUIRED FOR LEAD INSERT)
+const { data: contactData } = await supabase
+  .from('contacts')
+  .select('first_name, last_name, email')
+  .eq('id', contactId)
+  .single()
+
+if (!contactData) {
+  console.error('Missing contact data for lead creation')
+  return
+}
+
+const { data: userData2 } = await supabase.auth.getUser()
+
+const { error: leadInsertError } = await supabase
+  .from('leads')
+  .insert([
     {
       account_id: accountId,
       contact_id: contactId,
+      user_id: userData2.user?.id,
       assigned_user_id: assignedUserId,
+      first_name: contactData.first_name,
+      last_name: contactData.last_name,
+      email: contactData.email,
       deal_type: dealType,
       status: dealStatus === 'Closed' ? 'Closed' : 'Client',
       source: 'Deal Creation',
+      property_id: propertyId,
     },
   ])
+
+console.log('LEAD INSERT ERROR:', leadInsertError)
 }
 
     
