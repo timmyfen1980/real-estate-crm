@@ -182,9 +182,16 @@ setLoading(false)
   l => l.status === 'Closed' || l.status === 'Client'
 )
 
-const closedBuyers = productionLeads.filter(l => l.deal_type === 'buyer').length
-const closedSellers = productionLeads.filter(l => l.deal_type === 'seller').length
-const closedLeases = productionLeads.filter(l => l.deal_type === 'lease').length
+const closedBuyers = productionLeads.filter(
+  l => (l.deal_type || '').trim() === 'buyer'
+).length
+
+const closedSellers = productionLeads.filter(
+  l => (l.deal_type || '').trim() === 'seller'
+).length
+const closedLeases = productionLeads.filter(
+  l => (l.deal_type || '').trim() === 'lease'
+).length
 
 const totalClosed = closedBuyers + closedSellers + closedLeases
   const attentionLeads = leads
