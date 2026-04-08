@@ -59,22 +59,39 @@ export default function NewContactPage() {
 
     if (!membership) return
 
-    const { data } = await supabase
-      .from('contacts')
-      .insert([
-        {
-          ...contact,
-          account_id: membership.account_id,
-          assigned_user_id: user.id
-        }
-      ])
-      .select()
-      .single()
+    const { data, error } = await supabase
+  .from('contacts')
+  .insert([
+  {
+    ...contact,
 
-    if (data) {
-      router.push(`/dashboard/contacts/${data.id}`)
-    }
+    number_of_children:
+      contact.number_of_children !== ''
+        ? Number(contact.number_of_children)
+        : null,
 
+    birthday: contact.birthday !== '' ? contact.birthday : null,
+    marriage_anniversary:
+      contact.marriage_anniversary !== ''
+        ? contact.marriage_anniversary
+        : null,
+
+    account_id: membership.account_id,
+    assigned_user_id: user.id
+  }
+])
+  .select()
+  .single()
+
+if (error) {
+  console.error('CREATE CONTACT ERROR:', error)
+  alert(error.message)
+  return
+}
+
+if (data) {
+  router.push(`/dashboard/contacts/${data.id}`)
+}
   }
 
   return (
