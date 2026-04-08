@@ -372,7 +372,11 @@ const bulkDelete = async () => {
                 <td className={isUpcoming(c.home_purchase_date) ? 'text-blue-600 font-semibold' : ''}>
                   {c.home_purchase_date}
                 </td>
-                <td>{profiles[c.assigned_user_id]}</td>
+                <td>
+  {profiles[c.assigned_user_id] ||
+    contacts.find(u => u.assigned_user_id === c.assigned_user_id)?.assigned_user_id ||
+    'Unassigned'}
+</td>
               </tr>
             ))}
           </tbody>
