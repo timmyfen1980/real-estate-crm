@@ -53,6 +53,7 @@ export default function PropertyPage() {
   const [sellerModalOpen, setSellerModalOpen] = useState(false)
 const [contactSearch, setContactSearch] = useState('')
 const [searchResults, setSearchResults] = useState<Seller[]>([])
+const [selectedRole, setSelectedRole] = useState<'seller' | 'buyer' | 'tenant' | 'landlord'>('seller')
 
   const loadData = async () => {
     const { data: propertyData } = await supabase
@@ -124,23 +125,30 @@ const searchContacts = async (query: string) => {
   setSearchResults(data || [])
 
 }
-
 const addSeller = async (contact: Seller) => {
 
-  await supabase
+  console.log('ROLE BEING SENT:', selectedRole)
+
+  const { error } = await supabase
     .from('property_contacts')
     .insert({
       property_id: propertyId,
       contact_id: contact.id,
-      role: 'seller'
+      role: selectedRole
     })
+
+  if (error) {
+    console.log('INSERT ERROR:', error)
+    alert('Failed to add contact')
+    return
+  }
 
   setSellers(prev => [...prev, contact])
 
   setSellerModalOpen(false)
   setContactSearch('')
   setSearchResults([])
-
+  setSelectedRole('seller')
 }
   const handleSave = async () => {
     if (!property) return
@@ -399,6 +407,9 @@ if (updateError) {
 
       <span className="font-medium">
         {seller.first_name} {seller.last_name}
+<span className="ml-2 text-xs text-gray-400 uppercase">
+  ({(seller as any).role || 'seller'})
+</span>
       </span>
 
       <button
@@ -541,7 +552,18 @@ if (updateError) {
       <h2 className="text-xl font-semibold">
         Add Seller
       </h2>
-
+<select
+  value={selectedRole}
+  onChange={(e) =>
+    setSelectedRole(e.target.value as 'seller' | 'buyer' | 'tenant' | 'landlord')
+  }
+  className="w-full border rounded-lg px-4 py-3 mb-3"
+>
+  <option value="seller">Seller</option>
+  <option value="buyer">Buyer</option>
+  <option value="tenant">Tenant</option>
+  <option value="landlord">Landlord</option>
+</select>
       <input
         type="text"
         placeholder="Search contacts..."
