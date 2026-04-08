@@ -76,12 +76,7 @@ export default function ContactsPage() {
 
     let contactQuery = supabase
   .from('contacts')
-  .select(`
-  *,
-  assigned_profile:profiles!contacts_assigned_user_id_fkey (
-    full_name
-  )
-`)
+  .select('*')
   .eq('account_id', membership.account_id)
   .eq('is_deleted', false)
 if (membership.role !== 'owner') {
@@ -360,7 +355,7 @@ const bulkDelete = async () => {
                 <td className={isUpcoming(c.home_purchase_date) ? 'text-blue-600 font-semibold' : ''}>
                   {c.home_purchase_date}
                 </td>
-                <td>{(c as any).assigned_profile?.full_name || 'Unassigned'}</td>
+                <td>{profiles[c.assigned_user_id] || 'Unassigned'}</td>
               </tr>
             ))}
           </tbody>
