@@ -86,7 +86,7 @@ if (membership.role !== 'owner') {
 const { data: contactData } = await contactQuery
   .order('created_at', { ascending: false })
 
-    setContacts(contactData || [])
+    
 // LOAD ASSIGNED AGENT NAMES
 const assignedIds = [
   ...new Set(
@@ -109,6 +109,7 @@ if (assignedIds.length > 0) {
   })
 
   setProfiles(map)
+  setContacts(contactData || [])
 }
    
     const { data: views } = await supabase
