@@ -87,20 +87,28 @@ const { data: contactData } = await contactQuery
   .order('created_at', { ascending: false })
 
     
-// LOAD ASSIGNED AGENT NAMES
-const assignedIds = [
-  ...new Set(
-    (contactData || [])
-      .map(c => c.assigned_user_id)
-      .filter(id => !!id)
-  )
-]
 
-if (assignedIds.length > 0) {
+   
+    const { data: views } = await supabase
+      .from('saved_contact_views')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    setSavedViews(views || [])
+// LOAD ALL TEAM MEMBER NAMES
+const { data: teamMembers } = await supabase
+  .from('account_users')
+  .select('user_id')
+  .eq('account_id', membership.account_id)
+
+const userIds = teamMembers?.map(m => m.user_id) || []
+
+if (userIds.length > 0) {
   const { data: profileData } = await supabase
     .from('profiles')
     .select('id, full_name')
-    .in('id', assignedIds)
+    .in('id', userIds)
 
   const map: Record<string, string> = {}
 
@@ -111,15 +119,6 @@ if (assignedIds.length > 0) {
   setProfiles(map)
   setContacts(contactData || [])
 }
-   
-    const { data: views } = await supabase
-      .from('saved_contact_views')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-
-    setSavedViews(views || [])
-
     setLoading(false)
   }
 
@@ -379,7 +378,7 @@ const bulkDelete = async () => {
                   {c.home_purchase_date}
                 </td>
                 <td>
-  {c.assigned_user_id}
+  {profiles[c.assigned_user_id] || 'Unassigned'}
 </td>
               </tr>
             ))}
