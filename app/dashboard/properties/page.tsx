@@ -46,8 +46,9 @@ export default function PropertiesPage() {
       .order('created_at', { ascending: false })
 
     if (data) {
-      setProperties(data)
-    }
+  console.log('PROPERTIES FROM DB:', data)
+  setProperties(data)
+}
 
     setLoading(false)
   }
@@ -142,11 +143,13 @@ export default function PropertiesPage() {
 
       {renderSection('Coming Soon', 'coming_soon')}
 
-      {renderSection('For Sale', 'for_sale')}
+{renderSection('For Sale', 'for_sale')}
+{renderSection('For Lease', 'for_lease')}
 
-      {renderSection('Sold', 'sold')}
+{renderSection('Sold', 'sold')}
+{renderSection('Leased', 'leased')}
 
-      {renderSection('Closed', 'closed')}
+{renderSection('Closed', 'closed')}
 
     </div>
   )
