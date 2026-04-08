@@ -87,7 +87,29 @@ const { data: contactData } = await contactQuery
   .order('created_at', { ascending: false })
 
     setContacts(contactData || [])
+// LOAD ASSIGNED AGENT NAMES
+const assignedIds = [
+  ...new Set(
+    (contactData || [])
+      .map(c => c.assigned_user_id)
+      .filter(id => !!id)
+  )
+]
 
+if (assignedIds.length > 0) {
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', assignedIds)
+
+  const map: Record<string, string> = {}
+
+  profileData?.forEach(p => {
+    map[p.id] = p.full_name
+  })
+
+  setProfiles(map)
+}
    
     const { data: views } = await supabase
       .from('saved_contact_views')
