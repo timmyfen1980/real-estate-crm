@@ -86,15 +86,23 @@ setUserRole(membership.role)
   .gte('created_at', startOfYear)
 
 if (closedDeals) {
-  const buyers = closedDeals.filter(d => d.deal_type === 'Buyer').length
-  const sellers = closedDeals.filter(d => d.deal_type === 'Seller').length
+  const buyers = closedDeals.filter(
+    d => (d.deal_type || '').toLowerCase().trim() === 'buyer'
+  ).length
+
+  const sellers = closedDeals.filter(
+    d => (d.deal_type || '').toLowerCase().trim() === 'seller'
+  ).length
+
+  const leases = closedDeals.filter(
+    d => (d.deal_type || '').toLowerCase().trim() === 'lease'
+  ).length
 
   setClosedBuyers(buyers)
   setClosedSellers(sellers)
-  setClosedLeases(0)
-  setTotalClosed(buyers + sellers)
+  setClosedLeases(leases)
+  setTotalClosed(buyers + sellers + leases)
 }
-
       
 // TEAM PRODUCTION (OWNER ONLY)
 if (membership.role === 'owner') {
@@ -106,13 +114,22 @@ if (membership.role === 'owner') {
   .gte('created_at', startOfYear)
 
 if (teamClosed) {
-  const buyers = teamClosed.filter(d => d.deal_type === 'Buyer').length
-  const sellers = teamClosed.filter(d => d.deal_type === 'Seller').length
+  const buyers = teamClosed.filter(
+    d => (d.deal_type || '').toLowerCase().trim() === 'buyer'
+  ).length
+
+  const sellers = teamClosed.filter(
+    d => (d.deal_type || '').toLowerCase().trim() === 'seller'
+  ).length
+
+  const leases = teamClosed.filter(
+    d => (d.deal_type || '').toLowerCase().trim() === 'lease'
+  ).length
 
   setTeamBuyers(buyers)
   setTeamSellers(sellers)
-  setTeamLeases(0)
-  setTeamTotal(buyers + sellers)
+  setTeamLeases(leases)
+  setTeamTotal(buyers + sellers + leases)
 }
     
 }
