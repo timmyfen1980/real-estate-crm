@@ -366,9 +366,14 @@ if (updateError) {
             className="border p-3 rounded-md w-full"
           >
             <option value="coming_soon">Coming Soon</option>
-            <option value="for_sale">For Sale</option>
-            <option value="sold">Sold</option>
-            <option value="closed">Closed</option>
+
+<option value="for_sale">For Sale</option>
+<option value="sold">Sold</option>
+
+<option value="for_lease">For Lease</option>
+<option value="leased">Leased</option>
+
+<option value="closed">Closed</option>
           </select>
 
         </div>

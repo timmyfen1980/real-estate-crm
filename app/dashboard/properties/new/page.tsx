@@ -116,9 +116,14 @@ export default function NewPropertyPage() {
             className="w-full border rounded-md p-3"
           >
             <option value="coming_soon">Coming Soon</option>
-            <option value="for_sale">For Sale</option>
-            <option value="sold">Sold</option>
-            <option value="closed">Closed</option>
+
+<option value="for_sale">For Sale</option>
+<option value="sold">Sold</option>
+
+<option value="for_lease">For Lease</option>
+<option value="leased">Leased</option>
+
+<option value="closed">Closed</option>
           </select>
 
         </div>
