@@ -235,6 +235,20 @@ if (dealError) {
   alert('Error creating deal')
   return
 }
+// 🔧 AUTO UPDATE PROPERTY STATUS BASED ON DEAL
+
+let newPropertyStatus = 'coming_soon'
+
+if (dealType === 'lease') {
+  newPropertyStatus = dealStatus === 'Closed' ? 'leased' : 'for_lease'
+} else {
+  newPropertyStatus = dealStatus === 'Closed' ? 'sold' : 'for_sale'
+}
+
+await supabase
+  .from('properties')
+  .update({ status: newPropertyStatus })
+  .eq('id', propertyId)
 
 // 🔍 STEP 1 — CHECK FOR EXISTING LEAD
 const { data: existingLead } = await supabase
@@ -249,13 +263,14 @@ const { data: existingLead } = await supabase
 if (existingLead) {
   // UPDATE EXISTING LEAD
   await supabase
-    .from('leads')
-    .update({
-      deal_type: dealType,
-      status: dealStatus === 'Closed' ? 'Closed' : 'Client',
-      assigned_user_id: assignedUserId,
-    })
-    .eq('id', existingLead.id)
+  .from('leads')
+  .update({
+    deal_type: dealType,
+    status: dealStatus === 'Closed' ? 'Closed' : 'Client',
+    assigned_user_id: assignedUserId,
+    property_id: propertyId,
+  })
+  .eq('id', existingLead.id)
 } else {
   // CREATE NEW LEAD
   // GET CONTACT DETAILS (REQUIRED FOR LEAD INSERT)
@@ -302,12 +317,20 @@ console.log('LEAD INSERT ERROR:', leadInsertError)
   .maybeSingle()
 
 if (!existingLink) {
-  await supabase.from('property_contacts').insert([
-    {
-      contact_id: contactId,
-      property_id: propertyId,
-    },
-  ])
+  const role =
+  dealType === 'buyer'
+    ? 'buyer'
+    : dealType === 'seller'
+    ? 'seller'
+    : 'tenant'
+
+await supabase.from('property_contacts').insert([
+  {
+    contact_id: contactId,
+    property_id: propertyId,
+    role,
+  },
+])
 }
 
     alert('Deal created')
