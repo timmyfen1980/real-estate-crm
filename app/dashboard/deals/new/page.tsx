@@ -266,7 +266,10 @@ if (existingLead) {
   .from('leads')
   .update({
     deal_type: dealType,
-    status: dealStatus === 'Closed' ? 'Closed' : 'Client',
+    status:
+  dealStatus === 'Closed' || dealStatus === 'Sold Firm'
+    ? 'Closed'
+    : 'Client',
     assigned_user_id: assignedUserId,
     property_id: propertyId,
   })
@@ -299,7 +302,10 @@ const { error: leadInsertError } = await supabase
       last_name: contactData.last_name,
       email: contactData.email,
       deal_type: dealType,
-      status: dealStatus === 'Closed' ? 'Closed' : 'Client',
+      status:
+  dealStatus === 'Closed' || dealStatus === 'Sold Firm'
+    ? 'Closed'
+    : 'Client',
       source: 'Deal Creation',
       property_id: propertyId,
     },
