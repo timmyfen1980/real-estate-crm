@@ -76,7 +76,12 @@ export default function ContactsPage() {
 
     let contactQuery = supabase
   .from('contacts')
-  .select('*')
+  .select(`
+    *,
+    profiles:assigned_user_id (
+      full_name
+    )
+  `)
   .eq('account_id', membership.account_id)
   .eq('is_deleted', false)
 if (membership.role !== 'owner') {
@@ -88,24 +93,7 @@ const { data: contactData } = await contactQuery
 
     setContacts(contactData || [])
 
-    const assignedIds = [
-      ...new Set((contactData || []).map(c => c.assigned_user_id))
-    ]
-
-    if (assignedIds.length > 0) {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', assignedIds)
-
-      const map: Record<string, string> = {}
-      profileData?.forEach(p => {
-        map[p.id] = p.full_name
-      })
-
-      setProfiles(map)
-    }
-
+   
     const { data: views } = await supabase
       .from('saved_contact_views')
       .select('*')
@@ -372,11 +360,7 @@ const bulkDelete = async () => {
                 <td className={isUpcoming(c.home_purchase_date) ? 'text-blue-600 font-semibold' : ''}>
                   {c.home_purchase_date}
                 </td>
-                <td>
-  {profiles[c.assigned_user_id] ||
-    contacts.find(u => u.assigned_user_id === c.assigned_user_id)?.assigned_user_id ||
-    'Unassigned'}
-</td>
+                <td>{(c as any).profiles?.full_name || 'Unassigned'}</td>
               </tr>
             ))}
           </tbody>
