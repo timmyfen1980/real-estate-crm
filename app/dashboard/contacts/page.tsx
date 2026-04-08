@@ -381,7 +381,7 @@ const bulkDelete = async () => {
                   {c.home_purchase_date}
                 </td>
                 <td>
-  {profiles[c.assigned_user_id] || 'Unassigned'}
+  {profiles[c.assigned_user_id] || ''}
 </td>
               </tr>
             ))}
