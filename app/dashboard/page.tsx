@@ -178,11 +178,15 @@ setLoading(false)
     )
   }
 
-  const closedLeads = leads.filter(l => l.status === 'Closed')
-  const closedBuyers = closedLeads.filter(l => l.deal_type === 'buyer').length
-  const closedSellers = closedLeads.filter(l => l.deal_type === 'seller').length
-  const closedLeases = closedLeads.filter(l => l.deal_type === 'lease').length
-  const totalClosed = closedBuyers + closedSellers + closedLeases
+  const productionLeads = leads.filter(
+  l => l.status === 'Closed' || l.status === 'Client'
+)
+
+const closedBuyers = productionLeads.filter(l => l.deal_type === 'buyer').length
+const closedSellers = productionLeads.filter(l => l.deal_type === 'seller').length
+const closedLeases = productionLeads.filter(l => l.deal_type === 'lease').length
+
+const totalClosed = closedBuyers + closedSellers + closedLeases
   const attentionLeads = leads
     .filter(l => l.status === 'New' || l.status === 'Contacted')
     .slice(0, 5)
@@ -524,7 +528,7 @@ const overdueTasksCount = tasks.filter(
         {/* PIPELINE — EXECUTIVE MODE */}
 <SectionCard title="Pipeline">
   <div className="grid md:grid-cols-6 gap-4 text-center">
-    {['New','Contacted','Hot','Cold','Closed','Lost'].map(status => {
+    {['New','Contacted','Hot','Cold','Client','Closed','Lost'].map(status => {
       const count = pipelineCounts[status] || 0
 
       const performanceColor =
