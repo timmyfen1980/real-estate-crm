@@ -531,7 +531,32 @@ const overdueTasksCount = tasks.filter(
     )
   )}
 </SectionCard>
+{/* PRODUCTION — NEW */}
+<SectionCard title="Production">
+  <div className="grid md:grid-cols-4 gap-4 text-center">
 
+    <div className="bg-gray-50 rounded-xl p-6">
+      <div className="text-2xl font-bold">{closedBuyers}</div>
+      <div className="text-sm text-gray-500">Buyers</div>
+    </div>
+
+    <div className="bg-gray-50 rounded-xl p-6">
+      <div className="text-2xl font-bold">{closedSellers}</div>
+      <div className="text-sm text-gray-500">Sellers</div>
+    </div>
+
+    <div className="bg-gray-50 rounded-xl p-6">
+      <div className="text-2xl font-bold">{closedLeases}</div>
+      <div className="text-sm text-gray-500">Leases</div>
+    </div>
+
+    <div className="bg-black text-white rounded-xl p-6">
+      <div className="text-2xl font-bold">{totalClosed}</div>
+      <div className="text-sm opacity-80">Total</div>
+    </div>
+
+  </div>
+</SectionCard>
         {/* PIPELINE — EXECUTIVE MODE */}
 <SectionCard title="Pipeline">
   <div className="grid md:grid-cols-6 gap-4 text-center">
