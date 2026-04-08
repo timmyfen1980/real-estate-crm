@@ -173,7 +173,25 @@ const { data: contactData } = await contactQuery
     loadData()
     setSelectedIds([])
   }
+const bulkDelete = async () => {
+  if (!selectedIds.length) return
 
+  const confirmDelete = confirm('Delete selected contacts?')
+  if (!confirmDelete) return
+
+  const { error } = await supabase
+    .from('contacts')
+    .update({ is_deleted: true })
+    .in('id', selectedIds)
+
+  if (error) {
+    alert(error.message)
+    return
+  }
+
+  loadData()
+  setSelectedIds([])
+}
   const bulkReassign = async (userId: string) => {
     if (!selectedIds.length || !isOwner) return
     await supabase
@@ -272,32 +290,39 @@ const { data: contactData } = await contactQuery
           </div>
 
           {selectedIds.length > 0 && (
-            <div className="flex gap-4 items-center">
-              <select
-                onChange={(e) => bulkLifecycleUpdate(e.target.value)}
-                className="border rounded px-3 py-2"
-              >
-                <option>Bulk Update Stage</option>
-                {LIFECYCLE_OPTIONS.map(stage => (
-                  <option key={stage}>{stage}</option>
-                ))}
-              </select>
+  <div className="flex gap-4 items-center">
+    <select
+      onChange={(e) => bulkLifecycleUpdate(e.target.value)}
+      className="border rounded px-3 py-2"
+    >
+      <option>Bulk Update Stage</option>
+      {LIFECYCLE_OPTIONS.map(stage => (
+        <option key={stage}>{stage}</option>
+      ))}
+    </select>
 
-              {isOwner && (
-                <select
-                  onChange={(e) => bulkReassign(e.target.value)}
-                  className="border rounded px-3 py-2"
-                >
-                  <option>Bulk Reassign</option>
-                  {uniqueAssigned.map(id => (
-                    <option key={id} value={id}>
-                      {profiles[id]}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
+    {isOwner && (
+      <select
+        onChange={(e) => bulkReassign(e.target.value)}
+        className="border rounded px-3 py-2"
+      >
+        <option>Bulk Reassign</option>
+        {uniqueAssigned.map(id => (
+          <option key={id} value={id}>
+            {profiles[id]}
+          </option>
+        ))}
+      </select>
+    )}
+
+    <button
+      onClick={bulkDelete}
+      className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+    >
+      Delete Selected
+    </button>
+  </div>
+)}
         </div>
 
         <table className="w-full text-left text-sm">
