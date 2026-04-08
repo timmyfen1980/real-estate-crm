@@ -96,7 +96,11 @@ const { data: contactData } = await contactQuery
       .order('created_at', { ascending: false })
 
     setSavedViews(views || [])
-// LOAD ALL TEAM MEMBER NAMES
+
+// ALWAYS set contacts immediately (independent of profiles)
+setContacts(contactData || [])
+
+// LOAD TEAM PROFILES (independent)
 const { data: teamMembers } = await supabase
   .from('account_users')
   .select('user_id')
@@ -117,7 +121,6 @@ if (userIds.length > 0) {
   })
 
   setProfiles(map)
-  setContacts(contactData || [])
 }
     setLoading(false)
   }
