@@ -375,7 +375,22 @@ const handleCancel = () => {
   setFormData(contact)
   setIsEditing(false)
 }
+const handleDelete = async () => {
+  const confirmDelete = confirm('Are you sure you want to delete this contact?')
+  if (!confirmDelete) return
 
+  const { error } = await supabase
+    .from('contacts')
+    .update({ is_deleted: true })
+    .eq('id', contactId)
+
+  if (error) {
+    alert(error.message)
+    return
+  }
+
+  router.push('/dashboard/contacts')
+}
 const handleSave = async () => {
   if (!formData || !contact) return
 
@@ -475,12 +490,21 @@ const handleSave = async () => {
 
     </div>
 
-    <button
-      onClick={() => setIsEditing(true)}
-      className="bg-black text-white px-4 py-2 rounded"
-    >
-      Edit
-    </button>
+    <div className="flex gap-2">
+  <button
+    onClick={() => setIsEditing(true)}
+    className="bg-black text-white px-4 py-2 rounded"
+  >
+    Edit
+  </button>
+
+  <button
+    onClick={handleDelete}
+    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+  >
+    Delete
+  </button>
+</div>
 
   </div>
 

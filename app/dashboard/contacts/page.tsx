@@ -78,7 +78,7 @@ export default function ContactsPage() {
   .from('contacts')
   .select('*')
   .eq('account_id', membership.account_id)
-
+  .eq('is_deleted', false)
 if (membership.role !== 'owner') {
   contactQuery = contactQuery.eq('assigned_user_id', user.id)
 }
