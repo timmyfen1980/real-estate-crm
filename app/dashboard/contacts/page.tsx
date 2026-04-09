@@ -97,13 +97,13 @@ const { data: contactData } = await contactQuery
 
     setSavedViews(views || [])
 
-// ALWAYS set contacts immediately (independent of profiles)
-setContacts(contactData || [])
+const contactsList = contactData || []
 
-// LOAD TEAM PROFILES (independent)
 const ids = Array.from(
-  new Set((contactData || []).map(c => c.assigned_user_id).filter(Boolean))
+  new Set(contactsList.map(c => c.assigned_user_id).filter(Boolean))
 )
+
+let map: Record<string, string> = {}
 
 if (ids.length > 0) {
   const { data: profileData } = await supabase
@@ -111,14 +111,14 @@ if (ids.length > 0) {
     .select('id, full_name')
     .in('id', ids)
 
-  const map: Record<string, string> = {}
-
   profileData?.forEach(p => {
     map[p.id] = p.full_name
   })
-
-  setProfiles(map)
 }
+
+// 🔥 SET BOTH TOGETHER (KEY FIX)
+setProfiles(map)
+setContacts(contactsList)
     setLoading(false)
   }
 
