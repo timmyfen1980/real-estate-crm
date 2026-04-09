@@ -101,18 +101,23 @@ const contactsList = contactData || []
 
 let map: Record<string, string> = {}
 
-const { data: profileData } = await supabase
-  .from('profiles')
-  .select('id, full_name')
+try {
+  const res = await fetch(`/api/team-members?accountId=${membership.account_id}`)
+  const teamMembers = await res.json()
 
-profileData?.forEach(p => {
-  map[p.id] = p.full_name
-})
+  teamMembers?.forEach((member: any) => {
+    if (member?.id && member?.full_name) {
+      map[member.id] = member.full_name
+    }
+  })
+} catch (err) {
+  console.error('TEAM MEMBERS LOAD ERROR:', err)
+}
 
-// 🔥 SET BOTH TOGETHER (KEY FIX)
+// 🔥 SET BOTH TOGETHER (UNCHANGED)
 setProfiles(map)
 setContacts(contactsList)
-    setLoading(false)
+setLoading(false)
   }
 
   useEffect(() => {
