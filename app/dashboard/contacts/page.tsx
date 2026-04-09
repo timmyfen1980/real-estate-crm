@@ -99,22 +99,15 @@ const { data: contactData } = await contactQuery
 
 const contactsList = contactData || []
 
-const ids = Array.from(
-  new Set(contactsList.map(c => c.assigned_user_id).filter(Boolean))
-)
-
 let map: Record<string, string> = {}
 
-if (ids.length > 0) {
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .in('id', ids)
+const { data: profileData } = await supabase
+  .from('profiles')
+  .select('id, full_name')
 
-  profileData?.forEach(p => {
-    map[p.id] = p.full_name
-  })
-}
+profileData?.forEach(p => {
+  map[p.id] = p.full_name
+})
 
 // 🔥 SET BOTH TOGETHER (KEY FIX)
 setProfiles(map)
