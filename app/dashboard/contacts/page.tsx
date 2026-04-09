@@ -101,18 +101,15 @@ const { data: contactData } = await contactQuery
 setContacts(contactData || [])
 
 // LOAD TEAM PROFILES (independent)
-const { data: teamMembers } = await supabase
-  .from('account_users')
-  .select('user_id')
-  .eq('account_id', membership.account_id)
+const ids = Array.from(
+  new Set((contactData || []).map(c => c.assigned_user_id).filter(Boolean))
+)
 
-const userIds = teamMembers?.map(m => m.user_id) || []
-
-if (userIds.length > 0) {
+if (ids.length > 0) {
   const { data: profileData } = await supabase
     .from('profiles')
     .select('id, full_name')
-    .in('id', userIds)
+    .in('id', ids)
 
   const map: Record<string, string> = {}
 
