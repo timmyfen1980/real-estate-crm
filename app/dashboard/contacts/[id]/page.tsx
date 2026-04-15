@@ -674,7 +674,7 @@ const handleSave = async () => {
       </div>
 
       <div>
-        <label className="text-xs text-gray-500">Anniversary</label>
+        <label className="text-xs text-gray-500">House Anniversary</label>
         <input type="date" value={formData?.marriage_anniversary || ''} disabled={!isEditing}
           onChange={(e) => updateField('marriage_anniversary', e.target.value)}
           className="w-full border rounded p-2" />
