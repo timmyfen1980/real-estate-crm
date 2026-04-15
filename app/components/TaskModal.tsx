@@ -123,7 +123,8 @@ const payload = {
   assigned_user_id: assignedUserId,
   lead_id: selectedLeadId,
   source: 'system',
-  account_id: membership?.account_id, // ✅ REQUIRED
+  account_id: membership?.account_id,
+  created_by: user?.id, // ✅ ADD THIS LINE ONLY
 }
 
     if (mode === 'create') {
