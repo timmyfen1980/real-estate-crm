@@ -242,6 +242,9 @@ const newLeadsCount = leads.filter(l => l.status === 'New').length
 const overdueTasksCount = tasks.filter(
   t => t.status === 'pending' && new Date(t.due_date) < new Date()
 ).length
+const overdueTasks = tasks.filter(
+  t => t.status === 'pending' && new Date(t.due_date) < new Date()
+)
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md p-6">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -466,13 +469,70 @@ const overdueTasksCount = tasks.filter(
     : 'border-l-4 border-gray-200'
 }
 >
-  {(!collapsed.attention || shouldOpenAttention) && (
-    attentionLeads.length === 0 ? (
-      <EmptyState text="No urgent leads." />
-    ) : (
-      <LeadList leads={attentionLeads} router={router} />
-    )
-  )}
+  {!collapsed.attention && (
+  attentionLeads.length === 0 && overdueTasks.length === 0 ? (
+    <EmptyState text="Nothing needs attention." />
+  ) : (
+    <div className="space-y-6">
+
+      {/* 🔴 OVERDUE TASKS */}
+      {overdueTasks.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-2">
+            Overdue Tasks
+          </div>
+
+          <div className="space-y-2">
+            {overdueTasks.map(task => (
+              <div
+                key={task.id}
+                className="p-3 border rounded-lg bg-red-50 flex justify-between items-center"
+              >
+                <div>
+                  <div className="font-medium text-gray-900">
+                    {task.title}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Due {new Date(task.due_date).toLocaleDateString()}
+                  </div>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    await supabase
+                      .from('tasks')
+                      .update({
+                        status: 'completed',
+                        completed_at: new Date().toISOString(),
+                      })
+                      .eq('id', task.id)
+
+                    loadDashboard()
+                  }}
+                  className="text-xs px-3 py-1 bg-green-600 text-white rounded"
+                >
+                  Complete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 🔵 LEADS */}
+      {attentionLeads.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Leads
+          </div>
+
+          <LeadList leads={attentionLeads} router={router} />
+        </div>
+      )}
+
+    </div>
+  )
+)}
 </SectionCard>
 
 </div>{/* RECENT ACTIVITY — EXECUTIVE LOG */}
