@@ -195,8 +195,8 @@ const closedLeases = productionLeads.filter(
 
 const totalClosed = closedBuyers + closedSellers + closedLeases
   const attentionLeads = leads
-    .filter(l => l.status === 'New' || l.status === 'Contacted')
-    .slice(0, 5)
+  .filter(l => l.status === 'New')
+  .slice(0, 5)
 
   const pipelineCounts: Record<string, number> = {}
   leads.forEach(l => {
