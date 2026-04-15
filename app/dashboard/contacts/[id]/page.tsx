@@ -509,7 +509,7 @@ const handleSave = async () => {
   </div>
 
 </div>
-        {/* CONTACT + ADDRESS */}
+{/* CONTACT + ADDRESS */}
 
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -521,106 +521,65 @@ const handleSave = async () => {
 
     <div>
       <label className="text-xs text-gray-500">First Name</label>
-      <input
-        value={formData?.first_name || ''}
-        disabled={!isEditing}
+      <input value={formData?.first_name || ''} disabled={!isEditing}
         onChange={(e) => updateField('first_name', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
       <label className="text-xs text-gray-500">Last Name</label>
-      <input
-        value={formData?.last_name || ''}
-        disabled={!isEditing}
+      <input value={formData?.last_name || ''} disabled={!isEditing}
         onChange={(e) => updateField('last_name', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
       <label className="text-xs text-gray-500">Preferred Name</label>
-      <input
-        value={formData?.preferred_name || ''}
-        disabled={!isEditing}
+      <input value={formData?.preferred_name || ''} disabled={!isEditing}
         onChange={(e) => updateField('preferred_name', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
       <label className="text-xs text-gray-500">Cell Phone</label>
-      <input
-        value={formData?.phone || ''}
-        disabled={!isEditing}
+      <input value={formData?.phone || ''} disabled={!isEditing}
         onChange={(e) => updateField('phone', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
       <label className="text-xs text-gray-500">Home Phone</label>
-      <input
-        value={formData?.secondary_phone || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('secondary_phone', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <input value={formData?.secondary_phone || ''} disabled={!isEditing}
+        onChange={(e) => updateField('secondary_phone', e.target.value)}
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
       <label className="text-xs text-gray-500">Email</label>
-      <input
-        value={formData?.email || ''}
-        disabled={!isEditing}
+      <input value={formData?.email || ''} disabled={!isEditing}
         onChange={(e) => updateField('email', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
-      <label className="text-xs text-gray-500">
-        Secondary Email
-      </label>
-      <input
-        value={formData?.secondary_email || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('secondary_email', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <label className="text-xs text-gray-500">Secondary Email</label>
+      <input value={formData?.secondary_email || ''} disabled={!isEditing}
+        onChange={(e) => updateField('secondary_email', e.target.value)}
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
-      <label className="text-xs text-gray-500">
-        Preferred Contact Method
-      </label>
-      <input
-        value={formData?.preferred_contact_method || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('preferred_contact_method', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <label className="text-xs text-gray-500">Preferred Contact Method</label>
+      <input value={formData?.preferred_contact_method || ''} disabled={!isEditing}
+        onChange={(e) => updateField('preferred_contact_method', e.target.value)}
+        className="w-full border rounded p-2" />
     </div>
 
     <div>
-      <label className="text-xs text-gray-500">
-        Best Time To Contact
-      </label>
-      <input
-        value={formData?.best_time_to_contact || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('best_time_to_contact', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <label className="text-xs text-gray-500">Best Time To Contact</label>
+      <input value={formData?.best_time_to_contact || ''} disabled={!isEditing}
+        onChange={(e) => updateField('best_time_to_contact', e.target.value)}
+        className="w-full border rounded p-2" />
     </div>
 
   </div>
@@ -631,37 +590,33 @@ const handleSave = async () => {
 
     <h3 className="font-semibold">Address</h3>
 
-    <input
-      value={formData?.address || ''}
-      disabled={!isEditing}
-      onChange={(e) => updateField('address', e.target.value)}
-      className="w-full border rounded p-2"
-      placeholder="Street Address"
-    />
+    <div>
+      <label className="text-xs text-gray-500">Street Address</label>
+      <input value={formData?.address || ''} disabled={!isEditing}
+        onChange={(e) => updateField('address', e.target.value)}
+        className="w-full border rounded p-2" />
+    </div>
 
-    <input
-      value={formData?.city || ''}
-      disabled={!isEditing}
-      onChange={(e) => updateField('city', e.target.value)}
-      className="w-full border rounded p-2"
-      placeholder="City"
-    />
+    <div>
+      <label className="text-xs text-gray-500">City</label>
+      <input value={formData?.city || ''} disabled={!isEditing}
+        onChange={(e) => updateField('city', e.target.value)}
+        className="w-full border rounded p-2" />
+    </div>
 
-    <input
-      value={formData?.province || ''}
-      disabled={!isEditing}
-      onChange={(e) => updateField('province', e.target.value)}
-      className="w-full border rounded p-2"
-      placeholder="Province"
-    />
+    <div>
+      <label className="text-xs text-gray-500">Province</label>
+      <input value={formData?.province || ''} disabled={!isEditing}
+        onChange={(e) => updateField('province', e.target.value)}
+        className="w-full border rounded p-2" />
+    </div>
 
-    <input
-      value={formData?.postal_code || ''}
-      disabled={!isEditing}
-      onChange={(e) => updateField('postal_code', e.target.value)}
-      className="w-full border rounded p-2"
-      placeholder="Postal Code"
-    />
+    <div>
+      <label className="text-xs text-gray-500">Postal Code</label>
+      <input value={formData?.postal_code || ''} disabled={!isEditing}
+        onChange={(e) => updateField('postal_code', e.target.value)}
+        className="w-full border rounded p-2" />
+    </div>
 
   </div>
 
@@ -675,69 +630,55 @@ const handleSave = async () => {
     onClick={() => toggleSection('personal')}
     className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition border-b cursor-pointer"
   >
-    <span className="font-semibold text-gray-800">
-      Personal Details
-    </span>
-
-    <ChevronDown
-      className={`h-5 w-5 text-gray-400 transition-transform ${
-        openSections.personal ? 'rotate-180' : ''
-      }`}
-    />
+    <span className="font-semibold text-gray-800">Personal Details</span>
+    <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${openSections.personal ? 'rotate-180' : ''}`} />
   </button>
 
   {openSections.personal && (
 
     <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
 
-      <input
-        value={formData?.spouse_name || ''}
-        disabled={!isEditing}
-        onChange={(e) => updateField('spouse_name', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Spouse Name</label>
+        <input value={formData?.spouse_name || ''} disabled={!isEditing}
+          onChange={(e) => updateField('spouse_name', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        value={formData?.pet_names || ''}
-        disabled={!isEditing}
-        onChange={(e) => updateField('pet_names', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Pet Names</label>
+        <input value={formData?.pet_names || ''} disabled={!isEditing}
+          onChange={(e) => updateField('pet_names', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        value={formData?.children_names || ''}
-        disabled={!isEditing}
-        onChange={(e) => updateField('children_names', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Children Names</label>
+        <input value={formData?.children_names || ''} disabled={!isEditing}
+          onChange={(e) => updateField('children_names', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        type="number"
-        value={formData?.number_of_children ?? ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('number_of_children', Number(e.target.value))
-        }
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Number of Children</label>
+        <input type="number" value={formData?.number_of_children ?? ''} disabled={!isEditing}
+          onChange={(e) => updateField('number_of_children', Number(e.target.value))}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        type="date"
-        value={formData?.birthday || ''}
-        disabled={!isEditing}
-        onChange={(e) => updateField('birthday', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Birthday</label>
+        <input type="date" value={formData?.birthday || ''} disabled={!isEditing}
+          onChange={(e) => updateField('birthday', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        type="date"
-        value={formData?.marriage_anniversary || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('marriage_anniversary', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Anniversary</label>
+        <input type="date" value={formData?.marriage_anniversary || ''} disabled={!isEditing}
+          onChange={(e) => updateField('marriage_anniversary', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
     </div>
 
@@ -753,70 +694,55 @@ const handleSave = async () => {
     onClick={() => toggleSection('crm')}
     className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition border-b cursor-pointer"
   >
-    <span className="font-semibold text-gray-800">
-      CRM Details
-    </span>
-
-    <ChevronDown
-      className={`h-5 w-5 text-gray-400 transition-transform ${
-        openSections.crm ? 'rotate-180' : ''
-      }`}
-    />
+    <span className="font-semibold text-gray-800">CRM Details</span>
+    <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${openSections.crm ? 'rotate-180' : ''}`} />
   </button>
 
   {openSections.crm && (
 
     <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
 
-      <input
-        value={formData?.source || ''}
-        disabled={!isEditing}
-        onChange={(e) => updateField('source', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Source</label>
+        <input value={formData?.source || ''} disabled={!isEditing}
+          onChange={(e) => updateField('source', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        value={formData?.referral_source || ''}
-        disabled={!isEditing}
-        onChange={(e) => updateField('referral_source', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Referral Source</label>
+        <input value={formData?.referral_source || ''} disabled={!isEditing}
+          onChange={(e) => updateField('referral_source', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        value={formData?.campaign || ''}
-        disabled={!isEditing}
-        onChange={(e) => updateField('campaign', e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Campaign</label>
+        <input value={formData?.campaign || ''} disabled={!isEditing}
+          onChange={(e) => updateField('campaign', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        value={formData?.lead_capture_method || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('lead_capture_method', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Lead Capture Method</label>
+        <input value={formData?.lead_capture_method || ''} disabled={!isEditing}
+          onChange={(e) => updateField('lead_capture_method', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        type="date"
-        value={formData?.last_contacted_at || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('last_contacted_at', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Last Contacted</label>
+        <input type="date" value={formData?.last_contacted_at || ''} disabled={!isEditing}
+          onChange={(e) => updateField('last_contacted_at', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
-      <input
-        type="date"
-        value={formData?.next_followup_date || ''}
-        disabled={!isEditing}
-        onChange={(e) =>
-          updateField('next_followup_date', e.target.value)
-        }
-        className="w-full border rounded p-2"
-      />
+      <div>
+        <label className="text-xs text-gray-500">Next Follow-Up</label>
+        <input type="date" value={formData?.next_followup_date || ''} disabled={!isEditing}
+          onChange={(e) => updateField('next_followup_date', e.target.value)}
+          className="w-full border rounded p-2" />
+      </div>
 
     </div>
 
