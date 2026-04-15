@@ -127,11 +127,20 @@ const payload = {
 }
 
     if (mode === 'create') {
-      const { data } = await supabase
-        .from('tasks')
-        .insert(payload)
-        .select()
-        .single()
+      const { data, error } = await supabase
+  .from('tasks')
+  .insert(payload)
+  .select()
+  .single()
+
+if (error) {
+  console.error('TASK CREATE ERROR:', error)
+  alert(error.message)
+  setLoading(false)
+  return
+}
+
+console.log('TASK CREATED:', data)
 
       if (data?.lead_id) {
         await supabase.from('lead_activity').insert({
