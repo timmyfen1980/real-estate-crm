@@ -57,12 +57,11 @@ export default function TaskModal({
     }
     setError(null)
   }, [mode, task, currentUserId, leadId])
-
-  useEffect(() => {
-  if (!isOwner) return
-
+useEffect(() => {
   const loadMembers = async () => {
     try {
+      if (!isOwner) return
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
