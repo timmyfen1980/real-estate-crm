@@ -57,39 +57,24 @@ export default function TaskModal({
     }
     setError(null)
   }, [mode, task, currentUserId, leadId])
-useEffect(() => {
-  const loadMembers = async () => {
-    try {
-      if (!isOwner) return
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+  useEffect(() => {
+    if (!isOwner) return
 
-      if (!user) return
-
-      const { data: membership } = await supabase
+    const loadMembers = async () => {
+      const { data } = await supabase
         .from('account_users')
-        .select('account_id')
-        .eq('user_id', user.id)
-        .single()
+        .select(`profiles ( id, full_name )`)
 
-      if (!membership?.account_id) return
+      const mapped =
+        data?.map((m: any) => m.profiles).filter(Boolean) || []
 
-      const res = await fetch(
-        `/api/team-members?accountId=${membership.account_id}`
-      )
-
-      const teamMembers = await res.json()
-
-      setTeamMembers(teamMembers || [])
-    } catch (err) {
-      console.error('TEAM MEMBERS LOAD ERROR:', err)
+      setTeamMembers(mapped)
     }
-  }
 
-  loadMembers()
-}, [isOwner])
+    loadMembers()
+  }, [isOwner])
+
   const handleSave = async () => {
     if (!title.trim()) {
       setError('Task title is required.')
