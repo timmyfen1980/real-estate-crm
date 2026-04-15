@@ -59,15 +59,20 @@ export default function TaskModal({
   }, [mode, task, currentUserId, leadId])
 
   useEffect(() => {
-  if (!isOwner || !currentUserId) return
+  if (!isOwner) return
 
   const loadMembers = async () => {
     try {
-      // get current user's account_id first
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
       const { data: membership } = await supabase
         .from('account_users')
         .select('account_id')
-        .eq('user_id', currentUserId)
+        .eq('user_id', user.id)
         .single()
 
       if (!membership?.account_id) return
@@ -85,7 +90,7 @@ export default function TaskModal({
   }
 
   loadMembers()
-}, [isOwner, currentUserId])
+}, [isOwner])
   const handleSave = async () => {
     if (!title.trim()) {
       setError('Task title is required.')
