@@ -71,6 +71,7 @@ const [collapsed, setCollapsed] = useState({
   attention: true,
   activity: true,
 })
+
 const [taskModalOpen, setTaskModalOpen] = useState(false)
 const [taskMode, setTaskMode] = useState<'create' | 'edit'>('create')
 const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -213,7 +214,11 @@ const attentionLeads = leads
     return false
   })
   .slice(0, 5)
-
+useEffect(() => {
+  if (attentionLeads.length > 0) {
+    setCollapsed(prev => ({ ...prev, attention: false }))
+  }
+}, [attentionLeads])
   const pipelineCounts: Record<string, number> = {}
   leads.forEach(l => {
     pipelineCounts[l.status] =
