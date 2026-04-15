@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import TaskModal from '@/app/components/TaskModal'
-
 type Lead = {
   id: string
   first_name: string
@@ -15,6 +14,10 @@ type Lead = {
   source: string | null
   created_at: string
   assigned_user_id: string | null
+
+  // ✅ NEW FIELDS (SAFE)
+  next_followup_date: string | null
+  last_contacted_at: string | null
 }
 
 type OpenHouseEvent = {
@@ -194,8 +197,21 @@ const closedLeases = productionLeads.filter(
 ).length
 
 const totalClosed = closedBuyers + closedSellers + closedLeases
-  const attentionLeads = leads
-  .filter(l => l.status === 'New')
+const today = new Date()
+
+const attentionLeads = leads
+  .filter(l => {
+
+    // Always show new leads
+    if (l.status === 'New') return true
+
+    // Show overdue follow-ups
+    if (l.next_followup_date) {
+      return new Date(l.next_followup_date) < today
+    }
+
+    return false
+  })
   .slice(0, 5)
 
   const pipelineCounts: Record<string, number> = {}
