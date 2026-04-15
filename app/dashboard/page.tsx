@@ -214,7 +214,7 @@ const attentionLeads = leads
     return false
   })
   .slice(0, 5)
-const shouldOpenAttention = attentionLeads.length > 0
+
   const pipelineCounts: Record<string, number> = {}
   leads.forEach(l => {
     pipelineCounts[l.status] =
@@ -442,11 +442,11 @@ const overdueTasks = tasks.filter(
         setCollapsed(prev => ({ ...prev, attention: !prev.attention }))
       }
       className={`flex items-center justify-between w-full text-left ${
-        attentionLeads.length > 0 ? 'text-red-600 font-semibold' : ''
+        (attentionLeads.length + overdueTasks.length) > 0 ? 'text-red-600 font-semibold' : ''
       }`}
     >
       <div className="flex items-center gap-2">
-        Needs Attention ({attentionLeads.length})
+        Needs Attention ({attentionLeads.length + overdueTasks.length})
         {attentionLeads.length > 0 && (
           <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded tracking-wider">
   ACTION REQUIRED
