@@ -448,7 +448,29 @@ const { data: propertyData, error: propertyError } = await supabase
   <label className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
     Status
   </label>
+<div className="flex flex-col min-w-[180px]">
+  <label className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+    Next Follow-Up
+  </label>
 
+  <input
+    type="date"
+    value={(lead as any).next_followup_date || ''}
+    onChange={async (e) => {
+      const value = e.target.value
+
+      // update DB
+      await supabase
+        .from('leads')
+        .update({ next_followup_date: value || null })
+        .eq('id', lead.id)
+
+      // update local state
+      setLead({ ...lead, next_followup_date: value } as any)
+    }}
+    className="border rounded-lg px-4 py-2"
+  />
+</div>
   <select
     value={lead.status || 'New'}
     onChange={(e) => updateStatus(e.target.value)}
