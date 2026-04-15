@@ -68,7 +68,7 @@ const [isOwner, setIsOwner] = useState(false)
 const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 const [collapsed, setCollapsed] = useState({
   tasks: true,
-  attention: true,
+  attention: false, // default open (safe fallback)
   activity: true,
 })
 
@@ -214,7 +214,7 @@ const attentionLeads = leads
     return false
   })
   .slice(0, 5)
-
+const shouldOpenAttention = attentionLeads.length > 0
   const pipelineCounts: Record<string, number> = {}
   leads.forEach(l => {
     pipelineCounts[l.status] =
@@ -466,7 +466,7 @@ const overdueTasksCount = tasks.filter(
     : 'border-l-4 border-gray-200'
 }
 >
-  {!collapsed.attention && (
+  {(!collapsed.attention || shouldOpenAttention) && (
     attentionLeads.length === 0 ? (
       <EmptyState text="No urgent leads." />
     ) : (
