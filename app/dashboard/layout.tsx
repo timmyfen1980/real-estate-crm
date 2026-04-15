@@ -136,10 +136,11 @@ if (teamClosed) {
       // 🔹 Overdue Tasks Count
       const today = new Date().toISOString().split('T')[0]
 
-      let query = supabase
+     let query = supabase
   .from('tasks')
   .select('id', { count: 'exact', head: true })
   .eq('status', 'pending')
+  .not('due_date', 'is', null)
   .lt('due_date', today)
 
 if (membership.role === 'owner') {
