@@ -307,7 +307,7 @@ const addTask = async () => {
         assigned_user_id: userData.user.id,
         created_by: userData.user.id,
         title: newTask,
-        status: 'open'
+        status: 'pending'
       }
     ])
     .select()
