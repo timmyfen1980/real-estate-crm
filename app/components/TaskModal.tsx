@@ -105,15 +105,26 @@ export default function TaskModal({
     setLoading(true)
     setError(null)
 
-    const payload = {
-      title,
-      due_date: dueDate,
-      priority,
-      status: 'pending',
-      assigned_user_id: assignedUserId,
-      lead_id: selectedLeadId,
-      source: 'system',
-    }
+    const {
+  data: { user },
+} = await supabase.auth.getUser()
+
+const { data: membership } = await supabase
+  .from('account_users')
+  .select('account_id')
+  .eq('user_id', user?.id)
+  .single()
+
+const payload = {
+  title,
+  due_date: dueDate,
+  priority,
+  status: 'pending',
+  assigned_user_id: assignedUserId,
+  lead_id: selectedLeadId,
+  source: 'system',
+  account_id: membership?.account_id, // ✅ REQUIRED
+}
 
     if (mode === 'create') {
       const { data } = await supabase
