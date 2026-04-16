@@ -33,6 +33,8 @@ const LIFECYCLE_OPTIONS = [
   'Prospect',
   'Active Buyer',
   'Active Seller',
+  'Active Tenant',
+  'Active Landlord',
   'Past Client',
   'Sphere',
   'Do Not Contact'
