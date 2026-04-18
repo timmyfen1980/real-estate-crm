@@ -138,11 +138,6 @@ setUserRole(membership.role)
     logoFile,
     `${accountId}/agents/${Date.now()}-${logoFile.name}`
   )
-
-  await supabase
-    .from('profiles')
-    .update({ agent_photo_url: newLogoUrl })
-    .eq('id', (await supabase.auth.getUser()).data.user?.id)
 }
 
     if (brokerageLogoFile) {
@@ -165,7 +160,6 @@ setUserRole(membership.role)
 
 if (!user) return
 
-// 🔥 Save agent-level data (fixes phone + agent photo)
 const { error: updateError } = await supabase
   .from('profiles')
   .update({
