@@ -158,19 +158,49 @@ setUserRole(membership.role)
       )
     }
 
-    const { error: updateError } = await supabase
-  .from('accounts')
+   const {
+  data: { user },
+} = await supabase.auth.getUser()
+
+if (!user) return
+
+// 🔥 Save agent-level data (fixes phone + agent photo)
+const { error: updateError } = await supabase
+  .from('profiles')
   .update({
-    name: accountName,
-    brokerage_name: brokerage,
-    logo_url: newLogoUrl,
-    brokerage_logo_url: newBrokerageLogoUrl,
-    team_enabled: teamEnabled,
-    team_name: teamEnabled ? teamName : null,
-    team_logo_url: teamEnabled ? newTeamLogoUrl : null,
+    full_name: accountName,
+    agent_photo_url: newLogoUrl,
     phone: phone,
   })
-  .eq('id', accountId)
+  .eq('id', user.id)
+
+if (updateError) {
+  console.error('PROFILE UPDATE ERROR:', updateError)
+  setSaving(false)
+  setMessage('Error saving changes.')
+  return
+}
+
+// 🔥 Only allow owner to update team-level account data
+if (userRole === 'owner') {
+  const { error: accountError } = await supabase
+    .from('accounts')
+    .update({
+      name: accountName,
+      brokerage_name: brokerage,
+      logo_url: newLogoUrl,
+      brokerage_logo_url: newBrokerageLogoUrl,
+      team_enabled: teamEnabled,
+      team_name: teamEnabled ? teamName : null,
+      team_logo_url: teamEnabled ? newTeamLogoUrl : null,
+      phone: phone,
+    })
+    .eq('id', accountId)
+
+  if (accountError) {
+    console.error('ACCOUNT UPDATE ERROR:', accountError)
+  }
+}
 
 console.log('UPDATED ACCOUNT ID:', accountId)
 
