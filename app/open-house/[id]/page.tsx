@@ -109,12 +109,12 @@ useEffect(() => {
       .single()
 
     // 🔥 FINAL — NO FALLBACKS, NO MIXING
-    setBranding({
-  name: profileData?.full_name || '',
-  email: profileData?.email || '',
-  avatar: profileData?.agent_photo_url || '',
-  phone: profileData?.phone || '',
-  team_logo_url: accountData?.team_logo_url || '',
+setBranding({
+  name: profileData?.full_name ?? '',
+  email: profileData?.email ?? '',
+  avatar: profileData?.agent_photo_url ?? '',
+  phone: profileData?.phone ?? '',
+  team_logo_url: accountData?.team_logo_url ?? '',
 })
   }
 
@@ -191,28 +191,30 @@ useEffect(() => {
         <div className="bg-white p-10 rounded-xl shadow text-center w-full max-w-md">
 
   {branding && (
-    <>
-      {(branding.team_logo_url || branding.logo_url) && (
-        <img
-          src={branding.team_logo_url || branding.logo_url}
-          alt="Logo"
-          className="mx-auto h-16 object-contain mb-4"
-        />
-      )}
+  <>
+    {branding.avatar && (
+      <img
+        src={branding.avatar}
+        alt="Agent"
+        className="mx-auto h-16 w-16 rounded-full object-cover mb-3"
+      />
+    )}
 
-      {branding.agent_name && (
-  <p className="text-lg font-semibold text-gray-900">
-    {branding.agent_name}
-  </p>
+    {branding.name && (
+      <p className="text-lg font-semibold text-gray-900">
+        {branding.name}
+      </p>
+    )}
+
+    {branding.team_logo_url && (
+      <img
+        src={branding.team_logo_url}
+        alt="Team Logo"
+        className="mx-auto h-16 object-contain mt-3 mb-4"
+      />
+    )}
+  </>
 )}
-
-      {branding.brokerage_name && (
-        <p className="text-sm text-gray-500 mb-4">
-          {branding.brokerage_name}
-        </p>
-      )}
-    </>
-  )}
 
   <h1 className="text-2xl font-bold mb-3 mt-2">
     Thank You For Visiting
@@ -220,12 +222,11 @@ useEffect(() => {
 
   <p className="text-gray-600 mb-4">{property.address}</p>
 
-  {(branding?.phone || branding?.owner_email) && (
-    <div className="text-sm text-gray-500 mt-4">
-      {branding.phone && <div>{branding.phone}</div>}
-      {branding.agent_email && <div>{branding.agent_email}</div>}
-    </div>
-  )}
+  {branding?.phone && (
+  <div className="text-sm text-gray-500 mt-4">
+    <div>{branding.phone}</div>
+  </div>
+)}
 
 </div>
       </div>
