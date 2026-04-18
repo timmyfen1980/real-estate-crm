@@ -281,7 +281,7 @@ if (accountData) {
 
             {branding.name && (
               <p className="text-lg font-semibold text-gray-900">
-                {branding.name}
+                {branding.agent_name}
               </p>
             )}
 
