@@ -105,16 +105,17 @@ setUserRole(membership.role)
   }, [router])
 
   const hasChanges =
-    originalData &&
-    (
-      accountName !== originalData.name ||
-      brokerage !== originalData.brokerage ||
-      logoFile ||
-      brokerageLogoFile ||
-      teamEnabled !== originalData.teamEnabled ||
-      teamName !== originalData.teamName ||
-      teamLogoFile
-    )
+  originalData &&
+  (
+    accountName !== originalData.name ||
+    brokerage !== originalData.brokerage ||
+    phone !== originalData.phone || // 🔥 ADD THIS LINE
+    logoFile ||
+    brokerageLogoFile ||
+    teamEnabled !== originalData.teamEnabled ||
+    teamName !== originalData.teamName ||
+    teamLogoFile
+  )
 
   const uploadFile = async (file: File, path: string) => {
     await supabase.storage.from('account-assets').upload(path, file, { upsert: true })
