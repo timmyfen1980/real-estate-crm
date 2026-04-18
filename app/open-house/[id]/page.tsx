@@ -117,7 +117,7 @@ useEffect(() => {
   avatar: profileData?.agent_photo_url || '',
 
   // 🔥 AGENT PHONE FIRST, FALLBACK TO TEAM
-  phone: profileData?.phone || accountData?.phone || '',
+  phone: profileData?.phone || '',
 
   // 🔥 TEAM BRANDING
   brokerage_name: accountData?.brokerage_name || '',
@@ -262,61 +262,50 @@ useEffect(() => {
         )}
 
         {branding && (
-          <div className="mt-6 text-center md:text-left">
+  <div className="mt-6 text-center md:text-left">
 
-            <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-              Presented by
-            </p>
+    <p className="text-xs uppercase tracking-wide text-gray-400 mb-4">
+      Presented by
+    </p>
 
-            {/* Logos side-by-side */}
-  <div className="flex items-center justify-center md:justify-start gap-4 mb-4">
+    {/* 🔥 AGENT PHOTO */}
+    {branding.avatar && (
+      <div className="flex justify-center md:justify-start mb-2">
+        <img
+          src={branding.avatar}
+          alt="Agent"
+          className="h-16 w-16 rounded-full object-cover"
+        />
+      </div>
+    )}
 
-  {/* Agent Photo (Primary) */}
-  {branding.agent_avatar ? (
-    <img
-      src={branding.agent_avatar}
-      alt="Agent"
-      className="h-16 w-16 rounded-full object-cover"
-    />
-  ) : branding.logo_url ? (
-    <img
-      src={branding.logo_url}
-      alt="Agent Logo"
-      className="h-16 object-contain"
-    />
-  ) : null}
+    {/* 🔥 AGENT NAME */}
+    {branding.name && (
+      <p className="text-lg font-semibold text-gray-900 mb-4 text-center md:text-left">
+        {branding.name}
+      </p>
+    )}
 
-  {/* Team Logo (Secondary) */}
-  {branding.team_logo_url && (
-    <img
-      src={branding.team_logo_url}
-      alt="Team Logo"
-      className="h-10 object-contain opacity-80"
-    />
-  )}
-</div>
+    {/* 🔥 TEAM LOGO (LARGER) */}
+    {branding.team_logo_url && (
+      <div className="flex justify-center md:justify-start mb-3">
+        <img
+          src={branding.team_logo_url}
+          alt="Team Logo"
+          className="h-16 object-contain"
+        />
+      </div>
+    )}
 
-            {branding.name && (
-              <p className="text-lg font-semibold text-gray-900">
-                {branding.agent_name}
-              </p>
-            )}
+    {/* 🔥 AGENT PHONE ONLY */}
+    {branding.phone && (
+      <div className="text-sm text-gray-600 mt-2">
+        <div>{branding.phone}</div>
+      </div>
+    )}
 
-            {branding.brokerage_name && (
-              <p className="text-sm text-gray-500">
-                {branding.brokerage_name}
-              </p>
-            )}
-
-            {(branding.phone || branding.agent_email) && (
-              <div className="text-sm text-gray-600 mt-2">
-                {branding.phone && <div>{branding.phone}</div>}
-                {branding.agent_email && <div>{branding.agent_email}</div>}
-              </div>
-            )}
-
-          </div>
-        )}
+  </div>
+)}
       </div>
 
       <div className="bg-white p-8 rounded-xl shadow-lg">
