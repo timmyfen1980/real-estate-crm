@@ -71,7 +71,13 @@ const { data: profile } = await supabase
   .select('full_name, agent_photo_url, phone')
   .eq('id', (await supabase.auth.getUser()).data.user?.id)
   .single()
-
+const { data: account } = await supabase
+  .from('accounts')
+  .select(
+    'brokerage_name, brokerage_logo_url, team_enabled, team_name, team_logo_url, invite_code'
+  )
+  .eq('id', membership.account_id)
+  .maybeSingle()
 if (profile) {
   const loaded = {
     name: profile.full_name || '',
@@ -86,9 +92,20 @@ if (profile) {
   }
 
   setAccountName(loaded.name)
-  setLogoUrl(loaded.logo)
-  setPhone(loaded.phone)
-  setOriginalData(loaded)
+setLogoUrl(loaded.logo)
+setPhone(loaded.phone)
+
+// 🔥 restore team data
+if (account) {
+  setBrokerage(account.brokerage_name || '')
+  setBrokerageLogoUrl(account.brokerage_logo_url || '')
+  setTeamEnabled(account.team_enabled || false)
+  setTeamName(account.team_name || '')
+  setTeamLogoUrl(account.team_logo_url || '')
+  setInviteCode(account.invite_code || '')
+}
+
+setOriginalData(loaded)
 }
 
       setLoading(false)
