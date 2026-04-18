@@ -65,38 +65,31 @@ const [userRole, setUserRole] = useState<string | null>(null)
       setAccountId(membership.account_id)
 setUserRole(membership.role)
 
-      const { data: account } = await supabase
-        .from('accounts')
-        .select(
-  'name, brokerage_name, invite_code, logo_url, brokerage_logo_url, team_enabled, team_name, team_logo_url, phone'
-)
-        .eq('id', membership.account_id)
-      .maybeSingle()
+     // 🔥 Load agent-level data from profiles
+const { data: profile } = await supabase
+  .from('profiles')
+  .select('full_name, agent_photo_url, phone')
+  .eq('id', user.id)
+  .single()
 
-      if (account) {
-        const loaded = {
-  name: account.name || '',
-  brokerage: account.brokerage_name || '',
-  invite: account.invite_code || '',
-  logo: account.logo_url || null,
-  brokerageLogo: account.brokerage_logo_url || null,
-  teamEnabled: account.team_enabled || false,
-  teamName: account.team_name || '',
-  teamLogo: account.team_logo_url || null,
-  phone: account.phone || '',
+if (profile) {
+  const loaded = {
+    name: profile.full_name || '',
+    brokerage: '',
+    invite: '',
+    logo: profile.agent_photo_url || null,
+    brokerageLogo: null,
+    teamEnabled: false,
+    teamName: '',
+    teamLogo: null,
+    phone: profile.phone || '',
+  }
+
+  setAccountName(loaded.name)
+  setLogoUrl(loaded.logo)
+  setPhone(loaded.phone)
+  setOriginalData(loaded)
 }
-
-        setAccountName(loaded.name)
-        setBrokerage(loaded.brokerage)
-        setInviteCode(loaded.invite)
-        setLogoUrl(loaded.logo)
-        setBrokerageLogoUrl(loaded.brokerageLogo)
-        setTeamEnabled(loaded.teamEnabled)
-        setTeamName(loaded.teamName)
-        setTeamLogoUrl(loaded.teamLogo)
-        setPhone(loaded.phone)
-        setOriginalData(loaded)
-      }
 
       setLoading(false)
     }
