@@ -92,7 +92,7 @@ useEffect(() => {
 // 🔥 GET AGENT (CLEAN + SAFE)
 const { data: profileData, error: profileError } = await supabase
   .from('profiles')
-  .select('full_name, agent_photo_url, phone')
+  .select('full_name, agent_photo_url, phone, email')
   .eq('id', eventData.user_id)
   .maybeSingle()
 
@@ -115,7 +115,7 @@ if (profileError) {
 const agentName = profileData?.full_name || ''
 const agentAvatar = profileData?.agent_photo_url || ''
 const agentPhone = profileData?.phone || ''
-
+const agentEmail = profileData?.email || ''
 console.log('PROFILE DATA DEBUG:', {
   agentName,
   agentAvatar,
@@ -126,6 +126,7 @@ setBranding({
   name: agentName,
   avatar: agentAvatar,
   phone: agentPhone,
+  email: agentEmail,
   team_logo_url: accountData?.team_logo_url || '',
 })
   }
@@ -232,9 +233,10 @@ setBranding({
 
   <p className="text-gray-600 mb-4">{property.address}</p>
 
-  {branding?.phone && (
+  {(branding?.phone || branding?.email) && (
   <div className="text-sm text-gray-500 mt-4">
-    <div>{branding.phone}</div>
+    {branding.phone && <div>{branding.phone}</div>}
+    {branding.email && <div>{branding.email}</div>}
   </div>
 )}
 
@@ -270,37 +272,41 @@ setBranding({
       Presented by
     </p>
 
-    {/* AGENT PHOTO (render even if empty check fails silently) */}
-    <div className="flex justify-center md:justify-start mb-2">
-      {branding.avatar ? (
+    {/* 🔥 AGENT + TEAM SIDE BY SIDE */}
+    <div className="flex items-center justify-center md:justify-start gap-6 mb-4">
+
+      {/* AGENT PHOTO (BIGGER) */}
+      {branding.avatar && (
         <img
           src={branding.avatar}
           alt="Agent"
-          className="h-16 w-16 rounded-full object-cover"
+          className="h-24 w-24 rounded-full object-cover"
         />
-      ) : null}
-    </div>
+      )}
 
-    {/* AGENT NAME (ALWAYS RENDER LINE) */}
-    <p className="text-lg font-semibold text-gray-900 mb-4 text-center md:text-left">
-      {branding.name || ''}
-    </p>
-
-    {/* TEAM LOGO */}
-    <div className="flex justify-center md:justify-start mb-3">
-      {branding.team_logo_url ? (
+      {/* TEAM LOGO (RIGHT SIDE) */}
+      {branding.team_logo_url && (
         <img
           src={branding.team_logo_url}
           alt="Team Logo"
-          className="h-40 object-contain"
+          className="h-24 object-contain"
         />
-      ) : null}
+      )}
+
     </div>
 
-    {/* AGENT PHONE */}
-    <div className="text-sm text-gray-600 mt-2">
-      {branding.phone || ''}
-    </div>
+    {/* 🔥 AGENT NAME */}
+    <p className="text-lg font-semibold text-gray-900 text-center md:text-left">
+      {branding.name || ''}
+    </p>
+
+    {/* 🔥 PHONE + EMAIL */}
+<div className="text-sm text-gray-600 mt-1">
+  {branding.phone || ''}
+  {branding.email && (
+    <div>{branding.email}</div>
+  )}
+</div>
 
   </div>
 )}
