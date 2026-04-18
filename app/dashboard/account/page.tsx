@@ -69,7 +69,7 @@ setUserRole(membership.role)
 const { data: profile } = await supabase
   .from('profiles')
   .select('full_name, agent_photo_url, phone')
-  .eq('id', user.id)
+  .eq('id', (await supabase.auth.getUser()).data.user?.id)
   .single()
 
 if (profile) {
