@@ -97,10 +97,9 @@ useEffect(() => {
       .eq('id', eventData.user_id)
       .single()
 
-    if (profileError || !profileData) {
-      console.error('PROFILE LOAD ERROR:', profileError)
-      return
-    }
+    if (profileError) {
+  console.error('PROFILE LOAD ERROR:', profileError)
+}
 
     // 🔥 GET TEAM LOGO ONLY (NO OWNER DATA USED)
     const { data: accountData } = await supabase
@@ -111,12 +110,12 @@ useEffect(() => {
 
     // 🔥 FINAL — NO FALLBACKS, NO MIXING
     setBranding({
-      name: profileData.full_name || '',
-      email: profileData.email || '',
-      avatar: profileData.agent_photo_url || '',
-      phone: profileData.phone || '',
-      team_logo_url: accountData?.team_logo_url || '',
-    })
+  name: profileData?.full_name || '',
+  email: profileData?.email || '',
+  avatar: profileData?.agent_photo_url || '',
+  phone: profileData?.phone || '',
+  team_logo_url: accountData?.team_logo_url || '',
+})
   }
 
   if (eventId) loadData()
