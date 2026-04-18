@@ -101,10 +101,11 @@ agentProfile = profileData
 
 if (accountData) {
   setBranding({
-    ...accountData,
-    agent_name: agentProfile?.full_name,
-    agent_avatar: agentProfile?.avatar_url,
-  })
+  ...accountData,
+  agent_name: agentProfile?.full_name,
+  agent_avatar: agentProfile?.avatar_url,
+  agent_email: agentProfile?.email,
+})
 }
     }
 
@@ -190,11 +191,11 @@ if (accountData) {
         />
       )}
 
-      {branding.name && (
-        <p className="text-lg font-semibold text-gray-900">
-          {branding.name}
-        </p>
-      )}
+      {branding.agent_name && (
+  <p className="text-lg font-semibold text-gray-900">
+    {branding.agent_name}
+  </p>
+)}
 
       {branding.brokerage_name && (
         <p className="text-sm text-gray-500 mb-4">
@@ -213,7 +214,7 @@ if (accountData) {
   {(branding?.phone || branding?.owner_email) && (
     <div className="text-sm text-gray-500 mt-4">
       {branding.phone && <div>{branding.phone}</div>}
-      {branding.owner_email && <div>{branding.owner_email}</div>}
+      {branding.agent_email && <div>{branding.agent_email}</div>}
     </div>
   )}
 
@@ -251,42 +252,32 @@ if (accountData) {
             </p>
 
             {/* Logos side-by-side */}
-            <div className="flex items-center justify-center md:justify-start gap-6 mb-4">
+  <div className="flex items-center justify-center md:justify-start gap-4 mb-4">
 
-              {/* Agent Logo */}
-              {branding.agent_avatar ? (
-  <img
-    src={branding.agent_avatar}
-    alt="Agent"
-    className="h-16 md:h-20 object-contain rounded-full"
-  />
-) : branding.logo_url ? (
-  <img
-    src={branding.logo_url}
-    alt="Agent Logo"
-    className="h-16 md:h-20 object-contain"
-  />
-) : null}
+  {/* Agent Photo (Primary) */}
+  {branding.agent_avatar ? (
+    <img
+      src={branding.agent_avatar}
+      alt="Agent"
+      className="h-16 w-16 rounded-full object-cover"
+    />
+  ) : branding.logo_url ? (
+    <img
+      src={branding.logo_url}
+      alt="Agent Logo"
+      className="h-16 object-contain"
+    />
+  ) : null}
 
-              {/* Team Logo */}
-              {branding.team_logo_url && (
-                <img
-                  src={branding.team_logo_url}
-                  alt="Team Logo"
-                  className="h-20 md:h-24 object-contain"
-                />
-              )}
-
-              {/* Fallback (only if both missing) */}
-              {!branding.logo_url && !branding.team_logo_url && branding.brokerage_logo_url && (
-                <img
-                  src={branding.brokerage_logo_url}
-                  alt="Brokerage Logo"
-                  className="h-20 object-contain"
-                />
-              )}
-
-            </div>
+  {/* Team Logo (Secondary) */}
+  {branding.team_logo_url && (
+    <img
+      src={branding.team_logo_url}
+      alt="Team Logo"
+      className="h-10 object-contain opacity-80"
+    />
+  )}
+</div>
 
             {branding.name && (
               <p className="text-lg font-semibold text-gray-900">
@@ -303,7 +294,7 @@ if (accountData) {
             {(branding.phone || branding.owner_email) && (
               <div className="text-sm text-gray-600 mt-2">
                 {branding.phone && <div>{branding.phone}</div>}
-                {branding.owner_email && <div>{branding.owner_email}</div>}
+                {branding.agent_email && <div>{branding.agent_email}</div>}
               </div>
             )}
 
