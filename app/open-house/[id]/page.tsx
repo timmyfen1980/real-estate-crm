@@ -89,7 +89,23 @@ export default function OpenHousePage() {
         .eq('id', propertyData.account_id)
         .single()
 
-      if (accountData) setBranding(accountData)
+      let agentProfile = null
+
+const { data: profileData } = await supabase
+  .from('profiles')
+  .select('full_name, avatar_url, email')
+  .eq('id', eventData.user_id)
+  .single()
+
+agentProfile = profileData
+
+if (accountData) {
+  setBranding({
+    ...accountData,
+    agent_name: agentProfile?.full_name,
+    agent_avatar: agentProfile?.avatar_url,
+  })
+}
     }
 
     if (eventId) loadData()
@@ -221,7 +237,10 @@ export default function OpenHousePage() {
         </p>
 
         {property.image_url && (
-          <img src={property.image_url} className="rounded-xl shadow" />
+          <img
+  src={property.image_url}
+  className="rounded-xl shadow w-full max-h-[400px] object-cover"
+/>
         )}
 
         {branding && (
@@ -235,13 +254,19 @@ export default function OpenHousePage() {
             <div className="flex items-center justify-center md:justify-start gap-6 mb-4">
 
               {/* Agent Logo */}
-              {branding.logo_url && (
-                <img
-                  src={branding.logo_url}
-                  alt="Agent Logo"
-                  className="h-16 md:h-20 object-contain"
-                />
-              )}
+              {branding.agent_avatar ? (
+  <img
+    src={branding.agent_avatar}
+    alt="Agent"
+    className="h-16 md:h-20 object-contain rounded-full"
+  />
+) : branding.logo_url ? (
+  <img
+    src={branding.logo_url}
+    alt="Agent Logo"
+    className="h-16 md:h-20 object-contain"
+  />
+) : null}
 
               {/* Team Logo */}
               {branding.team_logo_url && (
