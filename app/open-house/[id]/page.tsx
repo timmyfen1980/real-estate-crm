@@ -102,7 +102,7 @@ useEffect(() => {
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('full_name, avatar_url, email')
+      .select('full_name, agent_photo_url, email')
       .eq('id', eventData.user_id)
       .single()
 
@@ -110,12 +110,14 @@ useEffect(() => {
       console.error('PROFILE LOAD ERROR:', profileError)
     }
 
-    if (accountData) {
+    if (profileData) {
       setBranding({
-        ...accountData,
-        agent_name: profileData?.full_name || '',
-        agent_avatar: profileData?.avatar_url || '',
-        agent_email: profileData?.email || '',
+        name: profileData.full_name || '',
+        email: profileData.email || '',
+        avatar: profileData.agent_photo_url || '',
+        phone: accountData?.phone || '',
+        brokerage_name: accountData?.brokerage_name || '',
+        brokerage_logo_url: accountData?.brokerage_logo_url || '',
       })
     }
   }
