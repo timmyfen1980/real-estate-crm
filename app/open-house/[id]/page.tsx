@@ -90,40 +90,33 @@ useEffect(() => {
 
     setProperty(propertyData)
 
-    const { data: accountData, error: accountError } = await supabase
-      .from('accounts')
-      .select('name, logo_url, brokerage_name, brokerage_logo_url, team_logo_url, phone, owner_email')
-      .eq('id', propertyData.account_id)
-      .single()
-
-    if (accountError) {
-      console.error('ACCOUNT LOAD ERROR:', accountError)
-    }
-
+    // 🔥 GET AGENT (THIS IS THE ONLY SOURCE OF "PRESENTED BY")
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('full_name, agent_photo_url, email, phone')
       .eq('id', eventData.user_id)
       .single()
 
-    if (profileError) {
+    if (profileError || !profileData) {
       console.error('PROFILE LOAD ERROR:', profileError)
+      return
     }
 
+    // 🔥 GET TEAM LOGO ONLY (NO OWNER DATA USED)
+    const { data: accountData } = await supabase
+      .from('accounts')
+      .select('team_logo_url')
+      .eq('id', propertyData.account_id)
+      .single()
+
+    // 🔥 FINAL — NO FALLBACKS, NO MIXING
     setBranding({
-  // 🔥 AGENT (PRIMARY)
-  name: profileData?.full_name || '',
-  email: profileData?.email || '',
-  avatar: profileData?.agent_photo_url || '',
-
-  // 🔥 AGENT PHONE FIRST, FALLBACK TO TEAM
-  phone: profileData?.phone || '',
-
-  // 🔥 TEAM BRANDING
-  brokerage_name: accountData?.brokerage_name || '',
-  brokerage_logo_url: accountData?.brokerage_logo_url || '',
-  team_logo_url: accountData?.team_logo_url || '',
-})
+      name: profileData.full_name || '',
+      email: profileData.email || '',
+      avatar: profileData.agent_photo_url || '',
+      phone: profileData.phone || '',
+      team_logo_url: accountData?.team_logo_url || '',
+    })
   }
 
   if (eventId) loadData()
