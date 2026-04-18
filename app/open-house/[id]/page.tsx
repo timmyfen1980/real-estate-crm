@@ -92,7 +92,7 @@ useEffect(() => {
 // 🔥 GET AGENT (CLEAN + SAFE)
 const { data: profileData, error: profileError } = await supabase
   .from('profiles')
-  .select('full_name, agent_photo_url, email, phone')
+  .select('full_name, agent_photo_url, phone')
   .eq('id', eventData.user_id)
   .maybeSingle()
 
@@ -124,7 +124,6 @@ console.log('PROFILE DATA DEBUG:', {
 
 setBranding({
   name: agentName,
-  email: profileData?.email || '',
   avatar: agentAvatar,
   phone: agentPhone,
   team_logo_url: accountData?.team_logo_url || '',
