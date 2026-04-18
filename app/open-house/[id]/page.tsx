@@ -91,11 +91,16 @@ useEffect(() => {
     setProperty(propertyData)
 
     // 🔥 GET AGENT (THIS IS THE ONLY SOURCE OF "PRESENTED BY")
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('full_name, agent_photo_url, email, phone')
-      .eq('id', eventData.user_id)
-      .single()
+    const { data: profileArray, error: profileError } = await supabase
+  .from('profiles')
+  .select('full_name, agent_photo_url, email, phone')
+  .eq('id', eventData.user_id)
+
+const profileData = profileArray && profileArray.length > 0 ? profileArray[0] : null
+
+console.log('PROFILE ARRAY:', profileArray)
+console.log('PROFILE DATA:', profileData)
+console.log('PROFILE ERROR:', profileError)
 
     if (profileError) {
   console.error('PROFILE LOAD ERROR:', profileError)
