@@ -68,22 +68,23 @@ setUserRole(membership.role)
       const { data: account } = await supabase
         .from('accounts')
         .select(
-          'name, brokerage_name, invite_code, logo_url, brokerage_logo_url, team_enabled, team_name, team_logo_url'
-        )
+  'name, brokerage_name, invite_code, logo_url, brokerage_logo_url, team_enabled, team_name, team_logo_url, phone'
+)
         .eq('id', membership.account_id)
       .maybeSingle()
 
       if (account) {
         const loaded = {
-          name: account.name || '',
-          brokerage: account.brokerage_name || '',
-          invite: account.invite_code || '',
-          logo: account.logo_url || null,
-          brokerageLogo: account.brokerage_logo_url || null,
-          teamEnabled: account.team_enabled || false,
-          teamName: account.team_name || '',
-          teamLogo: account.team_logo_url || null,
-        }
+  name: account.name || '',
+  brokerage: account.brokerage_name || '',
+  invite: account.invite_code || '',
+  logo: account.logo_url || null,
+  brokerageLogo: account.brokerage_logo_url || null,
+  teamEnabled: account.team_enabled || false,
+  teamName: account.team_name || '',
+  teamLogo: account.team_logo_url || null,
+  phone: account.phone || '',
+}
 
         setAccountName(loaded.name)
         setBrokerage(loaded.brokerage)
@@ -93,6 +94,7 @@ setUserRole(membership.role)
         setTeamEnabled(loaded.teamEnabled)
         setTeamName(loaded.teamName)
         setTeamLogoUrl(loaded.teamLogo)
+        setPhone(loaded.phone)
         setOriginalData(loaded)
       }
 
@@ -156,29 +158,39 @@ setUserRole(membership.role)
       )
     }
 
-    await supabase
-      .from('accounts')
-      .update({
-        name: accountName,
-        brokerage_name: brokerage,
-        logo_url: newLogoUrl,
-        brokerage_logo_url: newBrokerageLogoUrl,
-        team_enabled: teamEnabled,
-        team_name: teamEnabled ? teamName : null,
-        team_logo_url: teamEnabled ? newTeamLogoUrl : null,
-      })
-      .eq('id', accountId)
+    const { error: updateError } = await supabase
+  .from('accounts')
+  .update({
+    name: accountName,
+    brokerage_name: brokerage,
+    logo_url: newLogoUrl,
+    brokerage_logo_url: newBrokerageLogoUrl,
+    team_enabled: teamEnabled,
+    team_name: teamEnabled ? teamName : null,
+    team_logo_url: teamEnabled ? newTeamLogoUrl : null,
+    phone: phone,
+  })
+  .eq('id', accountId)
 
-    setLogoUrl(newLogoUrl)
-    setBrokerageLogoUrl(newBrokerageLogoUrl)
-    setTeamLogoUrl(newTeamLogoUrl)
+console.log('UPDATED ACCOUNT ID:', accountId)
 
-    setLogoFile(null)
-    setBrokerageLogoFile(null)
-    setTeamLogoFile(null)
+if (updateError) {
+  console.error('ACCOUNT UPDATE ERROR:', updateError)
+  setSaving(false)
+  setMessage('Error saving changes.')
+  return
+}
 
-    setSaving(false)
-    setMessage('Changes saved successfully.')
+setLogoUrl(newLogoUrl)
+setBrokerageLogoUrl(newBrokerageLogoUrl)
+setTeamLogoUrl(newTeamLogoUrl)
+
+setLogoFile(null)
+setBrokerageLogoFile(null)
+setTeamLogoFile(null)
+
+setSaving(false)
+setMessage('Changes saved successfully.')
   }
 
   if (loading) {

@@ -27,7 +27,7 @@ export default function OpenHousePage() {
   const [branding, setBranding] = useState<any>(null)
   const [property, setProperty] = useState<Property | null>(null)
   const [event, setEvent] = useState<OpenHouseEvent | null>(null)
-
+const [agent, setAgent] = useState<any>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -62,55 +62,66 @@ export default function OpenHousePage() {
     return () => clearTimeout(timer)
   }
 }, [submitted])
+useEffect(() => {
+  const loadData = async () => {
+    const { data: eventData, error: eventError } = await supabase
+      .from('open_house_events')
+      .select('*')
+      .eq('id', eventId)
+      .single()
 
-  useEffect(() => {
-    const loadData = async () => {
-      const { data: eventData } = await supabase
-        .from('open_house_events')
-        .select('*')
-        .eq('id', eventId)
-        .single()
-
-      if (!eventData) return
-      setEvent(eventData)
-
-      const { data: propertyData } = await supabase
-        .from('properties')
-        .select('id, address, image_url, account_id')
-        .eq('id', eventData.property_id)
-        .single()
-
-      if (!propertyData) return
-      setProperty(propertyData)
-
-      const { data: accountData } = await supabase
-        .from('accounts')
-        .select('name, logo_url, brokerage_name, brokerage_logo_url, team_logo_url, phone, owner_email')
-        .eq('id', propertyData.account_id)
-        .single()
-
-      let agentProfile = null
-
-const { data: profileData } = await supabase
-  .from('profiles')
-  .select('full_name, avatar_url, email')
-  .eq('id', eventData.user_id)
-  .single()
-
-agentProfile = profileData
-
-if (accountData) {
-  setBranding({
-  ...accountData,
-  agent_name: agentProfile?.full_name,
-  agent_avatar: agentProfile?.avatar_url,
-  agent_email: agentProfile?.email,
-})
-}
+    if (eventError || !eventData) {
+      console.error('EVENT LOAD ERROR:', eventError)
+      return
     }
 
-    if (eventId) loadData()
-  }, [eventId])
+    setEvent(eventData)
+
+    const { data: propertyData, error: propertyError } = await supabase
+      .from('properties')
+      .select('id, address, image_url, account_id')
+      .eq('id', eventData.property_id)
+      .single()
+
+    if (propertyError || !propertyData) {
+      console.error('PROPERTY LOAD ERROR:', propertyError)
+      return
+    }
+
+    setProperty(propertyData)
+
+    const { data: accountData, error: accountError } = await supabase
+      .from('accounts')
+      .select('name, logo_url, brokerage_name, brokerage_logo_url, team_logo_url, phone, owner_email')
+      .eq('id', propertyData.account_id)
+      .single()
+
+    if (accountError) {
+      console.error('ACCOUNT LOAD ERROR:', accountError)
+    }
+
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url, email')
+      .eq('id', eventData.user_id)
+      .single()
+
+    if (profileError) {
+      console.error('PROFILE LOAD ERROR:', profileError)
+    }
+
+    if (accountData) {
+      setBranding({
+        ...accountData,
+        agent_name: profileData?.full_name || '',
+        agent_avatar: profileData?.avatar_url || '',
+        agent_email: profileData?.email || '',
+      })
+    }
+  }
+
+  if (eventId) loadData()
+}, [eventId])
 
   const handleSubmit = async () => {
     if (!event || !property) return
@@ -291,7 +302,7 @@ if (accountData) {
               </p>
             )}
 
-            {(branding.phone || branding.owner_email) && (
+            {(branding.phone || branding.agent_email) && (
               <div className="text-sm text-gray-600 mt-2">
                 {branding.phone && <div>{branding.phone}</div>}
                 {branding.agent_email && <div>{branding.agent_email}</div>}
