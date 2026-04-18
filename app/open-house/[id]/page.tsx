@@ -109,12 +109,22 @@ useEffect(() => {
       .single()
 
     // 🔥 FINAL — NO FALLBACKS, NO MIXING
+const agentName = profileData?.full_name || ''
+const agentAvatar = profileData?.agent_photo_url || ''
+const agentPhone = profileData?.phone || ''
+
+console.log('PROFILE DATA DEBUG:', {
+  agentName,
+  agentAvatar,
+  agentPhone,
+})
+
 setBranding({
-  name: profileData?.full_name ?? '',
-  email: profileData?.email ?? '',
-  avatar: profileData?.agent_photo_url ?? '',
-  phone: profileData?.phone ?? '',
-  team_logo_url: accountData?.team_logo_url ?? '',
+  name: agentName,
+  email: profileData?.email || '',
+  avatar: agentAvatar,
+  phone: agentPhone,
+  team_logo_url: accountData?.team_logo_url || '',
 })
   }
 
@@ -200,11 +210,9 @@ setBranding({
       />
     )}
 
-    {branding.name && (
-      <p className="text-lg font-semibold text-gray-900">
-        {branding.name}
-      </p>
-    )}
+    <p className="text-lg font-semibold text-gray-900">
+  {branding.name || ''}
+</p>
 
     {branding.team_logo_url && (
       <img
@@ -253,7 +261,6 @@ setBranding({
   className="rounded-xl shadow w-full max-h-[400px] object-cover"
 />
         )}
-
         {branding && (
   <div className="mt-6 text-center md:text-left">
 
@@ -261,44 +268,42 @@ setBranding({
       Presented by
     </p>
 
-    {/* 🔥 AGENT PHOTO */}
-    {branding.avatar && (
-      <div className="flex justify-center md:justify-start mb-2">
+    {/* AGENT PHOTO (render even if empty check fails silently) */}
+    <div className="flex justify-center md:justify-start mb-2">
+      {branding.avatar ? (
         <img
           src={branding.avatar}
           alt="Agent"
           className="h-16 w-16 rounded-full object-cover"
         />
-      </div>
-    )}
+      ) : null}
+    </div>
 
-    {/* 🔥 AGENT NAME */}
-    {branding.name && (
-      <p className="text-lg font-semibold text-gray-900 mb-4 text-center md:text-left">
-        {branding.name}
-      </p>
-    )}
+    {/* AGENT NAME (ALWAYS RENDER LINE) */}
+    <p className="text-lg font-semibold text-gray-900 mb-4 text-center md:text-left">
+      {branding.name || ''}
+    </p>
 
-    {/* 🔥 TEAM LOGO (LARGER) */}
-    {branding.team_logo_url && (
-      <div className="flex justify-center md:justify-start mb-3">
+    {/* TEAM LOGO */}
+    <div className="flex justify-center md:justify-start mb-3">
+      {branding.team_logo_url ? (
         <img
           src={branding.team_logo_url}
           alt="Team Logo"
-          className="h-16 object-contain"
+          className="h-40 object-contain"
         />
-      </div>
-    )}
+      ) : null}
+    </div>
 
-    {/* 🔥 AGENT PHONE ONLY */}
-    {branding.phone && (
-      <div className="text-sm text-gray-600 mt-2">
-        <div>{branding.phone}</div>
-      </div>
-    )}
+    {/* AGENT PHONE */}
+    <div className="text-sm text-gray-600 mt-2">
+      {branding.phone || ''}
+    </div>
 
   </div>
 )}
+
+   
       </div>
 
       <div className="bg-white p-8 rounded-xl shadow-lg">
