@@ -102,7 +102,7 @@ useEffect(() => {
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('full_name, agent_photo_url, email')
+      .select('full_name, agent_photo_url, email, phone')
       .eq('id', eventData.user_id)
       .single()
 
@@ -110,16 +110,20 @@ useEffect(() => {
       console.error('PROFILE LOAD ERROR:', profileError)
     }
 
-    if (profileData) {
-      setBranding({
-        name: profileData.full_name || '',
-        email: profileData.email || '',
-        avatar: profileData.agent_photo_url || '',
-        phone: accountData?.phone || '',
-        brokerage_name: accountData?.brokerage_name || '',
-        brokerage_logo_url: accountData?.brokerage_logo_url || '',
-      })
-    }
+    setBranding({
+  // 🔥 AGENT (PRIMARY)
+  name: profileData?.full_name || '',
+  email: profileData?.email || '',
+  avatar: profileData?.agent_photo_url || '',
+
+  // 🔥 AGENT PHONE FIRST, FALLBACK TO TEAM
+  phone: profileData?.phone || accountData?.phone || '',
+
+  // 🔥 TEAM BRANDING
+  brokerage_name: accountData?.brokerage_name || '',
+  brokerage_logo_url: accountData?.brokerage_logo_url || '',
+  team_logo_url: accountData?.team_logo_url || '',
+})
   }
 
   if (eventId) loadData()
