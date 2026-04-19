@@ -17,10 +17,14 @@ export default function ForgotPasswordPage() {
     })
 
     if (error) {
-      setMessage(error.message)
-    } else {
-      setMessage('Check your email for a reset link.')
-    }
+  setMessage(error.message)
+} else {
+  setMessage('Check your email for a reset link. Redirecting to login...')
+
+  setTimeout(() => {
+    window.location.href = '/login'
+  }, 3000)
+}
 
     setLoading(false)
   }
