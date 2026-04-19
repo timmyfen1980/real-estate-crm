@@ -80,7 +80,12 @@ export default function LoginPage() {
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
-
+<a
+  href="/forgot-password"
+  className="block text-center text-sm text-gray-500 underline mt-2"
+>
+  Forgot your password?
+</a>
           <button          
   onClick={() => window.location.href = '/signup'}
   className="w-full text-sm text-gray-500 underline"
