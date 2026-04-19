@@ -32,7 +32,7 @@ export default function ForgotPasswordPage() {
     }
 
     setSent(true)
-    setMessage('Check your email for a reset link. Redirecting to login...')
+    setMessage('If an account exists with that email, a reset link has been sent. Redirecting to login...')
 
     setTimeout(() => {
       window.location.href = '/login'
