@@ -6,59 +6,94 @@ import { supabase } from '@/lib/supabaseClient'
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [sent, setSent] = useState(false)
 
   const handleReset = async () => {
-    setLoading(true)
+    setError('')
     setMessage('')
+
+    if (!email) {
+      setError('Please enter your email.')
+      return
+    }
+
+    setLoading(true)
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     })
 
     if (error) {
-  setMessage(error.message)
-} else {
-  setMessage('Check your email for a reset link. Redirecting to login...')
+      setError(error.message)
+      setLoading(false)
+      return
+    }
 
-  setTimeout(() => {
-    window.location.href = '/login'
-  }, 3000)
-}
+    setSent(true)
+    setMessage('Check your email for a reset link. Redirecting to login...')
 
-    setLoading(false)
+    setTimeout(() => {
+      window.location.href = '/login'
+    }, 3000)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
-      <div className="bg-white w-full max-w-md p-8 rounded-2xl shadow-xl">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-8">
 
-        <h1 className="text-2xl font-bold mb-6 text-center">
+        <h1 className="text-2xl font-bold mb-2 text-center">
           Reset Password
         </h1>
 
-        <input
-          type="email"
-          placeholder="Enter your email"
-          className="w-full p-3 border rounded-lg mb-4"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        <p className="text-sm text-gray-500 text-center mb-6">
+          Enter your email and we’ll send you a reset link.
+        </p>
 
-        <button
-          onClick={handleReset}
-          disabled={loading}
-          className="w-full bg-black text-white py-3 rounded-lg hover:bg-gray-800 disabled:opacity-50"
-        >
-          {loading ? 'Sending...' : 'Send Reset Link'}
-        </button>
+        <div className="space-y-4">
 
-        {message && (
-          <p className="text-sm text-center mt-4 text-gray-600">
-            {message}
-          </p>
-        )}
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={sent}
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-black focus:outline-none disabled:bg-gray-100"
+          />
 
+          {error && (
+            <p className="text-sm text-red-600 text-center">
+              {error}
+            </p>
+          )}
+
+          {message && (
+            <p className="text-sm text-green-600 text-center">
+              {message}
+            </p>
+          )}
+
+          <button
+            onClick={handleReset}
+            disabled={loading || sent}
+            className="w-full bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
+          >
+            {loading
+              ? 'Sending...'
+              : sent
+              ? 'Email Sent'
+              : 'Send Reset Link'}
+          </button>
+
+          <button
+            onClick={() => (window.location.href = '/login')}
+            className="w-full text-sm text-gray-500 underline"
+          >
+            Back to Login
+          </button>
+
+        </div>
       </div>
     </div>
   )
