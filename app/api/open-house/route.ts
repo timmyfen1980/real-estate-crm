@@ -69,8 +69,21 @@ if (isRateLimited(ip)) {
       )
     }
 
-    const normalizedEmail = email.toLowerCase().trim()
+   const normalizedEmail = email.toLowerCase().trim()
 
+// 📊 ALWAYS TRACK TOTAL VISITORS
+await supabaseAdmin.rpc('increment_open_house_total', {
+  event_id_input: open_house_event_id,
+})
+
+// 🚫 IF WORKING WITH REALTOR → TRACK + EXIT
+if (working_with_realtor === true) {
+  await supabaseAdmin.rpc('increment_open_house_with_agent', {
+    event_id_input: open_house_event_id,
+  })
+
+  return NextResponse.json({ success: true, skipped: true })
+}
     const { data: property } = await supabaseAdmin
       .from('properties')
       .select('account_id, feature_sheet_url, address')
