@@ -37,6 +37,8 @@ export default function PropertyPage() {
   const [property, setProperty] = useState<Property | null>(null)
   const [sellers, setSellers] = useState<Seller[]>([])
   const [openHouses, setOpenHouses] = useState<OpenHouse[]>([])
+  const [totalVisitors, setTotalVisitors] = useState(0)
+const [visitorsWithAgents, setVisitorsWithAgents] = useState(0)
 
   const [loading, setLoading] = useState(true)
 
@@ -84,12 +86,26 @@ const [selectedRole, setSelectedRole] = useState<'seller' | 'buyer' | 'tenant' |
     }
 
     const { data: openHouseData } = await supabase
-      .from('open_house_events')
-      .select('id,event_date,start_time,end_time')
-      .eq('property_id', propertyId)
+  .from('open_house_events')
+  .select('id,event_date,start_time,end_time,total_visitors,visitors_with_agents')
+  .eq('property_id', propertyId)
 
-    if (openHouseData) setOpenHouses(openHouseData)
+if (openHouseData) {
+  setOpenHouses(openHouseData)
 
+  const total = openHouseData.reduce(
+    (sum, oh) => sum + (oh.total_visitors || 0),
+    0
+  )
+
+  const withAgents = openHouseData.reduce(
+    (sum, oh) => sum + (oh.visitors_with_agents || 0),
+    0
+  )
+
+  setTotalVisitors(total)
+  setVisitorsWithAgents(withAgents)
+}
     setLoading(false)
   }
 
@@ -450,6 +466,13 @@ if (updateError) {
 
   <div className="flex items-center justify-between mb-4">
     <h2 className="text-lg font-semibold">Open Houses</h2>
+    <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
+  <div className="text-sm text-gray-600">
+    <div>Total Visitors: <span className="font-semibold text-black">{totalVisitors}</span></div>
+    <div>With Agents: <span className="font-semibold text-black">{visitorsWithAgents}</span></div>
+    <div>Qualified Leads: <span className="font-semibold text-black">{totalVisitors - visitorsWithAgents}</span></div>
+  </div>
+</div>
 
     <button
       onClick={() =>
