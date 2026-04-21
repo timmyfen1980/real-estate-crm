@@ -22,7 +22,8 @@ export async function GET() {
         next_send_at,
         email_campaigns (
           id,
-          name
+          name,
+          account_id
         )
       `)
       .eq('status', 'active')
@@ -56,17 +57,31 @@ export async function GET() {
         contact.first_name || ''
       )
 
-      // 5. Send email
+      // 5. Get sender email (FIXED)
+      const accountId = c.email_campaigns?.[0]?.account_id || null
+
+      const { data: sender } = await supabase
+        .from('email_addresses')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('is_default', true)
+        .single()
+
+      const fromEmail = sender
+        ? `${sender.name} <${sender.email}>`
+        : 'The FC Group <info@thefcgroup.ca>'
+
+      // 6. Send email
       const send = await resend.emails.send({
-        from: 'The FC Group <info@thefcgroup.ca>',
+        from: fromEmail,
         to: contact.email,
         subject: sequence.subject,
         html: body,
       })
 
-      // 6. Log email
+      // 7. Log email (FIXED)
       await supabase.from('email_logs').insert({
-        account_id: null,
+        account_id: accountId,
         contact_id: c.contact_id,
         campaign_id: c.campaign_id,
         sequence_id: sequence.id,
@@ -76,7 +91,7 @@ export async function GET() {
         resend_id: send?.data?.id,
       })
 
-      // 7. Move to next step
+      // 8. Move to next step
       const nextStep = c.current_step + 1
 
       const { data: nextSequence } = await supabase
