@@ -230,6 +230,28 @@ if (working_with_realtor === true) {
         }
 
         contactId = newContact.id
+        // =========================
+// AUTO ASSIGN EMAIL CAMPAIGN
+// =========================
+
+const CAMPAIGN_ID = '7f4d67bc-3b46-4687-9100-51f2b1743d85'
+
+const { data: existingCampaign } = await supabaseAdmin
+  .from('contact_campaigns')
+  .select('id')
+  .eq('contact_id', contactId)
+  .eq('campaign_id', CAMPAIGN_ID)
+  .maybeSingle()
+
+if (!existingCampaign) {
+  await supabaseAdmin.from('contact_campaigns').insert([
+    {
+      contact_id: contactId,
+      campaign_id: CAMPAIGN_ID,
+      next_send_at: new Date().toISOString(),
+    },
+  ])
+}
       }
 
       // =========================
