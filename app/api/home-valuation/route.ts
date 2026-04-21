@@ -81,6 +81,31 @@ export async function POST(req: Request) {
 
     if (existingContact) {
       contactId = existingContact.id;
+      // =========================
+// AUTO ASSIGN EMAIL CAMPAIGN
+// =========================
+
+// Replace with your real campaign ID
+const CAMPAIGN_ID = 'ab86b521-d3c8-4acb-8d4d-20e5e973ce03'
+
+// Check if already assigned (prevent duplicates)
+const { data: existingCampaign } = await supabaseAdmin
+  .from('contact_campaigns')
+  .select('id')
+  .eq('contact_id', contactId)
+  .eq('campaign_id', CAMPAIGN_ID)
+  .maybeSingle()
+
+if (!existingCampaign) {
+  await supabaseAdmin.from('contact_campaigns').insert([
+    {
+      contact_id: contactId,
+      campaign_id: CAMPAIGN_ID,
+      next_send_at: new Date().toISOString(),
+    },
+  ])
+}
+
     } else {
       const { data: newContact, error: contactError } = await supabaseAdmin
         .from("contacts")
@@ -100,6 +125,30 @@ export async function POST(req: Request) {
 
       if (contactError) throw contactError;
       contactId = newContact.id;
+      // =========================
+// AUTO ASSIGN EMAIL CAMPAIGN
+// =========================
+
+// Replace with your real campaign ID
+const CAMPAIGN_ID = 'ab86b521-d3c8-4acb-8d4d-20e5e973ce03'
+
+// Check if already assigned (prevent duplicates)
+const { data: existingCampaign } = await supabaseAdmin
+  .from('contact_campaigns')
+  .select('id')
+  .eq('contact_id', contactId)
+  .eq('campaign_id', CAMPAIGN_ID)
+  .maybeSingle()
+
+if (!existingCampaign) {
+  await supabaseAdmin.from('contact_campaigns').insert([
+    {
+      contact_id: contactId,
+      campaign_id: CAMPAIGN_ID,
+      next_send_at: new Date().toISOString(),
+    },
+  ])
+}
     }
 
     if (!existingLead) {
