@@ -256,12 +256,12 @@ setDeals(parsedDeals)
 // =========================
 
 // get account id from membership (already fetched above)
-const accountId = membership.account_id
+const acctId = membership.account_id
 
 const { data: campaignsData } = await supabase
   .from('email_campaigns')
   .select('*')
-  .eq('account_id', accountId)
+  .eq('account_id', acctId)
 
 setCampaigns(campaignsData || [])
 
@@ -421,6 +421,53 @@ const handleDelete = async () => {
   }
 
   router.push('/dashboard/contacts')
+}
+const assignCampaign = async () => {
+  if (!selectedCampaign) return
+
+  // 🔒 prevent duplicates
+  const { data: existing } = await supabase
+    .from('contact_campaigns')
+    .select('id')
+    .eq('contact_id', contactId)
+    .eq('campaign_id', selectedCampaign)
+    .maybeSingle()
+
+  if (existing) {
+    alert('Campaign already assigned')
+    return
+  }
+
+  const { error } = await supabase
+    .from('contact_campaigns')
+    .insert([
+      {
+        contact_id: contactId,
+        campaign_id: selectedCampaign,
+        next_send_at: new Date().toISOString(),
+      },
+    ])
+
+  if (error) {
+    alert('Error assigning campaign')
+    return
+  }
+
+  setShowCampaignModal(false)
+  setSelectedCampaign(null)
+
+  // reload campaigns
+  const { data: assignedCampaigns } = await supabase
+    .from('contact_campaigns')
+    .select(`
+      id,
+      status,
+      current_step,
+      email_campaigns (name)
+    `)
+    .eq('contact_id', contactId)
+
+  setContactCampaigns(assignedCampaigns || [])
 }
 const handleSave = async () => {
   if (!formData || !contact) return
@@ -1077,6 +1124,51 @@ const handleSave = async () => {
   </div>
 
 </div>
+{/* EMAIL CAMPAIGNS */}
+
+<div className="bg-white rounded-xl shadow p-6">
+
+  <h3 className="font-semibold mb-4">Email Campaigns</h3>
+
+  {contactCampaigns.length === 0 && (
+    <p className="text-sm text-gray-500">
+      No campaigns assigned.
+    </p>
+  )}
+
+  <div className="space-y-3">
+
+    {contactCampaigns.map((c: any) => (
+
+      <div
+        key={c.id}
+        className="border rounded p-3 bg-gray-50"
+      >
+
+        <p className="text-sm font-medium">
+          {Array.isArray(c.email_campaigns)
+            ? c.email_campaigns[0]?.name
+            : c.email_campaigns?.name}
+        </p>
+
+        <p className="text-xs text-gray-500">
+          Status: {c.status} • Step: {c.current_step}
+        </p>
+
+      </div>
+
+    ))}
+
+  </div>
+
+  <button
+    onClick={() => setShowCampaignModal(true)}
+    className="mt-4 bg-black text-white px-4 py-2 rounded"
+  >
+    Assign Campaign
+  </button>
+
+</div>
                 {/* NOTES */}
 
         <div className="bg-white rounded-xl shadow p-6">
@@ -1145,6 +1237,52 @@ const handleSave = async () => {
       >
         Save Changes
       </button>
+
+    </div>
+
+  </div>
+)}
+
+{showCampaignModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+
+    <div className="bg-white p-6 rounded-lg w-full max-w-md">
+
+      <h2 className="text-lg font-semibold mb-4">
+        Assign Campaign
+      </h2>
+
+      <select
+        className="w-full border p-2 mb-4"
+        value={selectedCampaign || ''}
+        onChange={(e) => setSelectedCampaign(e.target.value)}
+      >
+        <option value="">Select campaign</option>
+
+        {campaigns.map((c: any) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex justify-end gap-2">
+
+        <button
+          onClick={() => setShowCampaignModal(false)}
+          className="px-4 py-2 border rounded"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={assignCampaign}
+          className="px-4 py-2 bg-black text-white rounded"
+        >
+          Assign
+        </button>
+
+      </div>
 
     </div>
 
