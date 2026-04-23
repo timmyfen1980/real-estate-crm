@@ -121,6 +121,10 @@ const [newTask, setNewTask] = useState('')
 
   const [isOwner, setIsOwner] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [campaigns, setCampaigns] = useState<any[]>([])
+const [contactCampaigns, setContactCampaigns] = useState<any[]>([])
+const [showCampaignModal, setShowCampaignModal] = useState(false)
+const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
 const [formData, setFormData] = useState<any>(null) 
 
@@ -247,6 +251,31 @@ const parsedDeals =
   }) || []
 
 setDeals(parsedDeals)
+// =========================
+// LOAD EMAIL CAMPAIGNS
+// =========================
+
+// get account id from membership (already fetched above)
+const accountId = membership.account_id
+
+const { data: campaignsData } = await supabase
+  .from('email_campaigns')
+  .select('*')
+  .eq('account_id', accountId)
+
+setCampaigns(campaignsData || [])
+
+const { data: assignedCampaigns } = await supabase
+  .from('contact_campaigns')
+  .select(`
+    id,
+    status,
+    current_step,
+    email_campaigns (name)
+  `)
+  .eq('contact_id', contactId)
+
+setContactCampaigns(assignedCampaigns || [])
     setLoading(false)
   }
 
