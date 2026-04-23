@@ -39,7 +39,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard/open-houses')
+    router.push('/dashboard')
   }
 
   return (
