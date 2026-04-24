@@ -9,7 +9,14 @@ const supabase = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-export async function GET() {
+export async function GET(req: Request) {
+  // 🔒 CRON SECURITY CHECK
+  const authHeader = req.headers.get('authorization')
+
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
   try {
     // 1. Get active campaigns ready to send
     const { data: campaigns, error } = await supabase
