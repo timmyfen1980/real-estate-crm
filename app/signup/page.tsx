@@ -51,23 +51,24 @@ const { data: authData, error: authError } = await supabase.auth.signUp({
 })
 
 if (authError) {
-  // If email confirmation is required, stop here
-if (!authData.session) {
-  setLoading(false)
-  router.push('/login')
-  return
-}
   setError(authError.message)
   setLoading(false)
   return
 }
 
-// Always fetch user after signup
 const user = authData?.user
 
 if (!user) {
-  setError('Please check your email to confirm your account before logging in.')
+  setError('Signup failed. Please try again.')
   setLoading(false)
+  return
+}
+
+// 🔒 HANDLE EMAIL CONFIRMATION MODE PROPERLY
+if (!authData.session) {
+  setLoading(false)
+  alert('Check your email to confirm your account before logging in.')
+  router.push('/login')
   return
 }
 
