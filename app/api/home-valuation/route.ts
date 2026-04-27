@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 // =========================
 
 // Replace with your real campaign ID
-const CAMPAIGN_ID = 'ab86b521-d3c8-4acb-8d4d-20e5e973ce03'
+const CAMPAIGN_ID = 'de93a220-2ca8-4022-9a33-7f584a0e2799'
 
 // Check if already assigned (prevent duplicates)
 const { data: existingCampaign } = await supabaseAdmin
@@ -130,7 +130,7 @@ if (!existingCampaign) {
 // =========================
 
 // Replace with your real campaign ID
-const CAMPAIGN_ID = 'ab86b521-d3c8-4acb-8d4d-20e5e973ce03'
+const CAMPAIGN_ID = 'de93a220-2ca8-4022-9a33-7f584a0e2799'
 
 // Check if already assigned (prevent duplicates)
 const { data: existingCampaign } = await supabaseAdmin

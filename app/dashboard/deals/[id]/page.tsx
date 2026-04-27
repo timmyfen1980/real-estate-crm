@@ -117,7 +117,34 @@ export default function DealDetailPage() {
       })
       .eq('id', deal.id)
       .eq('account_id', membership.account_id)
+// 🔥 AUTO-SYNC PROPERTY STATUS (SELLER DEALS ONLY)
 
+if (!error && deal.deal_type === 'Seller') {
+
+  let newPropertyStatus = ''
+
+  if (status === 'Active') {
+    newPropertyStatus = 'for_sale'
+  }
+
+  if (status === 'Sold Conditional' || status === 'Sold Firm') {
+    newPropertyStatus = 'sold'
+  }
+
+  if (status === 'Closed') {
+    newPropertyStatus = 'closed'
+  }
+
+  if (newPropertyStatus && deal.property_id) {
+    await supabase
+      .from('properties')
+      .update({
+        status: newPropertyStatus
+      })
+      .eq('id', deal.property_id)
+      .eq('account_id', membership.account_id)
+  }
+}
     if (error) {
       console.log('DEAL UPDATE ERROR:', error)
       alert('Failed to save deal')
