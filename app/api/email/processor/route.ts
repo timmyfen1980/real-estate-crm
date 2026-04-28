@@ -42,7 +42,7 @@ export async function GET(req: Request) {
 
       if (!sequence) continue
 
-      // ✅ CONTACT (NOW INCLUDES ACCOUNT)
+      // CONTACT
       const { data: contact } = await supabase
         .from('contacts')
         .select('email, first_name, assigned_user_id, account_id')
@@ -51,21 +51,20 @@ export async function GET(req: Request) {
 
       if (!contact?.email) continue
 
-      // ✅ AGENT
+      // AGENT (UPDATED)
       const { data: agent } = await supabase
         .from('profiles')
-        .select('full_name, phone')
+        .select('full_name, phone, email, agent_photo_url')
         .eq('id', contact.assigned_user_id)
         .single()
 
-      // ✅ ACCOUNT (BRANDING)
+      // ACCOUNT
       const { data: account } = await supabase
         .from('accounts')
         .select('team_logo_url, brokerage_logo_url, brokerage_name')
         .eq('id', contact.account_id)
         .single()
 
-      // EMAIL CONTENT
       const rawContent = sequence.body_html.replace(
         '{{first_name}}',
         contact.first_name || ''
@@ -75,13 +74,14 @@ export async function GET(req: Request) {
         content: rawContent,
         firstName: contact.first_name,
         agentName: agent?.full_name,
+        agentEmail: agent?.email,
         agentPhone: agent?.phone,
+        agentPhoto: agent?.agent_photo_url,
         teamLogo: account?.team_logo_url,
         brokerageLogo: account?.brokerage_logo_url,
         brokerageName: account?.brokerage_name,
       })
 
-      // SENDER EMAIL
       const accountId = contact.account_id
 
       const { data: sender } = await supabase

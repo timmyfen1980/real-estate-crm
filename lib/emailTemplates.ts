@@ -2,7 +2,9 @@ export function buildEmailTemplate({
   content,
   firstName,
   agentName,
+  agentEmail,
   agentPhone,
+  agentPhoto,
   teamLogo,
   brokerageLogo,
   brokerageName,
@@ -10,7 +12,9 @@ export function buildEmailTemplate({
   content: string
   firstName?: string
   agentName?: string
+  agentEmail?: string
   agentPhone?: string
+  agentPhoto?: string
   teamLogo?: string
   brokerageLogo?: string
   brokerageName?: string
@@ -35,7 +39,7 @@ export function buildEmailTemplate({
 
             <!-- BODY -->
             <tr>
-              <td style="padding:30px;color:#333;font-size:16px;line-height:1.5;">
+              <td style="padding:30px;color:#333;font-size:16px;line-height:1.6;">
                 ${firstName ? `<p>Hi ${firstName},</p>` : ''}
                 ${content}
               </td>
@@ -44,9 +48,23 @@ export function buildEmailTemplate({
             <!-- SIGNATURE -->
             <tr>
               <td style="padding:20px;border-top:1px solid #eee;">
-                <strong>${agentName || ''}</strong><br/>
-                ${agentPhone || ''}<br/>
-                ${brokerageName || ''}
+                <table>
+                  <tr>
+                    ${
+                      agentPhoto
+                        ? `<td style="padding-right:15px;">
+                            <img src="${agentPhoto}" width="70" style="border-radius:50%;" />
+                           </td>`
+                        : ''
+                    }
+                    <td style="font-size:14px;color:#333;">
+                      <strong>${agentName || ''}</strong><br/>
+                      ${agentEmail || ''}<br/>
+                      ${agentPhone || ''}<br/>
+                      ${brokerageName || ''}
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
 
