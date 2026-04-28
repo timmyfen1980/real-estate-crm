@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { buildEmailTemplate } from '@/lib/emailTemplates'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,13 +59,18 @@ export async function GET(req: Request) {
 
       if (!contact?.email) continue
 
-      // 4. Replace variables
-      const body = sequence.body_html.replace(
+      // 4. Replace variables + apply template
+      const rawContent = sequence.body_html.replace(
         '{{first_name}}',
         contact.first_name || ''
       )
 
-      // 5. Get sender email (FIXED)
+      const body = buildEmailTemplate({
+        content: rawContent,
+        firstName: contact.first_name,
+      })
+
+      // 5. Get sender email
       const accountId = c.email_campaigns?.[0]?.account_id || null
 
       const { data: sender } = await supabase
@@ -86,7 +92,7 @@ export async function GET(req: Request) {
         html: body,
       })
 
-      // 7. Log email (FIXED)
+      // 7. Log email
       await supabase.from('email_logs').insert({
         account_id: accountId,
         contact_id: c.contact_id,
