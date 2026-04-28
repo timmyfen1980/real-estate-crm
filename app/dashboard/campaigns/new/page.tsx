@@ -210,6 +210,10 @@ export default function NewCampaignPage() {
   isOpen={showPreview}
   onCloseAction={() => setShowPreview(false)}
   html={previewHtml}
+  subject={subject}
+  bodyHtml={previewHtml}
+  ctaText={ctaEnabled ? ctaText : null}
+  ctaLink={ctaEnabled ? ctaLink : null}
 />
     </div>
   )
