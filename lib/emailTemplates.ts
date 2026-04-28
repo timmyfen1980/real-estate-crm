@@ -9,6 +9,8 @@ export function buildEmailTemplate({
   brokerageLogo,
   brokerageName,
   unsubscribeLink,
+  ctaLink,
+  ctaText,
 }: {
   content: string
   firstName?: string
@@ -20,80 +22,78 @@ export function buildEmailTemplate({
   brokerageLogo?: string
   brokerageName?: string
   unsubscribeLink?: string
+  ctaLink?: string
+  ctaText?: string
 }) {
   return `
-  <div style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="padding:20px;">
+  <div style="background:#f4f4f4;padding:20px;font-family:Arial;">
+    <table width="600" align="center" style="background:#fff;border-radius:8px;overflow:hidden;">
+      
       <tr>
-        <td align="center">
-          <table width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;">
-            
-            <!-- HEADER -->
+        <td style="background:#000;padding:20px;text-align:center;">
+          ${
+            teamLogo
+              ? `<img src="${teamLogo}" style="max-height:60px;" />`
+              : `<span style="color:#fff;font-size:20px;">The FC Group</span>`
+          }
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:30px;">
+          ${firstName ? `<p>Hi ${firstName},</p>` : ''}
+          ${content}
+
+          ${
+            ctaLink
+              ? `<div style="margin-top:20px;text-align:center;">
+                  <a href="${ctaLink}" style="background:#000;color:#fff;padding:12px 20px;border-radius:5px;text-decoration:none;">
+                    ${ctaText || 'Learn More'}
+                  </a>
+                </div>`
+              : ''
+          }
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:20px;border-top:1px solid #eee;">
+          <table>
             <tr>
-              <td style="background:#000;padding:20px;text-align:center;">
-                ${
-                  teamLogo
-                    ? `<img src="${teamLogo}" style="max-height:60px;" />`
-                    : `<span style="color:#fff;font-size:20px;font-weight:bold;">The FC Group</span>`
-                }
+              ${
+                agentPhoto
+                  ? `<td style="padding-right:15px;">
+                      <img src="${agentPhoto}" width="70" style="border-radius:50%;" />
+                    </td>`
+                  : ''
+              }
+              <td>
+                <strong>${agentName || ''}</strong><br/>
+                ${agentEmail || ''}<br/>
+                ${agentPhone || ''}<br/>
+                ${brokerageName || ''}
               </td>
             </tr>
-
-            <!-- BODY -->
-            <tr>
-              <td style="padding:30px;color:#333;font-size:16px;line-height:1.6;">
-                ${firstName ? `<p>Hi ${firstName},</p>` : ''}
-                ${content}
-              </td>
-            </tr>
-
-            <!-- SIGNATURE -->
-            <tr>
-              <td style="padding:20px;border-top:1px solid #eee;">
-                <table>
-                  <tr>
-                    ${
-                      agentPhoto
-                        ? `<td style="padding-right:15px;">
-                            <img src="${agentPhoto}" width="70" style="border-radius:50%;" />
-                           </td>`
-                        : ''
-                    }
-                    <td style="font-size:14px;color:#333;">
-                      <strong>${agentName || ''}</strong><br/>
-                      ${agentEmail || ''}<br/>
-                      ${agentPhone || ''}<br/>
-                      ${brokerageName || ''}
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- FOOTER -->
-            <tr>
-              <td style="background:#f9f9f9;padding:20px;text-align:center;">
-                ${
-                  brokerageLogo
-                    ? `<img src="${brokerageLogo}" style="max-height:40px;" />`
-                    : ''
-                }
-
-                ${
-                  unsubscribeLink
-                    ? `<p style="margin-top:10px;">
-                        <a href="${unsubscribeLink}" style="color:#888;font-size:12px;">
-                          Unsubscribe
-                        </a>
-                      </p>`
-                    : ''
-                }
-              </td>
-            </tr>
-
           </table>
         </td>
       </tr>
+
+      <tr>
+        <td style="text-align:center;padding:20px;background:#f9f9f9;">
+          ${brokerageLogo ? `<img src="${brokerageLogo}" style="max-height:40px;" />` : ''}
+
+          ${
+            unsubscribeLink
+              ? `<p style="margin-top:10px;">
+                  <a href="${unsubscribeLink}" style="color:#888;font-size:12px;">
+                    Unsubscribe
+                  </a>
+                </p>`
+              : ''
+          }
+        </td>
+      </tr>
+
     </table>
   </div>
   `

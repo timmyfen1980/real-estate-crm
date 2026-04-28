@@ -42,7 +42,6 @@ export async function GET(req: Request) {
 
       if (!sequence) continue
 
-      // CONTACT
       const { data: contact } = await supabase
         .from('contacts')
         .select('email, first_name, assigned_user_id, account_id')
@@ -51,19 +50,19 @@ export async function GET(req: Request) {
 
       if (!contact?.email) continue
 
-// 🔒 CHECK UNSUBSCRIBED
-const { data: sub } = await supabase
-  .from('contact_subscriptions')
-  .select('unsubscribed')
-  .eq('contact_id', c.contact_id)
-  .single()
+      // 🚫 UNSUBSCRIBE CHECK
+      const { data: sub } = await supabase
+        .from('contact_subscriptions')
+        .select('unsubscribed')
+        .eq('contact_id', c.contact_id)
+        .single()
 
-if (sub?.unsubscribed) continue
+      if (sub?.unsubscribed) continue
 
-      // AGENT (UPDATED)
+      // AGENT
       const { data: agent } = await supabase
         .from('profiles')
-        .select('full_name, phone, email, agent_photo_url')
+        .select('full_name, email, phone, agent_photo_url')
         .eq('id', contact.assigned_user_id)
         .single()
 
@@ -73,7 +72,15 @@ if (sub?.unsubscribed) continue
         .select('team_logo_url, brokerage_logo_url, brokerage_name')
         .eq('id', contact.account_id)
         .single()
-       const unsubscribeLink = `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=${c.contact_id}`
+
+      // CTA (OPTIONAL)
+      const ctaLink = sequence.cta_link || null
+      const ctaText = sequence.cta_text || null
+
+      // UNSUBSCRIBE LINK
+      const unsubscribeLink = `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=${c.contact_id}`
+
+      // CONTENT
       const rawContent = sequence.body_html.replace(
         '{{first_name}}',
         contact.first_name || ''
@@ -90,6 +97,8 @@ if (sub?.unsubscribed) continue
         brokerageLogo: account?.brokerage_logo_url,
         brokerageName: account?.brokerage_name,
         unsubscribeLink,
+        ctaLink,
+        ctaText,
       })
 
       const accountId = contact.account_id
