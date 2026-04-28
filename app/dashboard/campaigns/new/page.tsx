@@ -1,162 +1,135 @@
 'use client'
 
 import { useState } from 'react'
+import EmailPreviewModal from '@/components/email/EmailPreviewModal'
 
 export default function NewCampaignPage() {
   const [subject, setSubject] = useState('')
-  const [bodyHtml, setBodyHtml] = useState('')
+  const [body, setBody] = useState('')
+  const [ctaEnabled, setCtaEnabled] = useState(false)
   const [ctaText, setCtaText] = useState('')
   const [ctaLink, setCtaLink] = useState('')
-  const [stepNumber, setStepNumber] = useState(1)
-  const [delayDays, setDelayDays] = useState(0)
 
   const [previewHtml, setPreviewHtml] = useState('')
-  const [loadingPreview, setLoadingPreview] = useState(false)
-  const [sendingTest, setSendingTest] = useState(false)
-  const [testEmail, setTestEmail] = useState('')
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   const handlePreview = async () => {
-    setLoadingPreview(true)
-
     const res = await fetch('/api/email/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subject,
-        body_html: bodyHtml,
-        cta_text: ctaText,
-        cta_link: ctaLink,
-        step_number: stepNumber,
-        delay_days: delayDays,
+        body_html: body,
+        cta_text: ctaEnabled ? ctaText : '',
+        cta_link: ctaEnabled ? ctaLink : '',
       }),
     })
 
     const data = await res.json()
-    setPreviewHtml(data.html || '')
-
-    setLoadingPreview(false)
+    setPreviewHtml(data.html)
+    setIsPreviewOpen(true)
   }
 
   const handleSendTest = async () => {
-    if (!testEmail) {
-      alert('Enter a test email')
-      return
-    }
+    const email = prompt('Enter your email to send test:')
 
-    setSendingTest(true)
+    if (!email) return
 
-    const res = await fetch('/api/email/send-test', {
+    await fetch('/api/email/send-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subject,
-        body_html: bodyHtml,
-        cta_text: ctaText,
-        cta_link: ctaLink,
-        step_number: stepNumber,
-        delay_days: delayDays,
-        test_email: testEmail,
+        body_html: body,
+        cta_text: ctaEnabled ? ctaText : '',
+        cta_link: ctaEnabled ? ctaLink : '',
+        test_email: email,
       }),
     })
 
-    const data = await res.json()
-
-    if (data.success) {
-      alert('Test email sent')
-    } else {
-      alert('Failed to send email')
-    }
-
-    setSendingTest(false)
+    alert('Test email sent')
   }
 
   return (
-    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* LEFT SIDE — FORM */}
-      <div className="space-y-4">
-        <h1 className="text-xl font-semibold">New Email Step</h1>
+    <div style={{ padding: '24px', maxWidth: '700px' }}>
+      <h1>New Email</h1>
 
-        <input
-          className="w-full border p-2"
-          placeholder="Subject"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-        />
+      <input
+        placeholder="Subject"
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+        style={inputStyle}
+      />
 
-        <textarea
-          className="w-full border p-2 h-40"
-          placeholder="Email Body (HTML allowed)"
-          value={bodyHtml}
-          onChange={(e) => setBodyHtml(e.target.value)}
-        />
+      <textarea
+        placeholder="Email Body (HTML allowed)"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        style={textareaStyle}
+      />
 
-        <input
-          className="w-full border p-2"
-          placeholder="CTA Text"
-          value={ctaText}
-          onChange={(e) => setCtaText(e.target.value)}
-        />
+      <div style={{ marginBottom: '16px' }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={ctaEnabled}
+            onChange={() => setCtaEnabled(!ctaEnabled)}
+          />{' '}
+          Add Button
+        </label>
+      </div>
 
-        <input
-          className="w-full border p-2"
-          placeholder="CTA Link"
-          value={ctaLink}
-          onChange={(e) => setCtaLink(e.target.value)}
-        />
+      {ctaEnabled && (
+        <>
+          <input
+            placeholder="CTA Text"
+            value={ctaText}
+            onChange={(e) => setCtaText(e.target.value)}
+            style={inputStyle}
+          />
 
-        <input
-          type="number"
-          className="w-full border p-2"
-          placeholder="Step Number"
-          value={stepNumber}
-          onChange={(e) => setStepNumber(Number(e.target.value))}
-        />
+          <input
+            placeholder="CTA Link"
+            value={ctaLink}
+            onChange={(e) => setCtaLink(e.target.value)}
+            style={inputStyle}
+          />
+        </>
+      )}
 
-        <input
-          type="number"
-          className="w-full border p-2"
-          placeholder="Delay Days"
-          value={delayDays}
-          onChange={(e) => setDelayDays(Number(e.target.value))}
-        />
-
-        <button
-          onClick={handlePreview}
-          className="bg-blue-600 text-white px-4 py-2"
-        >
-          {loadingPreview ? 'Loading...' : 'Preview'}
+      <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+        <button onClick={handlePreview} style={buttonStyle}>
+          Preview
         </button>
 
-        <div className="pt-4 border-t">
-          <input
-            className="w-full border p-2 mb-2"
-            placeholder="Send test to email"
-            value={testEmail}
-            onChange={(e) => setTestEmail(e.target.value)}
-          />
-
-          <button
-            onClick={handleSendTest}
-            className="bg-green-600 text-white px-4 py-2"
-          >
-            {sendingTest ? 'Sending...' : 'Send Test'}
-          </button>
-        </div>
+        <button onClick={handleSendTest} style={buttonStyle}>
+          Send Test
+        </button>
       </div>
 
-      {/* RIGHT SIDE — PREVIEW */}
-      <div className="border h-[700px]">
-        {previewHtml ? (
-          <iframe
-            srcDoc={previewHtml}
-            className="w-full h-full"
-          />
-        ) : (
-          <div className="p-4 text-gray-500">
-            No preview yet
-          </div>
-        )}
-      </div>
+      <EmailPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        html={previewHtml}
+      />
     </div>
   )
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px',
+  marginBottom: '12px',
+}
+
+const textareaStyle: React.CSSProperties = {
+  width: '100%',
+  height: '200px',
+  padding: '10px',
+  marginBottom: '12px',
+}
+
+const buttonStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  cursor: 'pointer',
 }
