@@ -19,45 +19,48 @@ export function buildEmailTemplate({
     <div style="max-width:600px; margin:0 auto; background:#ffffff; position:relative;">
 
       <!-- BLACK HEADER -->
-     <div style="
+    <div style="
   background:#000;
-  height:180px;
+  height:160px;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:0 32px;
+  padding:0 28px;
 ">
   
   <!-- LOGO -->
   ${
     teamLogo
       ? `<div style="background:#fff; padding:16px 20px; border-radius:8px;">
-           <img src="${teamLogo}" style="height:90px; display:block;" />
+           <img src="${teamLogo}" style="height:80px; display:block;" />
          </div>`
       : ''
   }
 
-  <!-- TEAM IMAGE (LESS AGGRESSIVE CROP) -->
+  <!-- TEAM IMAGE (CONTROLLED CROP — FIXED) -->
   ${
     emailHeaderImage
       ? `<div style="
-            width:260px;
-            height:180px;
+            width:240px;
+            height:160px;
             overflow:hidden;
-            display:flex;
-            align-items:flex-end;
+            border-radius:6px;
           ">
             <img 
               src="${emailHeaderImage}" 
               style="
                 width:100%;
-                height:auto;
+                height:100%;
+                object-fit:cover;
+                object-position: 70% 20%;
                 display:block;
               "
             />
           </div>`
       : ''
   }
+
+</div>
 
 </div>
 
