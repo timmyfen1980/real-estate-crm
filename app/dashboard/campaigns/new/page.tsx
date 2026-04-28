@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 import EmailPreviewModal from '@/components/email/EmailPreviewModal'
 import { buildEmailTemplate } from '@/lib/emailTemplates'
 
@@ -10,21 +11,71 @@ export default function NewCampaignPage() {
   const [ctaEnabled, setCtaEnabled] = useState(false)
   const [ctaText, setCtaText] = useState('')
   const [ctaLink, setCtaLink] = useState('')
+
   const [showPreview, setShowPreview] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
 
-  const handlePreview = async () => {
-    // ⚠️ TEMP STATIC DATA (will wire real user next)
+  const [agent, setAgent] = useState<any>(null)
+  const [account, setAccount] = useState<any>(null)
+
+  // 🔥 LOAD REAL USER + ACCOUNT
+  useEffect(() => {
+    const loadData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      // profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      // account link
+      const { data: membership } = await supabase
+        .from('account_users')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .single()
+
+      let acct = null
+
+      if (membership?.account_id) {
+        const { data: accountData } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('id', membership.account_id)
+          .single()
+
+        acct = accountData
+      }
+
+      setAgent(profile)
+      setAccount(acct)
+    }
+
+    loadData()
+  }, [])
+
+  const handlePreview = () => {
+    if (!agent || !account) {
+      alert('Loading profile data...')
+      return
+    }
+
     const html = buildEmailTemplate({
       content: body,
       firstName: 'John',
-      agentName: 'Agent Name',
-      agentEmail: 'agent@email.com',
-      agentPhone: '123-456-7890',
-      agentPhoto: '',
-      teamLogo: '',
-      brokerageLogo: '',
-      brokerageName: 'Your Brokerage',
+      agentName: agent.full_name || '',
+      agentEmail: agent.email || '',
+      agentPhone: agent.phone || '',
+      agentPhoto: agent.agent_photo_url || '',
+      teamLogo: account.team_logo_url || '',
+      brokerageLogo: account.brokerage_logo_url || '',
+      brokerageName: account.brokerage_name || '',
       unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
       ctaLink: ctaEnabled ? ctaLink : '',
       ctaText: ctaEnabled ? ctaText : '',
@@ -154,7 +205,6 @@ export default function NewCampaignPage() {
         </button>
       </div>
 
-      {/* MODAL */}
       <EmailPreviewModal
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
