@@ -19,19 +19,25 @@ export function buildEmailTemplate({
     <!-- EMAIL CARD -->
     <div style="max-width:600px; margin:0 auto; background:#ffffff; overflow:hidden;">
 
-      <!-- HERO IMAGE (FULL WIDTH, FLUSH) -->
-      ${
-        emailHeaderImage
-          ? `<img 
-                src="${emailHeaderImage}" 
-                style="
-                  width:100%;
-                  height:auto;
-                  display:block;
-                "
-              />`
-          : ''
-      }
+      <!-- TOP BLUE BAR -->
+<div style="height:10px; background:#0f2a44;"></div>
+
+<!-- HERO IMAGE -->
+${
+  emailHeaderImage
+    ? `<img 
+          src="${emailHeaderImage}" 
+          style="
+            width:100%;
+            height:auto;
+            display:block;
+          "
+        />`
+    : ''
+}
+
+<!-- BOTTOM BLUE BAR -->
+<div style="height:10px; background:#0f2a44;"></div>
 
       <!-- BODY -->
       <div style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
