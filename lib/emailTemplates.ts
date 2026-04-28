@@ -43,8 +43,8 @@ export function buildEmailTemplate({
                   style="
                     position:absolute;
                     right:28px;
-                    top:10px;
-                    height:180px;
+                    top:20px;
+                    height:150px;
                     width:auto;
                     display:block;
                   "
@@ -52,7 +52,7 @@ export function buildEmailTemplate({
             : ''
         }
 
-      </div> <!-- ✅ THIS WAS MISSING -->
+      </div>
 
       <!-- BODY -->
       <div style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
