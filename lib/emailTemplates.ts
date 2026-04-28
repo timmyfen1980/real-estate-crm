@@ -18,10 +18,10 @@ export function buildEmailTemplate({
 
     <div style="max-width:600px; margin:0 auto; background:#ffffff; position:relative;">
 
-      <!-- BLACK HEADER -->
+      <!-- BLACK HEADER (TALLER) -->
       <div style="
         background:#000;
-        height:120px;
+        height:150px;
         position:relative;
         padding:0 28px;
         display:flex;
@@ -30,8 +30,13 @@ export function buildEmailTemplate({
         
         ${
           teamLogo
-            ? `<div style="background:#fff; padding:14px 18px; border-radius:8px;">
-                 <img src="${teamLogo}" style="height:70px; display:block;" />
+            ? `<div style="
+                  background:#fff;
+                  padding:16px 20px;
+                  border-radius:10px;
+                  box-shadow:0 6px 18px rgba(0,0,0,0.25);
+                ">
+                 <img src="${teamLogo}" style="height:90px; display:block;" />
                </div>`
             : ''
         }
@@ -42,11 +47,12 @@ export function buildEmailTemplate({
                   src="${emailHeaderImage}" 
                   style="
                     position:absolute;
-                    right:28px;
-                    top:20px;
-                    height:150px;
+                    right:24px;
+                    top:10px;
+                    height:200px;
                     width:auto;
                     display:block;
+                    filter: drop-shadow(0 10px 25px rgba(0,0,0,0.35));
                   "
                 />`
             : ''
