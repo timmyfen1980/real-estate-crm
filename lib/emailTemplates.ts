@@ -13,87 +13,96 @@ export function buildEmailTemplate({
   ctaText,
 }: any) {
   return `
-  <div style="font-family: Arial, sans-serif; color:#111;">
+  <div style="background:#e5e7eb; padding:40px 0; font-family: Arial, sans-serif;">
 
-    <!-- HEADER -->
-    <div style="background:#000; padding:20px 24px; display:flex; justify-content:space-between; align-items:center;">
-      
-      <!-- LEFT LOGO -->
-      ${
-        teamLogo
-          ? `<div style="background:#fff; padding:8px; border-radius:6px;">
-               <img src="${teamLogo}" style="height:40px;" />
-             </div>`
-          : ''
-      }
+    <!-- EMAIL CARD -->
+    <div style="max-width:600px; margin:0 auto; background:#ffffff;">
 
-      <!-- RIGHT LOGO -->
-      ${
-        brokerageLogo
-          ? `<img src="${brokerageLogo}" style="height:40px;" />`
-          : ''
-      }
-    </div>
-
-    <!-- BODY -->
-    <div style="padding:24px;">
-      <p style="font-size:18px;">Hi ${firstName},</p>
-
-      <div style="margin-top:20px;">
-        ${content}
-      </div>
-
-      ${
-        ctaLink && ctaText
-          ? `<div style="margin-top:30px;">
-               <a href="${ctaLink}" style="
-                 background:#000;
-                 color:#fff;
-                 padding:12px 20px;
-                 text-decoration:none;
-                 border-radius:4px;
-                 display:inline-block;
-               ">
-                 ${ctaText}
-               </a>
-             </div>`
-          : ''
-      }
-    </div>
-
-    <!-- AGENT SECTION -->
-    <div style="border-top:1px solid #eee; padding:20px 24px; display:flex; justify-content:space-between; align-items:center;">
-      
-      <!-- LEFT: AGENT -->
-      <div style="display:flex; align-items:center;">
+      <!-- HEADER -->
+      <div style="background:#000; padding:24px; display:flex; justify-content:space-between; align-items:center;">
+        
+        <!-- LEFT LOGO -->
         ${
-          agentPhoto
-            ? `<img src="${agentPhoto}" style="width:60px; height:60px; border-radius:50%; margin-right:12px;" />`
+          teamLogo
+            ? `<div style="background:#fff; padding:10px 14px; border-radius:6px;">
+                 <img src="${teamLogo}" style="height:50px; display:block;" />
+               </div>`
             : ''
         }
 
-        <div>
-          <div style="font-weight:700;">${agentName}</div>
-          <div>${agentEmail}</div>
-          <div>${agentPhone}</div>
-          <div>${brokerageName}</div>
-        </div>
+        <!-- RIGHT LOGO -->
+        ${
+          brokerageLogo
+            ? `<img src="${brokerageLogo}" style="height:50px;" />`
+            : ''
+        }
       </div>
 
-      <!-- RIGHT: BIG LOGO -->
-      ${
-        brokerageLogo
-          ? `<img src="${brokerageLogo}" style="height:80px;" />`
-          : ''
-      }
+      <!-- BODY -->
+      <div style="padding:32px 28px; font-size:16px; line-height:1.6; color:#111;">
+        
+        <p style="font-size:18px; margin-bottom:20px;">Hi ${firstName},</p>
+
+        <div>
+          ${content}
+        </div>
+
+        ${
+          ctaLink && ctaText
+            ? `<div style="margin-top:30px;">
+                 <a href="${ctaLink}" style="
+                   background:#000;
+                   color:#fff;
+                   padding:14px 24px;
+                   text-decoration:none;
+                   border-radius:6px;
+                   display:inline-block;
+                   font-weight:600;
+                 ">
+                   ${ctaText}
+                 </a>
+               </div>`
+            : ''
+        }
+
+      </div>
+
+      <!-- AGENT SECTION -->
+      <div style="border-top:1px solid #eee; padding:28px; display:flex; justify-content:space-between; align-items:center;">
+        
+        <!-- LEFT SIDE -->
+        <div style="display:flex; align-items:center;">
+          ${
+            agentPhoto
+              ? `<img src="${agentPhoto}" style="width:70px; height:70px; border-radius:50%; margin-right:16px;" />`
+              : ''
+          }
+
+          <div style="font-size:15px; line-height:1.5;">
+            <div style="font-weight:700; font-size:16px;">${agentName}</div>
+            <div>${agentEmail}</div>
+            <div>${agentPhone}</div>
+            <div style="margin-top:4px; color:#555;">${brokerageName}</div>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDE BIG LOGO -->
+        ${
+          brokerageLogo
+            ? `<img src="${brokerageLogo}" style="height:70px;" />`
+            : ''
+        }
+
+      </div>
+
+      <!-- FOOTER -->
+      <div style="background:#f5f5f5; text-align:center; padding:20px; font-size:12px; color:#666;">
+        <a href="${unsubscribeLink}" style="color:#666; text-decoration:none;">
+          Unsubscribe
+        </a>
+      </div>
 
     </div>
-
-    <!-- FOOTER -->
-    <div style="background:#f5f5f5; text-align:center; padding:16px; font-size:12px; color:#666;">
-      <a href="${unsubscribeLink}" style="color:#666;">Unsubscribe</a>
-    </div>
-
   </div>
   `
 }
