@@ -19,36 +19,37 @@ export function buildEmailTemplate({
     <div style="max-width:600px; margin:0 auto; background:#ffffff; position:relative;">
 
       <!-- BLACK HEADER -->
-      <div style="background:#000; padding:24px; height:80px;">
-        ${
-          teamLogo
-            ? `<div style="background:#fff; display:inline-block; padding:10px 14px; border-radius:6px;">
-                 <img src="${teamLogo}" style="height:50px;" />
-               </div>`
-            : ''
-        }
-      </div>
+     <div style="background:#000; height:90px; position:relative; padding:0 24px; display:flex; align-items:center;">
+  
+  ${
+    teamLogo
+      ? `<div style="background:#fff; padding:10px 14px; border-radius:6px;">
+           <img src="${teamLogo}" style="height:50px; display:block;" />
+         </div>`
+      : ''
+  }
 
-      <!-- FLOATING IMAGE CARD -->
-      ${
-        emailHeaderImage
-          ? `<div style="
-                position:absolute;
-                top:30px;
-                right:20px;
-                background:#fff;
-                padding:10px;
-                border-radius:10px;
-                box-shadow:0 6px 20px rgba(0,0,0,0.15);
-              ">
-                <img 
-                  src="${emailHeaderImage}" 
-                  style="height:140px; display:block;" 
-                />
-              </div>`
-          : ''
-      }
+  ${
+    emailHeaderImage
+      ? `<div style="
+            position:absolute;
+            right:24px;
+            top:50%;
+            transform:translateY(-40%);
+            background:#fff;
+            padding:10px;
+            border-radius:10px;
+            box-shadow:0 10px 25px rgba(0,0,0,0.2);
+          ">
+            <img 
+              src="${emailHeaderImage}" 
+              style="height:150px; display:block;" 
+            />
+          </div>`
+      : ''
+  }
 
+</div>
       <!-- BODY -->
       <div style="padding:60px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
         
