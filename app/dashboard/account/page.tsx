@@ -121,12 +121,13 @@ setOriginalData(loaded)
   (
     accountName !== originalData.name ||
     brokerage !== originalData.brokerage ||
-    phone !== originalData.phone || // 🔥 ADD THIS LINE
+    phone !== originalData.phone ||
     logoFile ||
     brokerageLogoFile ||
     teamEnabled !== originalData.teamEnabled ||
     teamName !== originalData.teamName ||
-    teamLogoFile
+    teamLogoFile ||
+    emailHeaderFile
   )
 
   const uploadFile = async (file: File, path: string) => {
@@ -154,26 +155,27 @@ setOriginalData(loaded)
 }
 
     if (brokerageLogoFile) {
-      newBrokerageLogoUrl = await uploadFile(
-        brokerageLogoFile,
-        `${accountId}/brokerage-logo.${brokerageLogoFile.name.split('.').pop()}`
-      )
-    }
+  newBrokerageLogoUrl = await uploadFile(
+    brokerageLogoFile,
+    `${accountId}/brokerage-logo.${brokerageLogoFile.name.split('.').pop()}`
+  )
+}
 
-    if (teamLogoFile) {
-      if (emailHeaderFile) {
+if (teamLogoFile) {
+  newTeamLogoUrl = await uploadFile(
+    teamLogoFile,
+    `${accountId}/team-logo.${teamLogoFile.name.split('.').pop()}`
+  )
+}
+
+if (emailHeaderFile) {
   newEmailHeaderUrl = await uploadFile(
     emailHeaderFile,
     `${accountId}/email-header-${Date.now()}-${emailHeaderFile.name}`
   )
 }
-      newTeamLogoUrl = await uploadFile(
-        teamLogoFile,
-        `${accountId}/team-logo.${teamLogoFile.name.split('.').pop()}`
-      )
-    }
 
-   const {
+const {
   data: { user },
 } = await supabase.auth.getUser()
 
@@ -229,10 +231,12 @@ if (updateError) {
 setLogoUrl(newLogoUrl)
 setBrokerageLogoUrl(newBrokerageLogoUrl)
 setTeamLogoUrl(newTeamLogoUrl)
+setEmailHeaderUrl(newEmailHeaderUrl)
 
 setLogoFile(null)
 setBrokerageLogoFile(null)
 setTeamLogoFile(null)
+setEmailHeaderFile(null)
 
 setSaving(false)
 setMessage('Changes saved successfully.')
@@ -374,40 +378,87 @@ setMessage('Changes saved successfully.')
         {/* Everything below unchanged */}
 
         <div className="border border-black p-10 mb-12">
-          <h2 className="text-xl font-semibold mb-8">Branding</h2>
+  <h2 className="text-xl font-semibold mb-8">Branding</h2>
 
-          <div className="grid grid-cols-2 gap-12">
-            <div className="mt-12">
-  {renderLogoBlock(
-    'Team Photo (Hero Image)',
-    emailHeaderFile,
-    emailHeaderUrl,
-    setEmailHeaderFile,
-    'emailHeaderUpload'
-  )}
+  {/* HERO IMAGE - TOP RIGHT LAYOUT */}
+<div className="mb-12 flex items-start justify-between gap-10">
+
+  {/* LEFT: LABEL + UPLOAD */}
+  <div className="w-1/2">
+    <p className="text-sm font-semibold mb-4">
+      Team Photo (Hero Image)
+    </p>
+
+    <input
+      id="emailHeaderUpload"
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={(e) =>
+        e.target.files && setEmailHeaderFile(e.target.files[0])
+      }
+    />
+
+    <button
+      type="button"
+      onClick={() =>
+        document.getElementById('emailHeaderUpload')?.click()
+      }
+      className="px-6 py-3 border border-gray-900 text-sm font-medium hover:bg-gray-900 hover:text-white transition rounded-md"
+    >
+      {emailHeaderFile ? 'Change Image' : 'Upload Image'}
+    </button>
+
+    <p className="text-xs text-gray-500 mt-3">
+      This image appears at the top of all outgoing emails.
+    </p>
+  </div>
+
+  {/* RIGHT: LARGE PREVIEW */}
+  <div className="w-1/2 flex justify-end">
+    <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 w-full max-w-sm h-48 flex items-center justify-center">
+      {emailHeaderFile ? (
+        <img
+          src={URL.createObjectURL(emailHeaderFile)}
+          className="w-full h-full object-cover"
+        />
+      ) : emailHeaderUrl ? (
+        <img
+          src={emailHeaderUrl}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <span className="text-gray-400 text-sm">No image uploaded</span>
+      )}
+    </div>
+  </div>
+
 </div>
-            {renderLogoBlock('Agent Logo', logoFile, logoUrl, setLogoFile, 'agentLogoUpload')}
 
-            <div>
-              <label className="text-sm font-medium block mb-2">
-                Brokerage Name
-              </label>
-              <input
-                className="w-full border border-black p-3 mb-6"
-                value={brokerage}
-                onChange={(e) => setBrokerage(e.target.value)}
-              />
+  {/* BELOW: NORMAL GRID */}
+  <div className="grid grid-cols-2 gap-12">
+    {renderLogoBlock('Agent Logo', logoFile, logoUrl, setLogoFile, 'agentLogoUpload')}
 
-              {renderLogoBlock(
-                'Brokerage Logo',
-                brokerageLogoFile,
-                brokerageLogoUrl,
-                setBrokerageLogoFile,
-                'brokerageLogoUpload'
-              )}
-            </div>
-          </div>
-        </div>
+    <div>
+      <label className="text-sm font-medium block mb-2">
+        Brokerage Name
+      </label>
+      <input
+        className="w-full border border-black p-3 mb-6"
+        value={brokerage}
+        onChange={(e) => setBrokerage(e.target.value)}
+      />
+
+      {renderLogoBlock(
+        'Brokerage Logo',
+        brokerageLogoFile,
+        brokerageLogoUrl,
+        setBrokerageLogoFile,
+        'brokerageLogoUpload'
+      )}
+    </div>
+  </div>
+</div>
 
        <div className="border border-black p-10 mb-12">
   <h2 className="text-xl font-semibold mb-8">Team</h2>
