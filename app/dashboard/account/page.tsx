@@ -291,7 +291,59 @@ setMessage('Changes saved successfully.')
       </button>
     </div>
   )
+const renderHeroImageBlock = () => (
+  <div>
+    <p className="text-sm font-semibold mb-2">
+      Team Photo (Hero Image)
+    </p>
 
+    <p className="text-xs text-gray-500 mb-2">
+      Recommended: 600px width × 200–300px height
+    </p>
+
+    <p className="text-xs text-gray-400 mb-4">
+      This preview matches exactly how it will appear in your emails.
+    </p>
+
+    <div className="border border-gray-200 rounded-md overflow-hidden w-[600px] max-w-full bg-white mb-4">
+      {emailHeaderFile ? (
+        <img
+          src={URL.createObjectURL(emailHeaderFile)}
+          className="w-full h-auto block"
+        />
+      ) : emailHeaderUrl ? (
+        <img
+          src={emailHeaderUrl}
+          className="w-full h-auto block"
+        />
+      ) : (
+        <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">
+          No image uploaded
+        </div>
+      )}
+    </div>
+
+    <input
+      id="emailHeaderUpload"
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={(e) =>
+        e.target.files && setEmailHeaderFile(e.target.files[0])
+      }
+    />
+
+    <button
+      type="button"
+      onClick={() =>
+        document.getElementById('emailHeaderUpload')?.click()
+      }
+      className="px-6 py-3 border border-gray-900 text-sm font-medium hover:bg-gray-900 hover:text-white transition rounded-md"
+    >
+      {emailHeaderFile || emailHeaderUrl ? 'Change Image' : 'Upload Image'}
+    </button>
+  </div>
+)
   return (
     <div className="min-h-screen bg-white px-12 py-16">
       <div className="max-w-5xl mx-auto">
@@ -416,16 +468,16 @@ setMessage('Changes saved successfully.')
 
   {/* RIGHT: LARGE PREVIEW */}
   <div className="w-1/2 flex justify-end">
-  <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 w-full max-w-sm h-48 flex items-center justify-center">
+  <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 w-full max-w-sm h-[200px] flex items-center justify-center">
     {emailHeaderFile ? (
       <img
         src={URL.createObjectURL(emailHeaderFile)}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-cover"
       />
     ) : emailHeaderUrl ? (
       <img
         src={emailHeaderUrl}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-cover"
       />
     ) : (
       <span className="text-gray-400 text-sm">No image uploaded</span>
