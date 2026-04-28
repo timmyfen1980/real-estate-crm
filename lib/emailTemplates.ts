@@ -20,7 +20,7 @@ export function buildEmailTemplate({
     <div style="max-width:600px; margin:0 auto; background:#ffffff;">
 
       <!-- HEADER -->
-      <div style="background:#000; padding:28px; display:flex; justify-content:flex-start; align-items:center;">
+      <div style="background:#000; padding:28px; display:flex; justify-content:space-between; align-items:center;">
         
         ${
           teamLogo
@@ -30,16 +30,15 @@ export function buildEmailTemplate({
             : ''
         }
 
-      </div>
+        ${
+          emailHeaderImage
+            ? `<div style="margin-left:20px;">
+                 <img src="${emailHeaderImage}" style="height:90px; display:block;" />
+               </div>`
+            : ''
+        }
 
-      <!-- HERO IMAGE -->
-      ${
-        emailHeaderImage
-          ? `<div>
-               <img src="${emailHeaderImage}" style="width:100%; display:block;" />
-             </div>`
-          : ''
-      }
+      </div>
 
       <!-- BODY -->
       <div style="padding:32px 28px; font-size:16px; line-height:1.6; color:#111;">
