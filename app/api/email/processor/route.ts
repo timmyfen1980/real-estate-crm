@@ -11,7 +11,6 @@ const supabase = createClient(
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function GET(req: Request) {
-  // 🔒 CRON SECURITY CHECK
   const authHeader = req.headers.get('authorization')
 
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -19,7 +18,6 @@ export async function GET(req: Request) {
   }
 
   try {
-    // 1. Get active campaigns ready to send
     const { data: campaigns, error } = await supabase
       .from('contact_campaigns')
       .select(`
@@ -27,12 +25,7 @@ export async function GET(req: Request) {
         contact_id,
         campaign_id,
         current_step,
-        next_send_at,
-        email_campaigns (
-          id,
-          name,
-          account_id
-        )
+        next_send_at
       `)
       .eq('status', 'active')
       .lte('next_send_at', new Date().toISOString())
@@ -40,7 +33,6 @@ export async function GET(req: Request) {
     if (error) throw error
 
     for (const c of campaigns || []) {
-      // 2. Get next email step
       const { data: sequence } = await supabase
         .from('email_sequences')
         .select('*')
@@ -50,7 +42,7 @@ export async function GET(req: Request) {
 
       if (!sequence) continue
 
-      // 3. Get contact email + account_id (FIXED)
+      // ✅ CONTACT (NOW INCLUDES ACCOUNT)
       const { data: contact } = await supabase
         .from('contacts')
         .select('email, first_name, assigned_user_id, account_id')
@@ -59,7 +51,21 @@ export async function GET(req: Request) {
 
       if (!contact?.email) continue
 
-      // 4. Replace variables + apply template
+      // ✅ AGENT
+      const { data: agent } = await supabase
+        .from('profiles')
+        .select('full_name, phone')
+        .eq('id', contact.assigned_user_id)
+        .single()
+
+      // ✅ ACCOUNT (BRANDING)
+      const { data: account } = await supabase
+        .from('accounts')
+        .select('team_logo_url, brokerage_logo_url, brokerage_name')
+        .eq('id', contact.account_id)
+        .single()
+
+      // EMAIL CONTENT
       const rawContent = sequence.body_html.replace(
         '{{first_name}}',
         contact.first_name || ''
@@ -68,9 +74,14 @@ export async function GET(req: Request) {
       const body = buildEmailTemplate({
         content: rawContent,
         firstName: contact.first_name,
+        agentName: agent?.full_name,
+        agentPhone: agent?.phone,
+        teamLogo: account?.team_logo_url,
+        brokerageLogo: account?.brokerage_logo_url,
+        brokerageName: account?.brokerage_name,
       })
 
-      // 5. Get sender email (FIXED SOURCE)
+      // SENDER EMAIL
       const accountId = contact.account_id
 
       const { data: sender } = await supabase
@@ -84,7 +95,6 @@ export async function GET(req: Request) {
         ? `${sender.name} <${sender.email}>`
         : 'The FC Group <info@thefcgroup.ca>'
 
-      // 6. Send email
       const send = await resend.emails.send({
         from: fromEmail,
         to: contact.email,
@@ -92,7 +102,6 @@ export async function GET(req: Request) {
         html: body,
       })
 
-      // 7. Log email
       await supabase.from('email_logs').insert({
         account_id: accountId,
         contact_id: c.contact_id,
@@ -104,7 +113,6 @@ export async function GET(req: Request) {
         resend_id: send?.data?.id,
       })
 
-      // 8. Move to next step
       const nextStep = c.current_step + 1
 
       const { data: nextSequence } = await supabase
@@ -115,7 +123,6 @@ export async function GET(req: Request) {
         .single()
 
       if (!nextSequence) {
-        // Completed campaign
         await supabase
           .from('contact_campaigns')
           .update({

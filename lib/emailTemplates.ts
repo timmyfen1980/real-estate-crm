@@ -1,9 +1,19 @@
 export function buildEmailTemplate({
   content,
   firstName,
+  agentName,
+  agentPhone,
+  teamLogo,
+  brokerageLogo,
+  brokerageName,
 }: {
   content: string
   firstName?: string
+  agentName?: string
+  agentPhone?: string
+  teamLogo?: string
+  brokerageLogo?: string
+  brokerageName?: string
 }) {
   return `
   <div style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
@@ -14,25 +24,40 @@ export function buildEmailTemplate({
             
             <!-- HEADER -->
             <tr>
-              <td style="background:#000000;color:#ffffff;padding:20px;text-align:center;font-size:20px;font-weight:bold;">
-                The FC Group
+              <td style="background:#000;padding:20px;text-align:center;">
+                ${
+                  teamLogo
+                    ? `<img src="${teamLogo}" style="max-height:60px;" />`
+                    : `<span style="color:#fff;font-size:20px;font-weight:bold;">The FC Group</span>`
+                }
               </td>
             </tr>
 
             <!-- BODY -->
             <tr>
-              <td style="padding:30px;color:#333333;font-size:16px;line-height:1.5;">
+              <td style="padding:30px;color:#333;font-size:16px;line-height:1.5;">
                 ${firstName ? `<p>Hi ${firstName},</p>` : ''}
-
                 ${content}
+              </td>
+            </tr>
+
+            <!-- SIGNATURE -->
+            <tr>
+              <td style="padding:20px;border-top:1px solid #eee;">
+                <strong>${agentName || ''}</strong><br/>
+                ${agentPhone || ''}<br/>
+                ${brokerageName || ''}
               </td>
             </tr>
 
             <!-- FOOTER -->
             <tr>
-              <td style="background:#f9f9f9;padding:20px;text-align:center;font-size:12px;color:#888;">
-                The Fennessey Real Estate Group<br/>
-                RE/MAX Hallmark First Group Realty
+              <td style="background:#f9f9f9;padding:20px;text-align:center;">
+                ${
+                  brokerageLogo
+                    ? `<img src="${brokerageLogo}" style="max-height:40px;" />`
+                    : ''
+                }
               </td>
             </tr>
 
