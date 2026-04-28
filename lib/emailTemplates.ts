@@ -18,47 +18,20 @@ export function buildEmailTemplate({
 
     <div style="max-width:600px; margin:0 auto; background:#ffffff; position:relative;">
 
-      <!-- BLACK HEADER (TALLER) -->
-      <div style="
-        background:#000;
-        height:150px;
-        position:relative;
-        padding:0 28px;
-        display:flex;
-        align-items:center;
-      ">
-        
-        ${
-          teamLogo
-            ? `<div style="
-                  background:#fff;
-                  padding:16px 20px;
-                  border-radius:10px;
-                  box-shadow:0 6px 18px rgba(0,0,0,0.25);
-                ">
-                 <img src="${teamLogo}" style="height:90px; display:block;" />
-               </div>`
-            : ''
-        }
-
-        ${
-          emailHeaderImage
-            ? `<img 
-                  src="${emailHeaderImage}" 
-                  style="
-                    position:absolute;
-                    right:24px;
-                    top:10px;
-                    height:200px;
-                    width:auto;
-                    display:block;
-                    filter: drop-shadow(0 10px 25px rgba(0,0,0,0.35));
-                  "
-                />`
-            : ''
-        }
-
-      </div>
+      ${
+  emailHeaderImage
+    ? `<div style="width:100%; line-height:0;">
+         <img 
+           src="${emailHeaderImage}" 
+           style="
+             width:100%;
+             height:auto;
+             display:block;
+           "
+         />
+       </div>`
+    : ''
+}
 
       <!-- BODY -->
       <div style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
