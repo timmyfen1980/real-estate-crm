@@ -16,41 +16,43 @@ export function buildEmailTemplate({
   return `
   <div style="background:#e5e7eb; padding:40px 0; font-family: Arial, sans-serif;">
 
-    <!-- EMAIL CARD -->
-    <div style="max-width:600px; margin:0 auto; background:#ffffff;">
+    <div style="max-width:600px; margin:0 auto; background:#ffffff; position:relative;">
 
-      <!-- HEADER -->
-      <div style="background:#000; padding:20px 24px; display:flex; justify-content:space-between; align-items:center;">
-        
+      <!-- BLACK HEADER -->
+      <div style="background:#000; padding:24px; height:80px;">
         ${
           teamLogo
-            ? `<div style="background:#fff; padding:10px 14px; border-radius:6px;">
-                 <img src="${teamLogo}" style="height:50px; display:block;" />
+            ? `<div style="background:#fff; display:inline-block; padding:10px 14px; border-radius:6px;">
+                 <img src="${teamLogo}" style="height:50px;" />
                </div>`
             : ''
         }
-
-        ${
-          emailHeaderImage
-            ? `<div style="margin-left:20px;">
-                 <img 
-                   src="${emailHeaderImage}" 
-                   style="
-                     height:70px;
-                     max-width:180px;
-                     display:block;
-                   " 
-                 />
-               </div>`
-            : ''
-        }
-
       </div>
 
+      <!-- FLOATING IMAGE CARD -->
+      ${
+        emailHeaderImage
+          ? `<div style="
+                position:absolute;
+                top:30px;
+                right:20px;
+                background:#fff;
+                padding:10px;
+                border-radius:10px;
+                box-shadow:0 6px 20px rgba(0,0,0,0.15);
+              ">
+                <img 
+                  src="${emailHeaderImage}" 
+                  style="height:140px; display:block;" 
+                />
+              </div>`
+          : ''
+      }
+
       <!-- BODY -->
-      <div style="padding:32px 28px; font-size:16px; line-height:1.6; color:#111;">
+      <div style="padding:60px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
         
-        <p style="font-size:18px; margin-bottom:20px;">Hi ${firstName},</p>
+        <p style="font-size:20px; margin-bottom:20px; font-weight:600;">Hi ${firstName},</p>
 
         <div>
           ${content}
