@@ -30,12 +30,7 @@ export function buildEmailTemplate({
             : ''
         }
 
-        <!-- RIGHT LOGO -->
-        ${
-          brokerageLogo
-            ? `<img src="${brokerageLogo}" style="height:50px;" />`
-            : ''
-        }
+      
       </div>
 
       <!-- BODY -->
