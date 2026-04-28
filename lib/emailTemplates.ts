@@ -11,6 +11,7 @@ export function buildEmailTemplate({
   unsubscribeLink,
   ctaLink,
   ctaText,
+  emailHeaderImage,
 }: any) {
   return `
   <div style="background:#e5e7eb; padding:40px 0; font-family: Arial, sans-serif;">
@@ -19,19 +20,26 @@ export function buildEmailTemplate({
     <div style="max-width:600px; margin:0 auto; background:#ffffff;">
 
       <!-- HEADER -->
-      <div style="background:#000; padding:24px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="background:#000; padding:28px; display:flex; justify-content:flex-start; align-items:center;">
         
-        <!-- LEFT LOGO -->
         ${
           teamLogo
-            ? `<div style="background:#fff; padding:10px 14px; border-radius:6px;">
-                 <img src="${teamLogo}" style="height:50px; display:block;" />
+            ? `<div style="background:#fff; padding:14px 18px; border-radius:6px;">
+                 <img src="${teamLogo}" style="height:70px; display:block;" />
                </div>`
             : ''
         }
 
-      
       </div>
+
+      <!-- HERO IMAGE -->
+      ${
+        emailHeaderImage
+          ? `<div>
+               <img src="${emailHeaderImage}" style="width:100%; display:block;" />
+             </div>`
+          : ''
+      }
 
       <!-- BODY -->
       <div style="padding:32px 28px; font-size:16px; line-height:1.6; color:#111;">
@@ -65,7 +73,6 @@ export function buildEmailTemplate({
       <!-- AGENT SECTION -->
       <div style="border-top:1px solid #eee; padding:28px; display:flex; justify-content:space-between; align-items:center;">
         
-        <!-- LEFT SIDE -->
         <div style="display:flex; align-items:center;">
           ${
             agentPhoto
@@ -81,7 +88,6 @@ export function buildEmailTemplate({
           </div>
         </div>
 
-        <!-- RIGHT SIDE BIG LOGO -->
         ${
           brokerageLogo
             ? `<img src="${brokerageLogo}" style="height:70px;" />`
