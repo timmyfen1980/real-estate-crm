@@ -27,7 +27,8 @@ export default function AccountPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [brokerageLogoFile, setBrokerageLogoFile] = useState<File | null>(null)
   const [teamLogoFile, setTeamLogoFile] = useState<File | null>(null)
-
+const [emailHeaderFile, setEmailHeaderFile] = useState<File | null>(null)
+const [emailHeaderUrl, setEmailHeaderUrl] = useState<string | null>(null)
   const [teamEnabled, setTeamEnabled] = useState(false)
   const [teamName, setTeamName] = useState('')
 
@@ -74,7 +75,7 @@ const { data: profile } = await supabase
 const { data: account } = await supabase
   .from('accounts')
   .select(
-    'brokerage_name, brokerage_logo_url, team_enabled, team_name, team_logo_url, invite_code'
+    'brokerage_name, brokerage_logo_url, team_enabled, team_name, team_logo_url, invite_code, email_header_image_url'
   )
   .eq('id', membership.account_id)
   .maybeSingle()
@@ -103,6 +104,7 @@ if (account) {
   setTeamName(account.team_name || '')
   setTeamLogoUrl(account.team_logo_url || '')
   setInviteCode(account.invite_code || '')
+  setEmailHeaderUrl(account.email_header_image_url || '')
 }
 
 setOriginalData(loaded)
@@ -142,6 +144,7 @@ setOriginalData(loaded)
     let newLogoUrl = logoUrl
     let newBrokerageLogoUrl = brokerageLogoUrl
     let newTeamLogoUrl = teamLogoUrl
+    let newEmailHeaderUrl = emailHeaderUrl
 
     if (logoFile) {
   newLogoUrl = await uploadFile(
@@ -158,6 +161,12 @@ setOriginalData(loaded)
     }
 
     if (teamLogoFile) {
+      if (emailHeaderFile) {
+  newEmailHeaderUrl = await uploadFile(
+    emailHeaderFile,
+    `${accountId}/email-header-${Date.now()}-${emailHeaderFile.name}`
+  )
+}
       newTeamLogoUrl = await uploadFile(
         teamLogoFile,
         `${accountId}/team-logo.${teamLogoFile.name.split('.').pop()}`
@@ -190,16 +199,17 @@ if (updateError) {
 if (userRole === 'owner') {
   const { error: accountError } = await supabase
     .from('accounts')
-    .update({
-      name: accountName,
-      brokerage_name: brokerage,
-      logo_url: newLogoUrl,
-      brokerage_logo_url: newBrokerageLogoUrl,
-      team_enabled: teamEnabled,
-      team_name: teamEnabled ? teamName : null,
-      team_logo_url: teamEnabled ? newTeamLogoUrl : null,
-      phone: phone,
-    })
+   .update({
+  name: accountName,
+  brokerage_name: brokerage,
+  logo_url: newLogoUrl,
+  brokerage_logo_url: newBrokerageLogoUrl,
+  team_enabled: teamEnabled,
+  team_name: teamEnabled ? teamName : null,
+  team_logo_url: teamEnabled ? newTeamLogoUrl : null,
+  email_header_image_url: newEmailHeaderUrl,
+  phone: phone,
+})
     .eq('id', accountId)
 
   if (accountError) {
@@ -367,6 +377,15 @@ setMessage('Changes saved successfully.')
           <h2 className="text-xl font-semibold mb-8">Branding</h2>
 
           <div className="grid grid-cols-2 gap-12">
+            <div className="mt-12">
+  {renderLogoBlock(
+    'Team Photo (Hero Image)',
+    emailHeaderFile,
+    emailHeaderUrl,
+    setEmailHeaderFile,
+    'emailHeaderUpload'
+  )}
+</div>
             {renderLogoBlock('Agent Logo', logoFile, logoUrl, setLogoFile, 'agentLogoUpload')}
 
             <div>
