@@ -2,11 +2,15 @@
 
 type Props = {
   isOpen: boolean
-  onClose: () => void
+  onCloseAction: () => void
   html: string
 }
 
-export default function EmailPreviewModal({ isOpen, onClose, html }: Props) {
+export default function EmailPreviewModal({
+  isOpen,
+  onCloseAction,
+  html,
+}: Props) {
   if (!isOpen) return null
 
   return (
@@ -14,7 +18,7 @@ export default function EmailPreviewModal({ isOpen, onClose, html }: Props) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: '#e5e7eb', // light gray (like email client)
+        background: '#e5e7eb',
         zIndex: 9999,
         overflowY: 'auto',
       }}
@@ -34,10 +38,10 @@ export default function EmailPreviewModal({ isOpen, onClose, html }: Props) {
         }}
       >
         <div style={{ fontWeight: 600 }}>Email Preview</div>
-        <button onClick={onClose}>Close</button>
+        <button onClick={onCloseAction}>Close</button>
       </div>
 
-      {/* EMAIL WRAPPER */}
+      {/* EMAIL */}
       <div
         style={{
           padding: '40px 20px',

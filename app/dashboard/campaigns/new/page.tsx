@@ -206,10 +206,10 @@ export default function NewCampaignPage() {
       </div>
 
       <EmailPreviewModal
-        isOpen={showPreview}
-        onClose={() => setShowPreview(false)}
-        html={previewHtml}
-      />
+  isOpen={showPreview}
+  onCloseAction={() => setShowPreview(false)}
+  html={previewHtml}
+/>
     </div>
   )
 }
