@@ -14,36 +14,43 @@ export default function EmailPreviewModal({ isOpen, onClose, html }: Props) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000,
+        background: '#e5e7eb', // light gray (like email client)
+        zIndex: 9999,
+        overflowY: 'auto',
       }}
     >
+      {/* TOP BAR */}
       <div
         style={{
-          background: '#f5f5f5',
-          width: '90%',
-          maxWidth: 700,
-          height: '90%',
-          borderRadius: 8,
-          padding: 20,
-          overflow: 'auto',
+          position: 'sticky',
+          top: 0,
+          background: 'white',
+          padding: '10px 20px',
+          borderBottom: '1px solid #ddd',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          zIndex: 10,
         }}
       >
-        {/* CLOSE */}
-        <div style={{ textAlign: 'right', marginBottom: 10 }}>
-          <button onClick={onClose}>Close</button>
-        </div>
+        <div style={{ fontWeight: 600 }}>Email Preview</div>
+        <button onClick={onClose}>Close</button>
+      </div>
 
-        {/* EMAIL CONTAINER */}
+      {/* EMAIL WRAPPER */}
+      <div
+        style={{
+          padding: '40px 20px',
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
         <div
           style={{
-            background: 'white',
+            width: '100%',
             maxWidth: 600,
-            margin: '0 auto',
-            padding: 20,
+            background: 'white',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
           }}
           dangerouslySetInnerHTML={{ __html: html }}
         />
