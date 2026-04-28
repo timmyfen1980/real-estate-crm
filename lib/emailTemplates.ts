@@ -16,22 +16,22 @@ export function buildEmailTemplate({
   return `
   <div style="background:#e5e7eb; padding:40px 0; font-family: Arial, sans-serif;">
 
-    <div style="max-width:600px; margin:0 auto; background:#ffffff; position:relative;">
+    <!-- EMAIL CARD -->
+    <div style="max-width:600px; margin:0 auto; background:#ffffff; overflow:hidden;">
 
+      <!-- HERO IMAGE (FULL WIDTH, FLUSH) -->
       ${
-  emailHeaderImage
-    ? `<div style="width:100%; line-height:0;">
-         <img 
-           src="${emailHeaderImage}" 
-           style="
-             width:100%;
-             height:auto;
-             display:block;
-           "
-         />
-       </div>`
-    : ''
-}
+        emailHeaderImage
+          ? `<img 
+                src="${emailHeaderImage}" 
+                style="
+                  width:100%;
+                  height:auto;
+                  display:block;
+                "
+              />`
+          : ''
+      }
 
       <!-- BODY -->
       <div style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
