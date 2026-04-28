@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+
 type Props = {
   isOpen: boolean
   onCloseAction: () => void
@@ -11,10 +13,19 @@ export default function EmailPreviewModal({
   onCloseAction,
   html,
 }: Props) {
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseAction()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onCloseAction])
+
   if (!isOpen) return null
 
   return (
     <div
+      onClick={onCloseAction}
       style={{
         position: 'fixed',
         inset: 0,
@@ -25,11 +36,12 @@ export default function EmailPreviewModal({
     >
       {/* TOP BAR */}
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           position: 'sticky',
           top: 0,
           background: 'white',
-          padding: '10px 20px',
+          padding: '12px 20px',
           borderBottom: '1px solid #ddd',
           display: 'flex',
           justifyContent: 'space-between',
@@ -38,11 +50,25 @@ export default function EmailPreviewModal({
         }}
       >
         <div style={{ fontWeight: 600 }}>Email Preview</div>
-        <button onClick={onCloseAction}>Close</button>
+
+        {/* BIG CLOSE BUTTON */}
+        <button
+          onClick={onCloseAction}
+          style={{
+            fontSize: 20,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            border: 'none',
+            background: 'transparent',
+          }}
+        >
+          ✕
+        </button>
       </div>
 
       {/* EMAIL */}
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           padding: '40px 20px',
           display: 'flex',
