@@ -416,22 +416,22 @@ setMessage('Changes saved successfully.')
 
   {/* RIGHT: LARGE PREVIEW */}
   <div className="w-1/2 flex justify-end">
-    <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 w-full max-w-sm h-48 flex items-center justify-center">
-      {emailHeaderFile ? (
-        <img
-          src={URL.createObjectURL(emailHeaderFile)}
-          className="w-full h-full object-cover"
-        />
-      ) : emailHeaderUrl ? (
-        <img
-          src={emailHeaderUrl}
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <span className="text-gray-400 text-sm">No image uploaded</span>
-      )}
-    </div>
+  <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 w-full max-w-sm h-48 flex items-center justify-center">
+    {emailHeaderFile ? (
+      <img
+        src={URL.createObjectURL(emailHeaderFile)}
+        className="w-full h-full object-contain"
+      />
+    ) : emailHeaderUrl ? (
+      <img
+        src={emailHeaderUrl}
+        className="w-full h-full object-contain"
+      />
+    ) : (
+      <span className="text-gray-400 text-sm">No image uploaded</span>
+    )}
   </div>
+</div>
 
 </div>
 
