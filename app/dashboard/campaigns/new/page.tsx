@@ -79,6 +79,7 @@ export default function NewCampaignPage() {
       unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
       ctaLink: ctaEnabled ? ctaLink : '',
       ctaText: ctaEnabled ? ctaText : '',
+      emailHeaderImage: account.email_header_image_url || '',
     })
 
     setPreviewHtml(html)
