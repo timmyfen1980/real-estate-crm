@@ -91,7 +91,7 @@ export default function NewCampaignPage() {
       method: 'POST',
       body: JSON.stringify({
         subject,
-        body_html: body,
+        body_html: previewHtml,
         cta_text: ctaEnabled ? ctaText : null,
         cta_link: ctaEnabled ? ctaLink : null,
       }),
