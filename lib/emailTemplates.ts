@@ -19,41 +19,40 @@ export function buildEmailTemplate({
     <div style="max-width:600px; margin:0 auto; background:#ffffff; position:relative;">
 
       <!-- BLACK HEADER -->
-<div style="
-  background:#000;
-  height:120px;
-  position:relative;
-  padding:0 28px;
-  display:flex;
-  align-items:center;
-">
-  
-  <!-- LOGO (UNCHANGED FEEL) -->
-  ${
-    teamLogo
-      ? `<div style="background:#fff; padding:14px 18px; border-radius:8px;">
-           <img src="${teamLogo}" style="height:70px; display:block;" />
-         </div>`
-      : ''
-  }
+      <div style="
+        background:#000;
+        height:120px;
+        position:relative;
+        padding:0 28px;
+        display:flex;
+        align-items:center;
+      ">
+        
+        ${
+          teamLogo
+            ? `<div style="background:#fff; padding:14px 18px; border-radius:8px;">
+                 <img src="${teamLogo}" style="height:70px; display:block;" />
+               </div>`
+            : ''
+        }
 
-  <!-- TEAM IMAGE (NO CROP — BLEEDS DOWN) -->
-  ${
-    emailHeaderImage
-      ? `<img 
-            src="${emailHeaderImage}" 
-            style="
-              position:absolute;
-              right:28px;
-              top:10px;
-              height:180px;
-              width:auto;
-              display:block;
-            "
-          />`
-      : ''
-  }
+        ${
+          emailHeaderImage
+            ? `<img 
+                  src="${emailHeaderImage}" 
+                  style="
+                    position:absolute;
+                    right:28px;
+                    top:10px;
+                    height:180px;
+                    width:auto;
+                    display:block;
+                  "
+                />`
+            : ''
+        }
 
+      </div> <!-- ✅ THIS WAS MISSING -->
 
       <!-- BODY -->
       <div style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
