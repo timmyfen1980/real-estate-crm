@@ -51,6 +51,15 @@ export async function GET(req: Request) {
 
       if (!contact?.email) continue
 
+// 🔒 CHECK UNSUBSCRIBED
+const { data: sub } = await supabase
+  .from('contact_subscriptions')
+  .select('unsubscribed')
+  .eq('contact_id', c.contact_id)
+  .single()
+
+if (sub?.unsubscribed) continue
+
       // AGENT (UPDATED)
       const { data: agent } = await supabase
         .from('profiles')
@@ -64,7 +73,7 @@ export async function GET(req: Request) {
         .select('team_logo_url, brokerage_logo_url, brokerage_name')
         .eq('id', contact.account_id)
         .single()
-
+       const unsubscribeLink = `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=${c.contact_id}`
       const rawContent = sequence.body_html.replace(
         '{{first_name}}',
         contact.first_name || ''
@@ -80,6 +89,7 @@ export async function GET(req: Request) {
         teamLogo: account?.team_logo_url,
         brokerageLogo: account?.brokerage_logo_url,
         brokerageName: account?.brokerage_name,
+        unsubscribeLink,
       })
 
       const accountId = contact.account_id

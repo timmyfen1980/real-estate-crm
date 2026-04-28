@@ -8,6 +8,7 @@ export function buildEmailTemplate({
   teamLogo,
   brokerageLogo,
   brokerageName,
+  unsubscribeLink,
 }: {
   content: string
   firstName?: string
@@ -18,6 +19,7 @@ export function buildEmailTemplate({
   teamLogo?: string
   brokerageLogo?: string
   brokerageName?: string
+  unsubscribeLink?: string
 }) {
   return `
   <div style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
@@ -74,6 +76,16 @@ export function buildEmailTemplate({
                 ${
                   brokerageLogo
                     ? `<img src="${brokerageLogo}" style="max-height:40px;" />`
+                    : ''
+                }
+
+                ${
+                  unsubscribeLink
+                    ? `<p style="margin-top:10px;">
+                        <a href="${unsubscribeLink}" style="color:#888;font-size:12px;">
+                          Unsubscribe
+                        </a>
+                      </p>`
                     : ''
                 }
               </td>
