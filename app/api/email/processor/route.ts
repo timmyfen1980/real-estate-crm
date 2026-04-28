@@ -50,10 +50,10 @@ export async function GET(req: Request) {
 
       if (!sequence) continue
 
-      // 3. Get contact email
+      // 3. Get contact email + account_id (FIXED)
       const { data: contact } = await supabase
         .from('contacts')
-        .select('email, first_name')
+        .select('email, first_name, assigned_user_id, account_id')
         .eq('id', c.contact_id)
         .single()
 
@@ -70,8 +70,8 @@ export async function GET(req: Request) {
         firstName: contact.first_name,
       })
 
-      // 5. Get sender email
-      const accountId = c.email_campaigns?.[0]?.account_id || null
+      // 5. Get sender email (FIXED SOURCE)
+      const accountId = contact.account_id
 
       const { data: sender } = await supabase
         .from('email_addresses')
