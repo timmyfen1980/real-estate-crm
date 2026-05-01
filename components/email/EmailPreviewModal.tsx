@@ -20,11 +20,16 @@ type Contact = {
   last_name: string | null
   tags: string[] | null
   lifecycle_stage: string | null
+  assigned_user_id: string | null
   do_not_contact: boolean | null
   email_opt_in: boolean | null
 }
 
 type Step = 'preview' | 'audience' | 'confirm'
+type Agent = {
+  id: string
+  full_name: string
+}
 
 export default function EmailPreviewModal({
   isOpen,
@@ -44,7 +49,8 @@ export default function EmailPreviewModal({
 
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
-
+   const [agents, setAgents] = useState<Agent[]>([])
+const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   // Load contacts
   useEffect(() => {
     if (step !== 'audience') return
@@ -66,6 +72,11 @@ export default function EmailPreviewModal({
         .select('*')
         .eq('account_id', membership?.account_id)
         .eq('is_deleted', false)
+        const { data: agentData } = await supabase
+  .from('profiles')
+  .select('id, full_name')
+
+setAgents(agentData || [])
 
       const { data: subs } = await supabase
         .from('contact_subscriptions')
@@ -107,9 +118,12 @@ export default function EmailPreviewModal({
         email.includes(search.toLowerCase())
 
       const matchesTag =
-        !selectedTag || c.tags?.includes(selectedTag)
+  !selectedTag || c.tags?.includes(selectedTag)
 
-      return matchesSearch && matchesTag
+const matchesAgent =
+  !selectedAgent || c.assigned_user_id === selectedAgent
+
+return matchesSearch && matchesTag && matchesAgent
     })
   }, [contacts, search, selectedTag])
 
@@ -252,7 +266,18 @@ export default function EmailPreviewModal({
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: '100%', padding: 10, marginBottom: 10 }}
             />
-
+<select
+  value={selectedAgent || ''}
+  onChange={(e) => setSelectedAgent(e.target.value || null)}
+  style={{ width: '100%', padding: 10, marginBottom: 10 }}
+>
+  <option value="">All Agents</option>
+  {agents.map(a => (
+    <option key={a.id} value={a.id}>
+      {a.full_name}
+    </option>
+  ))}
+</select>
             <select
               value={selectedTag || ''}
               onChange={(e) => setSelectedTag(e.target.value || null)}
