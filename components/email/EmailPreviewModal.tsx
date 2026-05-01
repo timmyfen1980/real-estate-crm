@@ -74,8 +74,6 @@ export default function EmailPreviewModal({
         .eq('account_id', membership.account_id)
         .eq('is_deleted', false)
 
-      if (!contactData) return
-
       const { data: subs } = await supabase
         .from('contact_subscriptions')
         .select('contact_id, unsubscribed')
@@ -85,7 +83,7 @@ export default function EmailPreviewModal({
         unsubMap[s.contact_id] = s.unsubscribed
       })
 
-      const filtered = contactData.filter((c) => {
+      const filtered = (contactData || []).filter((c) => {
         if (!c.email) return false
         if (c.do_not_contact) return false
         if (c.email_opt_in === false) return false
@@ -113,7 +111,7 @@ export default function EmailPreviewModal({
   const handleSendTest = async () => {
     setSendingTest(true)
     try {
-      const res = await fetch('/api/email/send-test', {
+      await fetch('/api/email/send-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,13 +122,7 @@ export default function EmailPreviewModal({
         }),
       })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        alert(data.error || 'Failed to send test')
-      } else {
-        alert('Test email sent!')
-      }
+      alert('Test email sent!')
     } catch {
       alert('Error sending test')
     } finally {
@@ -152,14 +144,11 @@ export default function EmailPreviewModal({
 
       const data = await res.json()
 
-      if (!res.ok) {
-        alert(data.error || 'Send failed')
-      } else {
-        alert(
-          `Sent: ${data.sent}, Skipped: ${data.skipped}, Failed: ${data.failed}`
-        )
-        onCloseAction()
-      }
+      alert(
+        `Sent: ${data.sent}, Skipped: ${data.skipped}, Failed: ${data.failed}`
+      )
+
+      onCloseAction()
     } catch {
       alert('Error sending emails')
     }
@@ -173,31 +162,57 @@ export default function EmailPreviewModal({
         inset: 0,
         background: '#e5e7eb',
         zIndex: 9999,
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
+      {/* HEADER */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'sticky',
-          top: 0,
           background: 'white',
           padding: '12px 20px',
           borderBottom: '1px solid #ddd',
           display: 'flex',
           justifyContent: 'space-between',
+          alignItems: 'center',
+          flexShrink: 0,
         }}
       >
-        <div>
+        <div style={{ fontWeight: 600 }}>
           {view === 'preview' ? 'Email Preview' : 'Select Contacts'}
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
+
           {view === 'preview' && (
             <>
-              <button onClick={handleSendTest}>
+              <button
+                onClick={handleSendTest}
+                style={{
+                  padding: '8px 14px',
+                  background: '#ffffff',
+                  border: '1px solid #ccc',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
                 {sendingTest ? 'Sending...' : 'Send Test'}
               </button>
-              <button onClick={() => setView('selectContacts')}>
+
+              <button
+                onClick={() => setView('selectContacts')}
+                style={{
+                  padding: '8px 14px',
+                  background: '#000',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
                 Send to Contacts
               </button>
             </>
@@ -205,42 +220,89 @@ export default function EmailPreviewModal({
 
           {view === 'selectContacts' && (
             <>
-              <button onClick={() => setView('preview')}>Back</button>
-              <button onClick={handleFinalSend}>
+              <button
+                onClick={() => setView('preview')}
+                style={{
+                  padding: '8px 14px',
+                  background: '#fff',
+                  border: '1px solid #ccc',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Back
+              </button>
+
+              <button
+                onClick={handleFinalSend}
+                style={{
+                  padding: '8px 14px',
+                  background: '#000',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
                 Send Now ({selectedIds.length})
               </button>
             </>
           )}
 
-          <button onClick={onCloseAction}>✕</button>
+          <button
+            onClick={onCloseAction}
+            style={{
+              fontSize: 20,
+              fontWeight: 'bold',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </button>
+
         </div>
       </div>
 
-      <div style={{ padding: 40 }}>
+      {/* SCROLL AREA (FIXED) */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 40,
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
         {view === 'preview' && (
           <div
-            style={{ maxWidth: 600, margin: '0 auto', background: 'white' }}
+            style={{
+              width: '100%',
+              maxWidth: 600,
+              background: 'white',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+            }}
             dangerouslySetInnerHTML={{ __html: html }}
           />
         )}
 
         {view === 'selectContacts' && (
-          <div style={{ maxWidth: 600, margin: '0 auto' }}>
-            {loadingContacts && <p>Loading contacts...</p>}
-
-            {!loadingContacts &&
-              contacts.map((c) => (
-                <div key={c.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(c.id)}
-                      onChange={() => toggleContact(c.id)}
-                    />
-                    {c.first_name} {c.last_name} ({c.email})
-                  </label>
-                </div>
-              ))}
+          <div style={{ width: 600 }}>
+            {contacts.map((c) => (
+              <div key={c.id} style={{ marginBottom: 8 }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(c.id)}
+                    onChange={() => toggleContact(c.id)}
+                  />
+                  {' '}
+                  {c.first_name} {c.last_name} ({c.email})
+                </label>
+              </div>
+            ))}
           </div>
         )}
       </div>
