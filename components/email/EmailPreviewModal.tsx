@@ -12,6 +12,8 @@ type Props = {
   ctaLink: string | null
 }
 
+type View = 'preview' | 'selectContacts' | 'schedule'
+
 export default function EmailPreviewModal({
   isOpen,
   onCloseAction,
@@ -22,6 +24,11 @@ export default function EmailPreviewModal({
   ctaLink,
 }: Props) {
   const [sendingTest, setSendingTest] = useState(false)
+  const [view, setView] = useState<View>('preview')
+
+  // mock contacts (safe placeholder — we wire real data next)
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([])
+  const contacts = ['Contact 1', 'Contact 2', 'Contact 3']
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -62,8 +69,16 @@ export default function EmailPreviewModal({
     }
   }
 
-  const handleSendNow = () => {
-    alert('Next step: contact selection + broadcast send')
+  const toggleContact = (name: string) => {
+    setSelectedContacts((prev) =>
+      prev.includes(name)
+        ? prev.filter((c) => c !== name)
+        : [...prev, name]
+    )
+  }
+
+  const handleFinalSend = () => {
+    alert(`Sending to ${selectedContacts.length} contacts (next step: API)`)
   }
 
   return (
@@ -92,70 +107,89 @@ export default function EmailPreviewModal({
           zIndex: 10,
         }}
       >
-        <div style={{ fontWeight: 600 }}>Email Preview</div>
+        <div style={{ fontWeight: 600 }}>
+          {view === 'preview' && 'Email Preview'}
+          {view === 'selectContacts' && 'Select Contacts'}
+          {view === 'schedule' && 'Schedule Email'}
+        </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={handleSendTest}
-            disabled={sendingTest}
-            style={{
-              padding: '6px 12px',
-              border: '1px solid #ccc',
-              borderRadius: 6,
-              background: 'white',
-              cursor: 'pointer',
-            }}
-          >
-            {sendingTest ? 'Sending...' : 'Send Test'}
-          </button>
+          {view === 'preview' && (
+            <>
+              <button onClick={handleSendTest}>
+                {sendingTest ? 'Sending...' : 'Send Test'}
+              </button>
 
-          <button
-            onClick={handleSendNow}
-            style={{
-              padding: '6px 12px',
-              background: 'black',
-              color: 'white',
-              borderRadius: 6,
-              cursor: 'pointer',
-            }}
-          >
-            Send Now
-          </button>
+              <button onClick={() => setView('selectContacts')}>
+                Send to Contacts
+              </button>
 
-          <button
-            onClick={onCloseAction}
-            style={{
-              fontSize: 20,
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              border: 'none',
-              background: 'transparent',
-              marginLeft: 10,
-            }}
-          >
-            ✕
-          </button>
+              <button onClick={() => setView('schedule')}>
+                Schedule Send
+              </button>
+            </>
+          )}
+
+          {view === 'selectContacts' && (
+            <>
+              <button onClick={() => setView('preview')}>Back</button>
+              <button onClick={handleFinalSend}>
+                Send Now ({selectedContacts.length})
+              </button>
+            </>
+          )}
+
+          {view === 'schedule' && (
+            <>
+              <button onClick={() => setView('preview')}>Back</button>
+              <button onClick={() => alert('Schedule logic next')}>
+                Schedule Email
+              </button>
+            </>
+          )}
+
+          <button onClick={onCloseAction}>✕</button>
         </div>
       </div>
 
-      {/* EMAIL */}
+      {/* CONTENT */}
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          padding: '40px 20px',
-          display: 'flex',
-          justifyContent: 'center',
-        }}
+        style={{ padding: 40 }}
       >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: 600,
-            background: 'white',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-          }}
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        {view === 'preview' && (
+          <div
+            style={{
+              maxWidth: 600,
+              margin: '0 auto',
+              background: 'white',
+            }}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        )}
+
+        {view === 'selectContacts' && (
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+            {contacts.map((c) => (
+              <div key={c}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selectedContacts.includes(c)}
+                    onChange={() => toggleContact(c)}
+                  />
+                  {c}
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {view === 'schedule' && (
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+            <p>Date/time picker coming next</p>
+          </div>
+        )}
       </div>
     </div>
   )
