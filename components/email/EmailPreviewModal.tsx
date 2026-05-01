@@ -66,16 +66,16 @@ export default function EmailPreviewModal({
 
       if (!membership?.account_id) return
 
-      // load contacts
       const { data: contactData } = await supabase
         .from('contacts')
-        .select('id, email, first_name, last_name, do_not_contact, email_opt_in')
+        .select(
+          'id, email, first_name, last_name, do_not_contact, email_opt_in'
+        )
         .eq('account_id', membership.account_id)
         .eq('is_deleted', false)
 
       if (!contactData) return
 
-      // load unsubscribes
       const { data: subs } = await supabase
         .from('contact_subscriptions')
         .select('contact_id, unsubscribed')
@@ -131,15 +131,38 @@ export default function EmailPreviewModal({
       } else {
         alert('Test email sent!')
       }
-    } catch (err) {
+    } catch {
       alert('Error sending test')
     } finally {
       setSendingTest(false)
     }
   }
 
-  const handleFinalSend = () => {
-    alert(`Ready to send to ${selectedIds.length} contacts (API next)`)
+  const handleFinalSend = async () => {
+    try {
+      const res = await fetch('/api/email/broadcast/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject,
+          body_html: bodyHtml,
+          contactIds: selectedIds,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Send failed')
+      } else {
+        alert(
+          `Sent: ${data.sent}, Skipped: ${data.skipped}, Failed: ${data.failed}`
+        )
+        onCloseAction()
+      }
+    } catch {
+      alert('Error sending emails')
+    }
   }
 
   return (
@@ -150,7 +173,6 @@ export default function EmailPreviewModal({
         inset: 0,
         background: '#e5e7eb',
         zIndex: 9999,
-        overflowY: 'auto',
       }}
     >
       <div
@@ -175,7 +197,6 @@ export default function EmailPreviewModal({
               <button onClick={handleSendTest}>
                 {sendingTest ? 'Sending...' : 'Send Test'}
               </button>
-
               <button onClick={() => setView('selectContacts')}>
                 Send to Contacts
               </button>
