@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 
 type Props = {
   isOpen: boolean
@@ -12,7 +13,14 @@ type Props = {
   ctaLink: string | null
 }
 
-type View = 'preview' | 'selectContacts' | 'schedule'
+type Contact = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+}
+
+type View = 'preview' | 'selectContacts'
 
 export default function EmailPreviewModal({
   isOpen,
@@ -23,12 +31,12 @@ export default function EmailPreviewModal({
   ctaText,
   ctaLink,
 }: Props) {
-  const [sendingTest, setSendingTest] = useState(false)
   const [view, setView] = useState<View>('preview')
+  const [sendingTest, setSendingTest] = useState(false)
 
-  // mock contacts (safe placeholder — we wire real data next)
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([])
-  const contacts = ['Contact 1', 'Contact 2', 'Contact 3']
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [loadingContacts, setLoadingContacts] = useState(false)
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -38,7 +46,69 @@ export default function EmailPreviewModal({
     return () => window.removeEventListener('keydown', handleKey)
   }, [onCloseAction])
 
+  useEffect(() => {
+    if (view !== 'selectContacts') return
+
+    const loadContacts = async () => {
+      setLoadingContacts(true)
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data: membership } = await supabase
+        .from('account_users')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!membership?.account_id) return
+
+      // load contacts
+      const { data: contactData } = await supabase
+        .from('contacts')
+        .select('id, email, first_name, last_name, do_not_contact, email_opt_in')
+        .eq('account_id', membership.account_id)
+        .eq('is_deleted', false)
+
+      if (!contactData) return
+
+      // load unsubscribes
+      const { data: subs } = await supabase
+        .from('contact_subscriptions')
+        .select('contact_id, unsubscribed')
+
+      const unsubMap: Record<string, boolean> = {}
+      subs?.forEach((s) => {
+        unsubMap[s.contact_id] = s.unsubscribed
+      })
+
+      const filtered = contactData.filter((c) => {
+        if (!c.email) return false
+        if (c.do_not_contact) return false
+        if (c.email_opt_in === false) return false
+        if (unsubMap[c.id]) return false
+        return true
+      })
+
+      setContacts(filtered)
+      setLoadingContacts(false)
+    }
+
+    loadContacts()
+  }, [view])
+
   if (!isOpen) return null
+
+  const toggleContact = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    )
+  }
 
   const handleSendTest = async () => {
     setSendingTest(true)
@@ -62,23 +132,14 @@ export default function EmailPreviewModal({
         alert('Test email sent!')
       }
     } catch (err) {
-      console.error(err)
-      alert('Error sending test email')
+      alert('Error sending test')
     } finally {
       setSendingTest(false)
     }
   }
 
-  const toggleContact = (name: string) => {
-    setSelectedContacts((prev) =>
-      prev.includes(name)
-        ? prev.filter((c) => c !== name)
-        : [...prev, name]
-    )
-  }
-
   const handleFinalSend = () => {
-    alert(`Sending to ${selectedContacts.length} contacts (next step: API)`)
+    alert(`Ready to send to ${selectedIds.length} contacts (API next)`)
   }
 
   return (
@@ -92,7 +153,6 @@ export default function EmailPreviewModal({
         overflowY: 'auto',
       }}
     >
-      {/* TOP BAR */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -103,14 +163,10 @@ export default function EmailPreviewModal({
           borderBottom: '1px solid #ddd',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          zIndex: 10,
         }}
       >
-        <div style={{ fontWeight: 600 }}>
-          {view === 'preview' && 'Email Preview'}
-          {view === 'selectContacts' && 'Select Contacts'}
-          {view === 'schedule' && 'Schedule Email'}
+        <div>
+          {view === 'preview' ? 'Email Preview' : 'Select Contacts'}
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
@@ -123,10 +179,6 @@ export default function EmailPreviewModal({
               <button onClick={() => setView('selectContacts')}>
                 Send to Contacts
               </button>
-
-              <button onClick={() => setView('schedule')}>
-                Schedule Send
-              </button>
             </>
           )}
 
@@ -134,16 +186,7 @@ export default function EmailPreviewModal({
             <>
               <button onClick={() => setView('preview')}>Back</button>
               <button onClick={handleFinalSend}>
-                Send Now ({selectedContacts.length})
-              </button>
-            </>
-          )}
-
-          {view === 'schedule' && (
-            <>
-              <button onClick={() => setView('preview')}>Back</button>
-              <button onClick={() => alert('Schedule logic next')}>
-                Schedule Email
+                Send Now ({selectedIds.length})
               </button>
             </>
           )}
@@ -152,42 +195,31 @@ export default function EmailPreviewModal({
         </div>
       </div>
 
-      {/* CONTENT */}
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ padding: 40 }}
-      >
+      <div style={{ padding: 40 }}>
         {view === 'preview' && (
           <div
-            style={{
-              maxWidth: 600,
-              margin: '0 auto',
-              background: 'white',
-            }}
+            style={{ maxWidth: 600, margin: '0 auto', background: 'white' }}
             dangerouslySetInnerHTML={{ __html: html }}
           />
         )}
 
         {view === 'selectContacts' && (
           <div style={{ maxWidth: 600, margin: '0 auto' }}>
-            {contacts.map((c) => (
-              <div key={c}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={selectedContacts.includes(c)}
-                    onChange={() => toggleContact(c)}
-                  />
-                  {c}
-                </label>
-              </div>
-            ))}
-          </div>
-        )}
+            {loadingContacts && <p>Loading contacts...</p>}
 
-        {view === 'schedule' && (
-          <div style={{ maxWidth: 600, margin: '0 auto' }}>
-            <p>Date/time picker coming next</p>
+            {!loadingContacts &&
+              contacts.map((c) => (
+                <div key={c.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(c.id)}
+                      onChange={() => toggleContact(c.id)}
+                    />
+                    {c.first_name} {c.last_name} ({c.email})
+                  </label>
+                </div>
+              ))}
           </div>
         )}
       </div>
