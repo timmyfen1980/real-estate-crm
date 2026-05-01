@@ -237,6 +237,10 @@ const handleLogout = async () => {
 <Link href="/dashboard/open-houses" className={navItemClass('/dashboard/open-houses')}>
   Open Houses
 </Link>
+
+<Link href="/dashboard/campaigns/new" className={navItemClass('/dashboard/campaigns')}>
+  Emails
+</Link>
         </nav>
       </aside>
 
