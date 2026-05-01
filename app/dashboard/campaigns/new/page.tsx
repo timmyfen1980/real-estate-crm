@@ -194,16 +194,7 @@ export default function NewCampaignPage() {
           Preview Email
         </button>
 
-        <button
-          onClick={handleSendTest}
-          style={{
-            padding: '10px 20px',
-            border: '1px solid #ccc',
-            borderRadius: 6,
-          }}
-        >
-          Send Test
-        </button>
+        
       </div>
 
       <EmailPreviewModal

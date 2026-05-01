@@ -11,67 +11,77 @@ const supabase = createClient(
 )
 
 export async function POST(req: Request) {
-  const body = await req.json()
-
-  const {
-    subject,
-    body_html,
-    cta_text,
-    cta_link,
-    test_email,
-  } = body
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { data: membership } = await supabase
-    .from('account_users')
-    .select('account_id')
-    .eq('user_id', user.id)
-    .single()
-
-  const { data: account } = await supabase
-    .from('accounts')
-    .select('*')
-    .eq('id', membership?.account_id)
-    .single()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
-  const html = buildEmailTemplate({
-    content: body_html,
-    firstName: 'John',
-    agentName: profile?.full_name || '',
-    agentEmail: user.email || '',
-    agentPhone: profile?.phone || '',
-    agentPhoto: profile?.agent_photo_url || '',
-    teamLogo: account?.team_logo_url || '',
-    brokerageLogo: account?.brokerage_logo_url || '',
-    brokerageName: account?.brokerage_name || '',
-    unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
-    ctaLink: cta_link,
-    ctaText: cta_text,
-  })
-
   try {
-    await resend.emails.send({
+    const body = await req.json()
+
+    const {
+      subject,
+      body_html,
+      cta_text,
+      cta_link,
+    } = body
+
+    // 🔐 GET USER
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user || !user.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // 🧠 ACCOUNT
+    const { data: membership } = await supabase
+      .from('account_users')
+      .select('account_id')
+      .eq('user_id', user.id)
+      .single()
+
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('id', membership?.account_id)
+      .single()
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    // 🧱 BUILD EMAIL
+    const html = buildEmailTemplate({
+      content: body_html,
+      firstName: 'John',
+      agentName: profile?.full_name || '',
+      agentEmail: user.email,
+      agentPhone: profile?.phone || '',
+      agentPhoto: profile?.agent_photo_url || '',
+      teamLogo: account?.team_logo_url || '',
+      brokerageLogo: account?.brokerage_logo_url || '',
+      brokerageName: account?.brokerage_name || '',
+      unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
+      ctaLink: cta_link,
+      ctaText: cta_text,
+    })
+
+    // 📤 SEND TO SELF
+    const response = await resend.emails.send({
       from: 'CRM <noreply@yourdomain.com>',
-      to: test_email,
+      to: user.email,
       subject,
       html,
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      resend_id: response?.data?.id || null,
+    })
+
   } catch (err) {
-    return NextResponse.json({ success: false, error: err })
+    return NextResponse.json(
+      { error: 'Send failed', details: err },
+      { status: 500 }
+    )
   }
 }
