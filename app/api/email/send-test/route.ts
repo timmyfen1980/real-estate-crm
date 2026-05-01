@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 
     // 📤 SEND TO SELF
     const response = await resend.emails.send({
-      from: 'CRM <noreply@yourdomain.com>',
+      from: 'The FC Group <info@thefcgroup.ca>',
       to: user.email,
       subject,
       html,
