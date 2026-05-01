@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 type Props = {
@@ -18,9 +18,13 @@ type Contact = {
   email: string
   first_name: string | null
   last_name: string | null
+  tags: string[] | null
+  lifecycle_stage: string | null
+  do_not_contact: boolean | null
+  email_opt_in: boolean | null
 }
 
-type View = 'preview' | 'selectContacts'
+type Step = 'preview' | 'audience' | 'confirm'
 
 export default function EmailPreviewModal({
   isOpen,
@@ -31,31 +35,24 @@ export default function EmailPreviewModal({
   ctaText,
   ctaLink,
 }: Props) {
-  const [view, setView] = useState<View>('preview')
+  const [step, setStep] = useState<Step>('preview')
   const [sendingTest, setSendingTest] = useState(false)
 
   const [contacts, setContacts] = useState<Contact[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [loadingContacts, setLoadingContacts] = useState(false)
+  const [loading, setLoading] = useState(false)
 
+  const [search, setSearch] = useState('')
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+
+  // Load contacts
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseAction()
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [onCloseAction])
+    if (step !== 'audience') return
 
-  useEffect(() => {
-    if (view !== 'selectContacts') return
+    const load = async () => {
+      setLoading(true)
 
-    const loadContacts = async () => {
-      setLoadingContacts(true)
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
       const { data: membership } = await supabase
@@ -64,14 +61,10 @@ export default function EmailPreviewModal({
         .eq('user_id', user.id)
         .single()
 
-      if (!membership?.account_id) return
-
-      const { data: contactData } = await supabase
+      const { data } = await supabase
         .from('contacts')
-        .select(
-          'id, email, first_name, last_name, do_not_contact, email_opt_in'
-        )
-        .eq('account_id', membership.account_id)
+        .select('*')
+        .eq('account_id', membership?.account_id)
         .eq('is_deleted', false)
 
       const { data: subs } = await supabase
@@ -79,11 +72,9 @@ export default function EmailPreviewModal({
         .select('contact_id, unsubscribed')
 
       const unsubMap: Record<string, boolean> = {}
-      subs?.forEach((s) => {
-        unsubMap[s.contact_id] = s.unsubscribed
-      })
+      subs?.forEach(s => unsubMap[s.contact_id] = s.unsubscribed)
 
-      const filtered = (contactData || []).filter((c) => {
+      const filtered = (data || []).filter(c => {
         if (!c.email) return false
         if (c.do_not_contact) return false
         if (c.email_opt_in === false) return false
@@ -92,67 +83,88 @@ export default function EmailPreviewModal({
       })
 
       setContacts(filtered)
-      setLoadingContacts(false)
+      setLoading(false)
     }
 
-    loadContacts()
-  }, [view])
+    load()
+  }, [step])
 
-  if (!isOpen) return null
+  // Extract tags
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    contacts.forEach(c => c.tags?.forEach(t => set.add(t)))
+    return Array.from(set)
+  }, [contacts])
 
-  const toggleContact = (id: string) => {
-    setSelectedIds((prev) =>
+  // Filtered contacts
+  const filteredContacts = useMemo(() => {
+    return contacts.filter(c => {
+      const name = `${c.first_name} ${c.last_name}`.toLowerCase()
+      const email = c.email.toLowerCase()
+
+      const matchesSearch =
+        name.includes(search.toLowerCase()) ||
+        email.includes(search.toLowerCase())
+
+      const matchesTag =
+        !selectedTag || c.tags?.includes(selectedTag)
+
+      return matchesSearch && matchesTag
+    })
+  }, [contacts, search, selectedTag])
+
+  // Counts
+  const selectedContacts = contacts.filter(c => selectedIds.includes(c.id))
+
+  // Handlers
+  const toggle = (id: string) => {
+    setSelectedIds(prev =>
       prev.includes(id)
-        ? prev.filter((x) => x !== id)
+        ? prev.filter(x => x !== id)
         : [...prev, id]
     )
   }
 
+  const selectAll = () => {
+    setSelectedIds(filteredContacts.map(c => c.id))
+  }
+
+  const clearAll = () => setSelectedIds([])
+
   const handleSendTest = async () => {
     setSendingTest(true)
-    try {
-      await fetch('/api/email/send-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject,
-          body_html: bodyHtml,
-          cta_text: ctaText,
-          cta_link: ctaLink,
-        }),
-      })
-
-      alert('Test email sent!')
-    } catch {
-      alert('Error sending test')
-    } finally {
-      setSendingTest(false)
-    }
+    await fetch('/api/email/send-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject,
+        body_html: bodyHtml,
+        cta_text: ctaText,
+        cta_link: ctaLink,
+      }),
+    })
+    alert('Test email sent')
+    setSendingTest(false)
   }
 
-  const handleFinalSend = async () => {
-    try {
-      const res = await fetch('/api/email/broadcast/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject,
-          body_html: bodyHtml,
-          contactIds: selectedIds,
-        }),
-      })
+  const handleSend = async () => {
+    const res = await fetch('/api/email/broadcast/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject,
+        body_html: bodyHtml,
+        contactIds: selectedIds,
+      }),
+    })
 
-      const data = await res.json()
+    const data = await res.json()
 
-      alert(
-        `Sent: ${data.sent}, Skipped: ${data.skipped}, Failed: ${data.failed}`
-      )
-
-      onCloseAction()
-    } catch {
-      alert('Error sending emails')
-    }
+    alert(`Sent: ${data.sent}, Skipped: ${data.skipped}, Failed: ${data.failed}`)
+    onCloseAction()
   }
+
+  if (!isOpen) return null
 
   return (
     <div
@@ -171,140 +183,117 @@ export default function EmailPreviewModal({
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'white',
-          padding: '12px 20px',
-          borderBottom: '1px solid #ddd',
+          padding: 16,
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 600 }}>
-          {view === 'preview' ? 'Email Preview' : 'Select Contacts'}
-        </div>
+        <strong>
+          {step === 'preview' && 'Preview'}
+          {step === 'audience' && 'Select Audience'}
+          {step === 'confirm' && 'Confirm Send'}
+        </strong>
 
         <div style={{ display: 'flex', gap: 10 }}>
 
-          {view === 'preview' && (
+          {step === 'preview' && (
             <>
-              <button
-                onClick={handleSendTest}
-                style={{
-                  padding: '8px 14px',
-                  background: '#ffffff',
-                  border: '1px solid #ccc',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                }}
-              >
+              <button onClick={handleSendTest}>
                 {sendingTest ? 'Sending...' : 'Send Test'}
               </button>
-
-              <button
-                onClick={() => setView('selectContacts')}
-                style={{
-                  padding: '8px 14px',
-                  background: '#000',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                }}
-              >
-                Send to Contacts
+              <button onClick={() => setStep('audience')}>
+                Next
               </button>
             </>
           )}
 
-          {view === 'selectContacts' && (
+          {step === 'audience' && (
             <>
-              <button
-                onClick={() => setView('preview')}
-                style={{
-                  padding: '8px 14px',
-                  background: '#fff',
-                  border: '1px solid #ccc',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                Back
-              </button>
-
-              <button
-                onClick={handleFinalSend}
-                style={{
-                  padding: '8px 14px',
-                  background: '#000',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                Send Now ({selectedIds.length})
+              <button onClick={() => setStep('preview')}>Back</button>
+              <button onClick={() => setStep('confirm')}>
+                Continue ({selectedIds.length})
               </button>
             </>
           )}
 
-          <button
-            onClick={onCloseAction}
-            style={{
-              fontSize: 20,
-              fontWeight: 'bold',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-            }}
-          >
-            ✕
-          </button>
+          {step === 'confirm' && (
+            <>
+              <button onClick={() => setStep('audience')}>Back</button>
+              <button onClick={handleSend}>
+                Send ({selectedIds.length})
+              </button>
+            </>
+          )}
+
+          <button onClick={onCloseAction}>✕</button>
 
         </div>
       </div>
 
-      {/* SCROLL AREA (FIXED) */}
+      {/* BODY */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           flex: 1,
           overflowY: 'auto',
           padding: 40,
-          display: 'flex',
-          justifyContent: 'center',
         }}
       >
-        {view === 'preview' && (
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 600,
-              background: 'white',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-            }}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+        {step === 'preview' && (
+          <div dangerouslySetInnerHTML={{ __html: html }} />
         )}
 
-        {view === 'selectContacts' && (
-          <div style={{ width: 600 }}>
-            {contacts.map((c) => (
-              <div key={c.id} style={{ marginBottom: 8 }}>
+        {step === 'audience' && (
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+
+            <input
+              placeholder="Search contacts..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: '100%', padding: 10, marginBottom: 10 }}
+            />
+
+            <select
+              value={selectedTag || ''}
+              onChange={(e) => setSelectedTag(e.target.value || null)}
+              style={{ width: '100%', padding: 10, marginBottom: 10 }}
+            >
+              <option value="">All Tags</option>
+              {allTags.map(tag => (
+                <option key={tag}>{tag}</option>
+              ))}
+            </select>
+
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <button onClick={selectAll}>Select All</button>
+              <button onClick={clearAll}>Clear</button>
+            </div>
+
+            {loading && <p>Loading...</p>}
+
+            {!loading && filteredContacts.map(c => (
+              <div key={c.id}>
                 <label>
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(c.id)}
-                    onChange={() => toggleContact(c.id)}
+                    onChange={() => toggle(c.id)}
                   />
-                  {' '}
                   {c.first_name} {c.last_name} ({c.email})
                 </label>
               </div>
             ))}
+
           </div>
         )}
+
+        {step === 'confirm' && (
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+            <h3>You're about to send to:</h3>
+            <p>{selectedContacts.length} contacts</p>
+          </div>
+        )}
+
       </div>
     </div>
   )
