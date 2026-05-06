@@ -49,12 +49,12 @@ export async function POST(req: Request) {
     const email = formData.get("email") as string;
     const phone = formData.get("phone") as string;
        const price_range = formData.get("price_range") as string;
-    const region = formData.get("region") as string;
-    const area = formData.get("area") as string;
-    const timeline = formData.get("timeline") as string;
-    const hear_about_us = formData.get("hear_about_us") as string;
+       const region = formData.get("region") as string;
+const area = formData.get("area") as string;
+const timeline = formData.get("timeline") as string;
+const hear_about_us = formData.get("hear_about_us") as string;
 
-    const buyerNotes = `
+const buyerNotes = `
 Home Buyer Guide Lead
 
 Price Range: ${price_range || "N/A"}
@@ -67,6 +67,7 @@ Timeline: ${timeline || "N/A"}
 
 How They Heard About Us: ${hear_about_us || "N/A"}
 `.trim();
+    
 
     if (!first_name || !email) {
       return NextResponse.json(
@@ -120,7 +121,7 @@ How They Heard About Us: ${hear_about_us || "N/A"}
             lifecycle_stage: "New",
             source: "Home Buyers Guide",
             original_source: "Home Buyers Guide",
-                        notes: buyerNotes,
+                      
           })
           .select("id")
           .single();
@@ -148,7 +149,7 @@ How They Heard About Us: ${hear_about_us || "N/A"}
             source: "Home Buyers Guide",
             status: "New",
             deal_type: "Buyer",
-                        agent_notes: buyerNotes,
+                      
           })
           .select("id")
           .single();
@@ -159,7 +160,7 @@ How They Heard About Us: ${hear_about_us || "N/A"}
 
       leadId = newLead.id;
     }
-
+   
     const CAMPAIGN_ID =
       "de93a220-2ca8-4022-9a33-7f584a0e2799";
 
@@ -181,7 +182,16 @@ How They Heard About Us: ${hear_about_us || "N/A"}
           },
         ]);
     }
-
+    await supabaseAdmin
+      .from("notes")
+      .insert([
+        {
+          lead_id: leadId,
+          contact_id: contactId,
+          user_id: account.owner_user_id,
+          content: buyerNotes,
+        },
+      ]);
     await resend.emails.send({
       from: "info@thefcgroup.ca",
       to: account.owner_email,
