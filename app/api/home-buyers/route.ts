@@ -162,7 +162,7 @@ How They Heard About Us: ${hear_about_us || "N/A"}
     }
    
     const CAMPAIGN_ID =
-      "de93a220-2ca8-4022-9a33-7f584a0e2799";
+  "2b927570-cacb-4809-bd03-033ef413e99a";
 
     const { data: existingCampaign } = await supabaseAdmin
       .from("contact_campaigns")
