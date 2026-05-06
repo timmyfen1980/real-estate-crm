@@ -48,12 +48,25 @@ export async function POST(req: Request) {
     const last_name = formData.get("last_name") as string;
     const email = formData.get("email") as string;
     const phone = formData.get("phone") as string;
-    const price_range = formData.get("price_range") as string;
+       const price_range = formData.get("price_range") as string;
+    const region = formData.get("region") as string;
     const area = formData.get("area") as string;
     const timeline = formData.get("timeline") as string;
-    const working_with_realtor = formData.get(
-      "working_with_realtor"
-    ) as string;
+    const hear_about_us = formData.get("hear_about_us") as string;
+
+    const buyerNotes = `
+Home Buyer Guide Lead
+
+Price Range: ${price_range || "N/A"}
+
+Region: ${region || "N/A"}
+
+Preferred Area: ${area || "N/A"}
+
+Timeline: ${timeline || "N/A"}
+
+How They Heard About Us: ${hear_about_us || "N/A"}
+`.trim();
 
     if (!first_name || !email) {
       return NextResponse.json(
@@ -107,6 +120,7 @@ export async function POST(req: Request) {
             lifecycle_stage: "New",
             source: "Home Buyers Guide",
             original_source: "Home Buyers Guide",
+                        notes: buyerNotes,
           })
           .select("id")
           .single();
@@ -134,6 +148,7 @@ export async function POST(req: Request) {
             source: "Home Buyers Guide",
             status: "New",
             deal_type: "Buyer",
+                        agent_notes: buyerNotes,
           })
           .select("id")
           .single();
@@ -179,16 +194,19 @@ export async function POST(req: Request) {
         <p><strong>Email:</strong> ${normalizedEmail}</p>
 
         <p><strong>Phone:</strong> ${phone || "N/A"}</p>
-
         <p><strong>Price Range:</strong> ${price_range || "N/A"}</p>
+
+        <p><strong>Region:</strong> ${region || "N/A"}</p>
 
         <p><strong>Preferred Area:</strong> ${area || "N/A"}</p>
 
         <p><strong>Timeline:</strong> ${timeline || "N/A"}</p>
 
-        <p><strong>Working With Realtor:</strong> ${
-          working_with_realtor || "N/A"
+        <p><strong>How They Heard About Us:</strong> ${
+          hear_about_us || "N/A"
         }</p>
+
+        
       `,
     });
 
