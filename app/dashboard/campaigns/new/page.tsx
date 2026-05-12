@@ -102,10 +102,40 @@ export default function NewCampaignPage() {
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', padding: 20 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 10 }}>Create Email</h1>
-      <p style={{ marginBottom: 30, color: '#666' }}>
-        Design and preview your email before sending
-      </p>
+      <div
+  style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 30,
+  }}
+>
+  <div>
+    <h1 style={{ fontSize: 24, marginBottom: 10 }}>
+      Create Email
+    </h1>
+
+    <p style={{ color: '#666' }}>
+      Design and preview your email before sending
+    </p>
+  </div>
+
+  <a
+    href="/dashboard/campaigns"
+    style={{
+      padding: '10px 16px',
+      border: '1px solid #ddd',
+      borderRadius: 8,
+      textDecoration: 'none',
+      color: '#111',
+      fontSize: 14,
+      fontWeight: 500,
+      background: '#fff',
+    }}
+  >
+    ← Back to Campaigns
+  </a>
+</div>
 
       {/* SUBJECT */}
       <div style={{ marginBottom: 20 }}>
