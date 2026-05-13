@@ -97,7 +97,7 @@ export default function CampaignsPage() {
     })
   }, [campaigns, sequences])
 
-  const activeCount = campaignRows.filter((c) => c.is_active).length
+  
 
   return (
     <div className="space-y-6">
