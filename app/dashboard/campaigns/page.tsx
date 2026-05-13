@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 type Campaign = {
@@ -27,6 +28,7 @@ type CampaignWithMeta = Campaign & {
 }
 
 export default function CampaignsPage() {
+    const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [sequences, setSequences] = useState<Sequence[]>([])
@@ -172,28 +174,38 @@ export default function CampaignsPage() {
                     Status
                   </th>
 
-                  <th className="text-right px-6 py-4 font-medium">
-                    Actions
-                  </th>
+                  
                 </tr>
               </thead>
 
               <tbody>
 
                 {campaignRows.map((campaign) => (
-                  <tr
-                    key={campaign.id}
-                    className="border-b last:border-b-0 hover:bg-gray-50 transition"
-                  >
-
+                 <tr
+  key={campaign.id}
+  onClick={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
+  className="border-b last:border-b-0 hover:bg-gray-50 transition cursor-pointer"
+>
                     <td className="px-6 py-5 align-top">
 
-                      <div className="font-semibold text-gray-900">
-                        {campaign.name}
-                      </div>
+                      <div className="flex items-center justify-between">
 
-                      <div className="text-sm text-gray-500 mt-1">
-                        {campaign.type || 'Campaign'}
+                        <div>
+
+                          <div className="font-semibold text-gray-900">
+                            {campaign.name}
+                          </div>
+
+                          <div className="text-sm text-gray-500 mt-1">
+                            {campaign.type || 'Campaign'}
+                          </div>
+
+                        </div>
+
+                        <div className="text-gray-300 text-lg">
+                          →
+                        </div>
+
                       </div>
 
                     </td>
@@ -227,23 +239,6 @@ export default function CampaignsPage() {
                           Inactive
                         </div>
                       )}
-
-                    </td>
-
-                    <td className="px-6 py-5 align-top">
-
-                      <div className="flex items-center justify-end gap-2 flex-wrap">
-
-                        <Link
-  href={`/dashboard/campaigns/${campaign.id}`}
-  className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
->
-  View Campaign Emails
-</Link>
-
-                        
-
-                      </div>
 
                     </td>
 
