@@ -99,72 +99,26 @@ export default function CampaignsPage() {
 
   return (
     <div className="space-y-6">
+<div className="text-center mb-10">
 
-      <div className="flex items-center justify-between">
+  <h1 className="text-4xl font-bold text-gray-900 mb-4">
+    Email Campaigns
+  </h1>
 
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Email Campaigns
-          </h1>
+  <p className="text-gray-500 text-lg mb-8">
+    Manage automated nurture campaigns and send branded mass emails.
+  </p>
 
-          <p className="text-gray-500 mt-2">
-            Manage automated nurture sequences, branded emails, and relationship-focused follow-up campaigns.
-          </p>
-        </div>
+  <Link
+    href="/dashboard/campaigns/new"
+    className="inline-flex items-center justify-center bg-black text-white px-10 py-5 rounded-2xl text-lg font-semibold hover:opacity-90 transition shadow-sm"
+  >
+    Create Mass Email
+  </Link>
 
-        <Link
-          href="/dashboard/campaigns/new"
-          className="bg-black text-white px-5 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition"
-        >
-          Create Email
-        </Link>
+</div>
 
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-        <div className="bg-white rounded-2xl border p-6 shadow-sm">
-          <div className="text-sm text-gray-500 mb-2">
-            Total Campaigns
-          </div>
-
-          <div className="text-3xl font-bold text-gray-900">
-            {campaignRows.length}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border p-6 shadow-sm">
-          <div className="text-sm text-gray-500 mb-2">
-            Active Campaigns
-          </div>
-
-          <div className="text-3xl font-bold text-green-600">
-            {activeCount}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border p-6 shadow-sm">
-          <div className="text-sm text-gray-500 mb-2">
-            Total Email Steps
-          </div>
-
-          <div className="text-3xl font-bold text-blue-600">
-            {sequences.length}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border p-6 shadow-sm">
-          <div className="text-sm text-gray-500 mb-2">
-            Account
-          </div>
-
-          <div className="text-sm font-medium text-gray-800 break-all">
-            {accountId || '—'}
-          </div>
-        </div>
-
-      </div>
-
+      
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
 
         <div className="px-6 py-5 border-b">
