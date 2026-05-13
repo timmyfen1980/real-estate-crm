@@ -121,11 +121,6 @@ export default function CampaignsPage() {
       
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
 
-        <div className="px-6 py-5 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Campaign Automation Overview
-          </h2>
-        </div>
 
         {loading ? (
           <div className="p-10 text-center text-gray-500">
@@ -240,18 +235,13 @@ export default function CampaignsPage() {
                       <div className="flex items-center justify-end gap-2 flex-wrap">
 
                         <Link
-                          href={`/dashboard/campaigns/${campaign.id}`}
-                          className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
-                        >
-                          View Sequence
-                        </Link>
+  href={`/dashboard/campaigns/${campaign.id}`}
+  className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
+>
+  View Campaign Emails
+</Link>
 
-                        <Link
-                          href="/dashboard/campaigns/new"
-                          className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
-                        >
-                          Create Email
-                        </Link>
+                        
 
                       </div>
 
