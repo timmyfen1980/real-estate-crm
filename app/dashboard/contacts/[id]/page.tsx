@@ -1256,17 +1256,110 @@ const handleSave = async () => {
 
   </div>
 
-  {contactCampaigns.length === 0 && (
+  {contactCampaigns.length === 0 ? (
 
-    <div className="border rounded-2xl p-10 text-center bg-gray-50">
+  <div className="border rounded-2xl p-10 text-center bg-gray-50">
 
-      <p className="text-gray-500">
-        This contact is not enrolled in any campaigns.
-      </p>
+    <p className="text-gray-500">
+      This contact is not enrolled in any campaigns.
+    </p>
 
-    </div>
+  </div>
 
-  )}
+) : (
+
+  <div className="space-y-4">
+
+    {contactCampaigns.map((c: any) => {
+
+      const campaign =
+        Array.isArray(c.email_campaigns)
+          ? c.email_campaigns[0]
+          : c.email_campaigns
+
+      return (
+
+        <div
+          key={c.id}
+          className="border rounded-2xl p-5 bg-gray-50"
+        >
+
+          <div className="flex items-start justify-between gap-4">
+
+            <div>
+
+              <div className="flex items-center gap-3">
+
+                <h4 className="font-semibold text-gray-900">
+                  {campaign?.name || 'Campaign'}
+                </h4>
+
+                {c.status === 'active' ? (
+                  <div className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-medium">
+                    Active
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center rounded-full bg-yellow-100 text-yellow-700 px-3 py-1 text-xs font-medium">
+                    Paused
+                  </div>
+                )}
+
+              </div>
+
+              <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+
+                <div>
+                  Step {c.current_step}
+                </div>
+
+                <div>
+                  •
+                </div>
+
+                <div>
+                  {c.next_send_at
+                    ? `Next Email ${new Date(c.next_send_at).toLocaleDateString()}`
+                    : 'Sequence Complete'}
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="flex items-center gap-2">
+
+              <button
+                onClick={() =>
+                  pauseCampaign(c.id, c.status)
+                }
+                className="border px-4 py-2 rounded-xl text-sm hover:bg-gray-100 transition"
+              >
+                {c.status === 'paused'
+                  ? 'Resume'
+                  : 'Pause'}
+              </button>
+
+              <button
+                onClick={() =>
+                  removeCampaign(c.id)
+                }
+                className="border border-red-200 text-red-600 px-4 py-2 rounded-xl text-sm hover:bg-red-50 transition"
+              >
+                Remove
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )
+    })}
+
+  </div>
+
+)}
 
   <div className="space-y-4">
 
