@@ -21,6 +21,8 @@ type Sequence = {
   subject: string
   body_html: string
   delay_days: number
+  cta_text: string | null
+  cta_link: string | null
   created_at: string
 }
 
@@ -34,6 +36,10 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
 
   const [sequences, setSequences] = useState<Sequence[]>([])
+
+  const [editingSequence, setEditingSequence] = useState<Sequence | null>(null)
+
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -62,7 +68,36 @@ export default function CampaignDetailPage() {
     }
   }, [campaignId])
 
-    if (loading) {
+  const handleSave = async () => {
+    if (!editingSequence) return
+
+    setSaving(true)
+
+    const { error } = await supabase
+      .from('email_sequences')
+      .update({
+        subject: editingSequence.subject,
+        body_html: editingSequence.body_html,
+        delay_days: editingSequence.delay_days,
+        cta_text: editingSequence.cta_text,
+        cta_link: editingSequence.cta_link,
+      })
+      .eq('id', editingSequence.id)
+
+    if (!error) {
+      setSequences((prev) =>
+        prev.map((seq) =>
+          seq.id === editingSequence.id ? editingSequence : seq
+        )
+      )
+
+      setEditingSequence(null)
+    }
+
+    setSaving(false)
+  }
+
+  if (loading) {
     return (
       <div className="text-center py-20 text-gray-500">
         Loading campaign...
@@ -149,7 +184,6 @@ export default function CampaignDetailPage() {
             className="relative"
           >
 
-            {/* CONNECTOR */}
             {index !== sequences.length - 1 && (
               <div
                 className="absolute left-[31px] top-[76px] w-[2px] bg-gray-200"
@@ -159,7 +193,7 @@ export default function CampaignDetailPage() {
 
             <div className="flex gap-6">
 
-              {/* DAY MARKER */}
+              {/* DAY */}
               <div className="relative z-10">
 
                 <div className="h-16 w-16 rounded-full bg-black text-white flex items-center justify-center font-bold text-sm shadow-sm text-center leading-tight">
@@ -170,7 +204,7 @@ export default function CampaignDetailPage() {
 
               </div>
 
-              {/* EMAIL CARD */}
+              {/* CARD */}
               <div className="flex-1 bg-white border rounded-2xl shadow-sm overflow-hidden">
 
                 <div className="px-8 py-7">
@@ -189,9 +223,12 @@ export default function CampaignDetailPage() {
 
                     </div>
 
-                    <div className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-sm font-medium whitespace-nowrap">
-                      Sends After {sequence.delay_days} Day{sequence.delay_days !== 1 ? 's' : ''}
-                    </div>
+                    <button
+                      onClick={() => setEditingSequence(sequence)}
+                      className="border px-4 py-2 rounded-xl text-sm hover:bg-gray-100 transition"
+                    >
+                      Edit Email
+                    </button>
 
                   </div>
 
@@ -215,6 +252,159 @@ export default function CampaignDetailPage() {
         ))}
 
       </div>
+
+      {/* EDIT MODAL */}
+      {editingSequence && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6">
+
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+
+            <div className="p-8 border-b">
+
+              <div className="flex items-center justify-between">
+
+                <h2 className="text-2xl font-bold">
+                  Edit Campaign Email
+                </h2>
+
+                <button
+                  onClick={() => setEditingSequence(null)}
+                  className="text-2xl text-gray-400 hover:text-black"
+                >
+                  ×
+                </button>
+
+              </div>
+
+            </div>
+
+            <div className="p-8 space-y-6">
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Subject Line
+                </label>
+
+                <input
+                  value={editingSequence.subject}
+                  onChange={(e) =>
+                    setEditingSequence({
+                      ...editingSequence,
+                      subject: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded-xl px-4 py-3"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Delay Before Sending (Days)
+                </label>
+
+                <input
+                  type="number"
+                  value={editingSequence.delay_days}
+                  onChange={(e) =>
+                    setEditingSequence({
+                      ...editingSequence,
+                      delay_days: Number(e.target.value),
+                    })
+                  }
+                  className="w-40 border rounded-xl px-4 py-3"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Email Content
+                </label>
+
+                <textarea
+                  value={editingSequence.body_html}
+                  onChange={(e) =>
+                    setEditingSequence({
+                      ...editingSequence,
+                      body_html: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded-xl px-4 py-4 min-h-[300px]"
+                />
+
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <div>
+
+                  <label className="block text-sm font-medium mb-2">
+                    CTA Button Text
+                  </label>
+
+                  <input
+                    value={editingSequence.cta_text || ''}
+                    onChange={(e) =>
+                      setEditingSequence({
+                        ...editingSequence,
+                        cta_text: e.target.value,
+                      })
+                    }
+                    className="w-full border rounded-xl px-4 py-3"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="block text-sm font-medium mb-2">
+                    CTA Link
+                  </label>
+
+                  <input
+                    value={editingSequence.cta_link || ''}
+                    onChange={(e) =>
+                      setEditingSequence({
+                        ...editingSequence,
+                        cta_link: e.target.value,
+                      })
+                    }
+                    className="w-full border rounded-xl px-4 py-3"
+                  />
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="p-8 border-t flex items-center justify-end gap-4">
+
+              <button
+                onClick={() => setEditingSequence(null)}
+                className="border px-6 py-3 rounded-xl hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-black text-white px-6 py-3 rounded-xl hover:opacity-90 transition disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
     </div>
   )
