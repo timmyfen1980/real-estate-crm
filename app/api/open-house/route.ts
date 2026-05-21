@@ -76,14 +76,6 @@ await supabaseAdmin.rpc('increment_open_house_total', {
   event_id_input: open_house_event_id,
 })
 
-// 🚫 IF WORKING WITH REALTOR → TRACK + EXIT
-if (working_with_realtor === true) {
-  await supabaseAdmin.rpc('increment_open_house_with_agent', {
-    event_id_input: open_house_event_id,
-  })
-
-  return NextResponse.json({ success: true, skipped: true })
-}
     const { data: property } = await supabaseAdmin
       .from('properties')
       .select('account_id, feature_sheet_url, address')
@@ -234,7 +226,7 @@ if (working_with_realtor === true) {
 // AUTO ASSIGN EMAIL CAMPAIGN
 // =========================
 
-const CAMPAIGN_ID = '7f4d67bc-3b46-4687-9100-51f2b1743d85'
+const CAMPAIGN_ID = 'e0ce60be-97cf-4187-8846-69d8dd2a9c50'
 
 const { data: existingCampaign } = await supabaseAdmin
   .from('contact_campaigns')
@@ -299,7 +291,7 @@ if (!existingCampaign) {
 
       leadId = newLead.id
     }
-
+    
     const { error: attendanceError } = await supabaseAdmin
       .from('open_house_attendances')
       .insert([
@@ -316,6 +308,22 @@ if (!existingCampaign) {
       )
     }
 
+        // =====================================
+    // REPRESENTED BUYERS STOP AFTER ATTENDANCE
+    // =====================================
+
+    if (working_with_realtor === true) {
+      await supabaseAdmin.rpc('increment_open_house_with_agent', {
+        event_id_input: open_house_event_id,
+      })
+
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+      })
+    }
+
+    
     // =========================
     // FEATURE SHEET EMAIL + LOGGING
     // =========================
