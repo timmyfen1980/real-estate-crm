@@ -387,28 +387,13 @@ const handlePreview = (sequence: Sequence) => {
 
         <div className="flex items-center justify-between mt-4">
 
-          <div>
+  <div>
 
-            <h1 className="text-4xl font-bold text-gray-900">
-              {campaign.name}
-            </h1>
+    <h1 className="text-4xl font-bold text-gray-900">
+      {campaign.name}
+    </h1>
 
-            <div className="flex items-center gap-3 mt-4">
-
-              <div className="text-sm text-gray-500">
-                {campaign.audience || 'General Audience'}
-              </div>
-
-              <div className="h-1 w-1 rounded-full bg-gray-300" />
-
-              <div className="text-sm text-gray-500">
-                {sequences.length} Email{sequences.length !== 1 ? 's' : ''}
-              </div>
-
-            </div>
-
-          </div>
-<div className="flex items-center gap-3">
+  </div>
 
   <button
     onClick={() => {
@@ -429,30 +414,12 @@ const handlePreview = (sequence: Sequence) => {
 
       setEditingSequence(newSequence)
     }}
-    className="border px-5 py-3 rounded-xl text-sm font-medium hover:bg-gray-100 transition"
+    className="bg-black text-white px-5 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition"
   >
     Add Email
   </button>
 
-  <button
-    onClick={() => setShowEnrollModal(true)}
-    className="bg-black text-white px-5 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition"
-  >
-    Add Contacts
-  </button>
-
 </div>
-          {campaign.is_active ? (
-            <div className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-4 py-2 text-sm font-medium">
-              Active
-            </div>
-          ) : (
-            <div className="inline-flex items-center rounded-full bg-gray-200 text-gray-700 px-4 py-2 text-sm font-medium">
-              Inactive
-            </div>
-          )}
-
-        </div>
 
       </div>
 
