@@ -61,10 +61,16 @@ ${
     margin: 0 0 18px 0;
   }
 
-  ul {
-    margin: 0 0 22px 20px;
-    padding: 0;
-  }
+ ul {
+  margin: 0 0 22px 20px;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+li {
+  margin-bottom: 10px;
+  display: list-item;
+}
 
   li {
     margin-bottom: 10px;
