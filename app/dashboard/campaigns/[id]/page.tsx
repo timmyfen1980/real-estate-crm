@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import EmailPreviewModal from '@/components/email/EmailPreviewModal'
+import { buildEmailTemplate } from '@/lib/emailTemplates'
 
 type Campaign = {
   id: string
@@ -40,7 +42,15 @@ export default function CampaignDetailPage() {
   const [editingSequence, setEditingSequence] = useState<Sequence | null>(null)
 
   const [saving, setSaving] = useState(false)
+    const [previewOpen, setPreviewOpen] = useState(false)
 
+  const [previewHtml, setPreviewHtml] = useState('')
+
+  const [previewSubject, setPreviewSubject] = useState('')
+
+  const [agent, setAgent] = useState<any>(null)
+
+  const [account, setAccount] = useState<any>(null)
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -59,7 +69,38 @@ export default function CampaignDetailPage() {
 
       setCampaign(campaignData || null)
       setSequences(sequenceData || [])
+            const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        const { data: membership } = await supabase
+          .from('account_users')
+          .select('account_id')
+          .eq('user_id', user.id)
+          .single()
+
+        let accountData = null
+
+        if (membership?.account_id) {
+          const { data } = await supabase
+            .from('accounts')
+            .select('*')
+            .eq('id', membership.account_id)
+            .single()
+
+          accountData = data
+        }
+
+        setAgent(profile)
+        setAccount(accountData)
+      }
       setLoading(false)
     }
 
@@ -68,7 +109,7 @@ export default function CampaignDetailPage() {
     }
   }, [campaignId])
 
-  const handleSave = async () => {
+const handleSave = async () => {
     if (!editingSequence) return
 
     setSaving(true)
@@ -96,7 +137,29 @@ export default function CampaignDetailPage() {
 
     setSaving(false)
   }
+const handlePreview = (sequence: Sequence) => {
+  if (!agent || !account) return
 
+  const html = buildEmailTemplate({
+    content: sequence.body_html,
+    firstName: 'John',
+    agentName: agent.full_name || '',
+    agentEmail: agent.email || '',
+    agentPhone: agent.phone || '',
+    agentPhoto: agent.agent_photo_url || '',
+    teamLogo: account.team_logo_url || '',
+    brokerageLogo: account.brokerage_logo_url || '',
+    brokerageName: account.brokerage_name || '',
+    unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
+    ctaLink: sequence.cta_link || '',
+    ctaText: sequence.cta_text || '',
+    emailHeaderImage: account.email_header_image_url || '',
+  })
+
+  setPreviewHtml(html)
+  setPreviewSubject(sequence.subject)
+  setPreviewOpen(true)
+}
   if (loading) {
     return (
       <div className="text-center py-20 text-gray-500">
@@ -223,12 +286,23 @@ export default function CampaignDetailPage() {
 
                     </div>
 
-                    <button
-                      onClick={() => setEditingSequence(sequence)}
-                      className="border px-4 py-2 rounded-xl text-sm hover:bg-gray-100 transition"
-                    >
-                      Edit Email
-                    </button>
+                   <div className="flex items-center gap-3">
+
+  <button
+    onClick={() => handlePreview(sequence)}
+    className="border px-4 py-2 rounded-xl text-sm hover:bg-gray-100 transition"
+  >
+    Preview
+  </button>
+
+  <button
+    onClick={() => setEditingSequence(sequence)}
+    className="bg-black text-white px-4 py-2 rounded-xl text-sm hover:opacity-90 transition"
+  >
+    Edit Email
+  </button>
+
+</div>
 
                   </div>
 
@@ -405,6 +479,16 @@ export default function CampaignDetailPage() {
 
         </div>
       )}
+
+         <EmailPreviewModal
+        isOpen={previewOpen}
+        onCloseAction={() => setPreviewOpen(false)}
+        html={previewHtml}
+        subject={previewSubject}
+        bodyHtml={previewHtml}
+        ctaText={null}
+        ctaLink={null}
+      />
 
     </div>
   )
