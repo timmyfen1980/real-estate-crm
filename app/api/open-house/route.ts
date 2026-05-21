@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { Resend } from 'resend'
+
 // Simple in-memory rate limit store
 const rateLimitMap = new Map<string, { count: number; timestamp: number }>()
 
 function isRateLimited(ip: string) {
   const now = Date.now()
-  const windowMs = 60 * 1000 // 1 minute window
-  const maxRequests = 5 // 5 submissions per minute per IP
+  const windowMs = 60 * 1000
+  const maxRequests = 5
 
   const record = rateLimitMap.get(ip)
 
@@ -34,18 +35,18 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    // Extract IP address
-const ip =
-  req.headers.get('x-forwarded-for') ||
-  req.headers.get('x-real-ip') ||
-  'unknown'
 
-if (isRateLimited(ip)) {
-  return NextResponse.json(
-    { error: 'Too many submissions. Please try again later.' },
-    { status: 429 }
-  )
-}
+    const ip =
+      req.headers.get('x-forwarded-for') ||
+      req.headers.get('x-real-ip') ||
+      'unknown'
+
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: 'Too many submissions. Please try again later.' },
+        { status: 429 }
+      )
+    }
 
     const {
       first_name,
@@ -69,12 +70,12 @@ if (isRateLimited(ip)) {
       )
     }
 
-   const normalizedEmail = email.toLowerCase().trim()
+    const normalizedEmail = email.toLowerCase().trim()
 
-// 📊 ALWAYS TRACK TOTAL VISITORS
-await supabaseAdmin.rpc('increment_open_house_total', {
-  event_id_input: open_house_event_id,
-})
+    // 📊 ALWAYS TRACK TOTAL VISITORS
+    await supabaseAdmin.rpc('increment_open_house_total', {
+      event_id_input: open_house_event_id,
+    })
 
     const { data: property } = await supabaseAdmin
       .from('properties')
@@ -89,7 +90,6 @@ await supabaseAdmin.rpc('increment_open_house_total', {
       )
     }
 
-    // 🔒 Fetch account owner for assignment + review tasks
     const { data: account } = await supabaseAdmin
       .from('accounts')
       .select('owner_user_id, owner_email')
@@ -124,213 +124,210 @@ await supabaseAdmin.rpc('increment_open_house_total', {
       .eq('account_id', property.account_id)
       .maybeSingle()
 
-    let leadId: string
+    let leadId: string | null = null
 
-    if (existingLead) {
-      leadId = existingLead.id
+    // =====================================
+    // NON-REPRESENTED BUYERS ENTER CRM
+    // =====================================
 
-      // 🔎 Fetch current lead assignment
-      const { data: currentLead } = await supabaseAdmin
-        .from('leads')
-        .select('assigned_user_id')
-        .eq('id', leadId)
-        .single()
+    if (working_with_realtor !== true) {
+      if (existingLead) {
+        leadId = existingLead.id
 
-      const currentAssigned = currentLead?.assigned_user_id
+        const { data: currentLead } = await supabaseAdmin
+          .from('leads')
+          .select('assigned_user_id')
+          .eq('id', leadId)
+          .single()
 
-      // If different agent hosted this open house
-      if (currentAssigned && currentAssigned !== event.user_id) {
-        await supabaseAdmin.from('notes').insert([
-          {
-            lead_id: leadId,
-            user_id: event.user_id,
-            content:
-              'Lead attended open house hosted by another team member.',
-          },
-        ])
+        const currentAssigned = currentLead?.assigned_user_id
 
-        const { data: existingReviewTask } = await supabaseAdmin
-          .from('tasks')
-          .select('id')
-          .eq('lead_id', leadId)
-          .eq('source', 'multi_agent_review')
-          .maybeSingle()
-
-        if (!existingReviewTask) {
-          await supabaseAdmin.from('tasks').insert([
+        if (currentAssigned && currentAssigned !== event.user_id) {
+          await supabaseAdmin.from('notes').insert([
             {
-              account_id: property.account_id,
-              assigned_user_id: account.owner_user_id,
-              created_by: event.user_id,
               lead_id: leadId,
-              title:
-                'Review lead ownership — multi-agent interaction',
-              description:
-                'This lead attended an open house hosted by another team member. Review ownership.',
-              due_date: new Date().toISOString().split('T')[0],
-              priority: 'medium',
-              status: 'pending',
-              source: 'multi_agent_review',
-              auto_generated: true,
+              user_id: event.user_id,
+              content:
+                'Lead attended open house hosted by another team member.',
             },
           ])
+
+          const { data: existingReviewTask } = await supabaseAdmin
+            .from('tasks')
+            .select('id')
+            .eq('lead_id', leadId)
+            .eq('source', 'multi_agent_review')
+            .maybeSingle()
+
+          if (!existingReviewTask) {
+            await supabaseAdmin.from('tasks').insert([
+              {
+                account_id: property.account_id,
+                assigned_user_id: account.owner_user_id,
+                created_by: event.user_id,
+                lead_id: leadId,
+                title:
+                  'Review lead ownership — multi-agent interaction',
+                description:
+                  'This lead attended an open house hosted by another team member. Review ownership.',
+                due_date: new Date().toISOString().split('T')[0],
+                priority: 'medium',
+                status: 'pending',
+                source: 'multi_agent_review',
+                auto_generated: true,
+              },
+            ])
+          }
         }
-      }
-        } else {
-
-      // =====================================
-      // ENSURE CONTACT EXISTS (IDENTITY LOCK)
-      // =====================================
-
-      let contactId: string
-
-      const { data: existingContact } = await supabaseAdmin
-        .from('contacts')
-        .select('id')
-        .eq('account_id', property.account_id)
-        .eq('email', normalizedEmail)
-        .maybeSingle()
-
-      if (existingContact) {
-        contactId = existingContact.id
       } else {
-        const { data: newContact, error: contactError } =
+        let contactId: string
+
+        const { data: existingContact } = await supabaseAdmin
+          .from('contacts')
+          .select('id')
+          .eq('account_id', property.account_id)
+          .eq('email', normalizedEmail)
+          .maybeSingle()
+
+        if (existingContact) {
+          contactId = existingContact.id
+        } else {
+          const { data: newContact, error: contactError } =
+            await supabaseAdmin
+              .from('contacts')
+              .insert([
+                {
+                  account_id: property.account_id,
+                  created_by: event.user_id,
+                  assigned_user_id: event.user_id,
+                  first_name,
+                  last_name,
+                  email: normalizedEmail,
+                  phone,
+                  lifecycle_stage: 'New',
+                  source: 'Open House',
+                  original_source: 'Open House',
+                },
+              ])
+              .select('id')
+              .single()
+
+          if (contactError || !newContact) {
+            return NextResponse.json(
+              {
+                error:
+                  contactError?.message ||
+                  'Contact insert failed',
+              },
+              { status: 500 }
+            )
+          }
+
+          contactId = newContact.id
+
+          // =========================
+          // AUTO ASSIGN EMAIL CAMPAIGN
+          // =========================
+
+          const CAMPAIGN_ID =
+            'e0ce60be-97cf-4187-8846-69d8dd2a9c50'
+
+          const { data: existingCampaign } =
+            await supabaseAdmin
+              .from('contact_campaigns')
+              .select('id')
+              .eq('contact_id', contactId)
+              .eq('campaign_id', CAMPAIGN_ID)
+              .maybeSingle()
+
+          if (!existingCampaign) {
+            await supabaseAdmin
+              .from('contact_campaigns')
+              .insert([
+                {
+                  contact_id: contactId,
+                  campaign_id: CAMPAIGN_ID,
+                  next_send_at: new Date().toISOString(),
+                },
+              ])
+          }
+        }
+
+        const { data: newLead, error: insertError } =
           await supabaseAdmin
-            .from('contacts')
+            .from('leads')
             .insert([
               {
                 account_id: property.account_id,
-                created_by: event.user_id,
+                contact_id: contactId,
+                user_id: event.user_id,
                 assigned_user_id: event.user_id,
                 first_name,
                 last_name,
                 email: normalizedEmail,
                 phone,
-                lifecycle_stage: 'New',
+                property_id,
+                open_house_event_id,
+                hear_about: hear_about || null,
+                hear_about_other:
+                  hear_about === 'Other'
+                    ? hear_about_other
+                    : null,
+                working_with_realtor,
+                realtor_name: realtor_name || null,
+                buyer_stage: buyer_stage || null,
+                wants_feature_sheet:
+                  wants_feature_sheet ?? false,
                 source: 'Open House',
-                original_source: 'Open House',
+                status: 'New',
               },
             ])
             .select('id')
             .single()
 
-        if (contactError || !newContact) {
+        if (insertError || !newLead) {
           return NextResponse.json(
-            { error: contactError?.message || 'Contact insert failed' },
+            {
+              error:
+                insertError?.message ||
+                'Lead insert failed',
+            },
             { status: 500 }
           )
         }
 
-        contactId = newContact.id
-        // =========================
-// AUTO ASSIGN EMAIL CAMPAIGN
-// =========================
-
-const CAMPAIGN_ID = 'e0ce60be-97cf-4187-8846-69d8dd2a9c50'
-
-const { data: existingCampaign } = await supabaseAdmin
-  .from('contact_campaigns')
-  .select('id')
-  .eq('contact_id', contactId)
-  .eq('campaign_id', CAMPAIGN_ID)
-  .maybeSingle()
-
-if (!existingCampaign) {
-  await supabaseAdmin.from('contact_campaigns').insert([
-    {
-      contact_id: contactId,
-      campaign_id: CAMPAIGN_ID,
-      next_send_at: new Date().toISOString(),
-    },
-  ])
-}
+        leadId = newLead.id
       }
+    }
 
-      // =========================
-      // CREATE LEAD LINKED TO CONTACT
-      // =========================
+    // =========================
+    // ATTENDANCE TRACKING
+    // =========================
 
-      const { data: newLead, error: insertError } =
-        await supabaseAdmin
-          .from('leads')
-          .insert([
-            {
-              account_id: property.account_id,
-              contact_id: contactId,
-              user_id: event.user_id,
-              assigned_user_id: event.user_id,
-              first_name,
-              last_name,
-              email: normalizedEmail,
-              phone,
-              property_id,
-              open_house_event_id,
-              hear_about: hear_about || null,
-              hear_about_other:
-                hear_about === 'Other'
-                  ? hear_about_other
-                  : null,
-              working_with_realtor,
-              realtor_name: realtor_name || null,
-              buyer_stage: buyer_stage || null,
-              wants_feature_sheet:
-                wants_feature_sheet ?? false,
-              source: 'Open House',
-              status: 'New',
-            },
-          ])
-          .select('id')
-          .single()
+    if (leadId) {
+      const { error: attendanceError } = await supabaseAdmin
+        .from('open_house_attendances')
+        .insert([
+          {
+            lead_id: leadId,
+            open_house_event_id,
+          },
+        ])
 
-      if (insertError || !newLead) {
+      if (attendanceError) {
         return NextResponse.json(
-          { error: insertError?.message || 'Lead insert failed' },
+          { error: attendanceError.message },
           { status: 500 }
         )
       }
-
-      leadId = newLead.id
-    }
-    
-    const { error: attendanceError } = await supabaseAdmin
-      .from('open_house_attendances')
-      .insert([
-        {
-          lead_id: leadId,
-          open_house_event_id,
-        },
-      ])
-
-    if (attendanceError) {
-      return NextResponse.json(
-        { error: attendanceError.message },
-        { status: 500 }
-      )
     }
 
-        // =====================================
-    // REPRESENTED BUYERS STOP AFTER ATTENDANCE
-    // =====================================
-
-    if (working_with_realtor === true) {
-      await supabaseAdmin.rpc('increment_open_house_with_agent', {
-        event_id_input: open_house_event_id,
-      })
-
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-      })
-    }
-
-    
     // =========================
-    // FEATURE SHEET EMAIL + LOGGING
+    // FEATURE SHEET EMAIL
     // =========================
+
     if (wants_feature_sheet && property.feature_sheet_url) {
       try {
-        console.log('DEBUG RESEND_FROM_EMAIL:', process.env.RESEND_FROM_EMAIL)
-        
         const { data: profile } = await supabaseAdmin
           .from('profiles')
           .select('full_name')
@@ -374,26 +371,45 @@ if (!existingCampaign) {
           `,
         })
 
-        await supabaseAdmin
-          .from('leads')
-          .update({
-            feature_sheet_sent_at:
-              new Date().toISOString(),
-            feature_sheet_status: 'sent',
-            feature_sheet_message_id:
-              emailResponse?.data?.id || null,
-          })
-          .eq('id', leadId)
+        if (leadId) {
+          await supabaseAdmin
+            .from('leads')
+            .update({
+              feature_sheet_sent_at:
+                new Date().toISOString(),
+              feature_sheet_status: 'sent',
+              feature_sheet_message_id:
+                emailResponse?.data?.id || null,
+            })
+            .eq('id', leadId)
+        }
       } catch {
-        await supabaseAdmin
-          .from('leads')
-          .update({
-            feature_sheet_sent_at:
-              new Date().toISOString(),
-            feature_sheet_status: 'failed',
-          })
-          .eq('id', leadId)
+        if (leadId) {
+          await supabaseAdmin
+            .from('leads')
+            .update({
+              feature_sheet_sent_at:
+                new Date().toISOString(),
+              feature_sheet_status: 'failed',
+            })
+            .eq('id', leadId)
+        }
       }
+    }
+
+    // =========================
+    // REPRESENTED BUYER ANALYTICS
+    // =========================
+
+    if (working_with_realtor === true) {
+      await supabaseAdmin.rpc('increment_open_house_with_agent', {
+        event_id_input: open_house_event_id,
+      })
+
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+      })
     }
 
     return NextResponse.json({ success: true })
