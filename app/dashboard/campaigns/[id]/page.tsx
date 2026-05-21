@@ -41,6 +41,16 @@ type CampaignContact = {
     lifecycle_stage: string | null
   } | null
 }
+
+type Contact = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  lifecycle_stage: string | null
+  assigned_user_id: string | null
+}
+
 export default function CampaignDetailPage() {
   const params = useParams()
 
@@ -65,6 +75,16 @@ export default function CampaignDetailPage() {
 
   const [account, setAccount] = useState<any>(null)
   const [campaignContacts, setCampaignContacts] = useState<CampaignContact[]>([])
+
+  const [showEnrollModal, setShowEnrollModal] = useState(false)
+
+const [availableContacts, setAvailableContacts] = useState<Contact[]>([])
+
+const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
+
+const [contactSearch, setContactSearch] = useState('')
+
+const [enrolling, setEnrolling] = useState(false)
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -104,6 +124,31 @@ export default function CampaignDetailPage() {
 setCampaignContacts(
   ((campaignContactsData || []) as unknown as CampaignContact[])
 )
+const enrolledIds =
+  (campaignContactsData || []).map(
+    (item: any) => item.contact_id
+  )
+
+const { data: availableContactsData } = await supabase
+  .from('contacts')
+  .select(`
+    id,
+    first_name,
+    last_name,
+    email,
+    lifecycle_stage,
+    assigned_user_id
+  `)
+  .eq('is_deleted', false)
+  .eq('email_opt_in', true)
+
+const filteredAvailable =
+  (availableContactsData || []).filter(
+    (contact: any) =>
+      !enrolledIds.includes(contact.id)
+  )
+
+setAvailableContacts(filteredAvailable)
             const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -172,6 +217,30 @@ const handleSave = async () => {
 
     setSaving(false)
   }
+const handleEnrollContacts = async () => {
+  if (selectedContactIds.length === 0) return
+
+  setEnrolling(true)
+
+  const rows = selectedContactIds.map((contactId) => ({
+    contact_id: contactId,
+    campaign_id: campaignId,
+    status: 'active',
+    current_step: 1,
+    next_send_at: new Date().toISOString(),
+  }))
+
+  const { error } = await supabase
+    .from('contact_campaigns')
+    .insert(rows)
+
+  if (!error) {
+    window.location.reload()
+  }
+
+  setEnrolling(false)
+}
+
 const handlePreview = (sequence: Sequence) => {
   if (!agent || !account) return
 
@@ -258,7 +327,16 @@ const handlePreview = (sequence: Sequence) => {
             </div>
 
           </div>
+<div className="flex items-center gap-3">
 
+  <button
+    onClick={() => setShowEnrollModal(true)}
+    className="bg-black text-white px-5 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition"
+  >
+    Add Contacts
+  </button>
+
+</div>
           {campaign.is_active ? (
             <div className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-4 py-2 text-sm font-medium">
               Active
@@ -718,15 +796,160 @@ const handlePreview = (sequence: Sequence) => {
         </div>
       )}
 
-         <EmailPreviewModal
-        isOpen={previewOpen}
-        onCloseAction={() => setPreviewOpen(false)}
-        html={previewHtml}
-        subject={previewSubject}
-        bodyHtml={previewHtml}
-        ctaText={null}
-        ctaLink={null}
-      />
+         {/* ENROLL CONTACTS MODAL */}
+{showEnrollModal && (
+  <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6">
+
+    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+
+      <div className="p-8 border-b flex items-center justify-between">
+
+        <div>
+
+          <h2 className="text-2xl font-bold">
+            Add Contacts To Campaign
+          </h2>
+
+          <p className="text-gray-500 mt-1">
+            Enroll contacts into this automation workflow
+          </p>
+
+        </div>
+
+        <button
+          onClick={() => setShowEnrollModal(false)}
+          className="text-2xl text-gray-400 hover:text-black"
+        >
+          ×
+        </button>
+
+      </div>
+
+      <div className="p-8 border-b">
+
+        <input
+          placeholder="Search contacts..."
+          value={contactSearch}
+          onChange={(e) => setContactSearch(e.target.value)}
+          className="w-full border rounded-2xl px-5 py-4"
+        />
+
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+
+        {availableContacts
+          .filter((contact) => {
+            const full =
+              `${contact.first_name || ''} ${contact.last_name || ''} ${contact.email || ''}`.toLowerCase()
+
+            return full.includes(contactSearch.toLowerCase())
+          })
+          .map((contact) => {
+
+            const selected =
+              selectedContactIds.includes(contact.id)
+
+            return (
+              <button
+                key={contact.id}
+                type="button"
+                onClick={() => {
+                  if (selected) {
+                    setSelectedContactIds((prev) =>
+                      prev.filter((id) => id !== contact.id)
+                    )
+                  } else {
+                    setSelectedContactIds((prev) => [
+                      ...prev,
+                      contact.id,
+                    ])
+                  }
+                }}
+                className={`w-full text-left px-8 py-5 border-b hover:bg-gray-50 transition ${
+                  selected ? 'bg-blue-50' : ''
+                }`}
+              >
+
+                <div className="flex items-center justify-between">
+
+                  <div>
+
+                    <div className="font-semibold text-gray-900">
+                      {contact.first_name} {contact.last_name}
+                    </div>
+
+                    <div className="text-sm text-gray-500 mt-1">
+                      {contact.email}
+                    </div>
+
+                  </div>
+
+                  <div className="flex items-center gap-3">
+
+                    <div className="text-sm text-gray-500">
+                      {contact.lifecycle_stage || '—'}
+                    </div>
+
+                    {selected && (
+                      <div className="h-5 w-5 rounded-full bg-black text-white flex items-center justify-center text-xs">
+                        ✓
+                      </div>
+                    )}
+
+                  </div>
+
+                </div>
+
+              </button>
+            )
+          })}
+
+      </div>
+
+      <div className="p-8 border-t flex items-center justify-between">
+
+        <div className="text-sm text-gray-500">
+          {selectedContactIds.length} selected
+        </div>
+
+        <div className="flex items-center gap-4">
+
+          <button
+            onClick={() => setShowEnrollModal(false)}
+            className="border px-6 py-3 rounded-xl hover:bg-gray-100 transition"
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={handleEnrollContacts}
+            disabled={enrolling}
+            className="bg-black text-white px-6 py-3 rounded-xl hover:opacity-90 transition disabled:opacity-50"
+          >
+            {enrolling
+              ? 'Adding Contacts...'
+              : 'Add To Campaign'}
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
+
+<EmailPreviewModal
+  isOpen={previewOpen}
+  onCloseAction={() => setPreviewOpen(false)}
+  html={previewHtml}
+  subject={previewSubject}
+  bodyHtml={previewHtml}
+  ctaText={null}
+  ctaLink={null}
+/>
 
     </div>
   )
