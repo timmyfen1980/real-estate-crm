@@ -190,10 +190,39 @@ setAvailableContacts(filteredAvailable)
   }, [campaignId])
 
 const handleSave = async () => {
-    if (!editingSequence) return
+  if (!editingSequence) return
 
-    setSaving(true)
+  setSaving(true)
 
+  const isNew =
+    editingSequence.id.startsWith('new-')
+
+  if (isNew) {
+    const { data, error } = await supabase
+      .from('email_sequences')
+      .insert([
+        {
+          campaign_id: campaignId,
+          step_number: editingSequence.step_number,
+          subject: editingSequence.subject,
+          body_html: editingSequence.body_html,
+          delay_days: editingSequence.delay_days,
+          cta_text: editingSequence.cta_text,
+          cta_link: editingSequence.cta_link,
+        },
+      ])
+      .select()
+      .single()
+
+    if (!error && data) {
+      setSequences((prev) => [
+        ...prev,
+        data,
+      ])
+
+      setEditingSequence(null)
+    }
+  } else {
     const { error } = await supabase
       .from('email_sequences')
       .update({
@@ -208,15 +237,18 @@ const handleSave = async () => {
     if (!error) {
       setSequences((prev) =>
         prev.map((seq) =>
-          seq.id === editingSequence.id ? editingSequence : seq
+          seq.id === editingSequence.id
+            ? editingSequence
+            : seq
         )
       )
 
       setEditingSequence(null)
     }
-
-    setSaving(false)
   }
+
+  setSaving(false)
+}
 const handleEnrollContacts = async () => {
   if (selectedContactIds.length === 0) return
 
@@ -377,6 +409,30 @@ const handlePreview = (sequence: Sequence) => {
 
           </div>
 <div className="flex items-center gap-3">
+
+  <button
+    onClick={() => {
+      const nextStep =
+        sequences.length + 1
+
+      const newSequence: Sequence = {
+        id: `new-${Date.now()}`,
+        campaign_id: campaignId,
+        step_number: nextStep,
+        subject: '',
+        body_html: '',
+        delay_days: 0,
+        cta_text: '',
+        cta_link: '',
+        created_at: new Date().toISOString(),
+      }
+
+      setEditingSequence(newSequence)
+    }}
+    className="border px-5 py-3 rounded-xl text-sm font-medium hover:bg-gray-100 transition"
+  >
+    Add Email
+  </button>
 
   <button
     onClick={() => setShowEnrollModal(true)}
