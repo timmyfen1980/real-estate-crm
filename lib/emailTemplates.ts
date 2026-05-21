@@ -44,9 +44,32 @@ ${
         
         <p style="font-size:20px; margin-bottom:20px; font-weight:600;">Hi ${firstName},</p>
 
-        <div>
-          ${content}
-        </div>
+        <div style="
+  font-size:16px;
+  line-height:1.8;
+  color:#111;
+">
+
+  ${content
+    .replaceAll('{{first_name}}', firstName || '')
+    .replaceAll('{{agent_name}}', agentName || '')}
+
+</div>
+
+<style>
+  p {
+    margin: 0 0 18px 0;
+  }
+
+  ul {
+    margin: 0 0 22px 20px;
+    padding: 0;
+  }
+
+  li {
+    margin-bottom: 10px;
+  }
+</style>
 
         ${
           ctaLink && ctaText
