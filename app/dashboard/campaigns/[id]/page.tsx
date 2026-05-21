@@ -445,10 +445,21 @@ const handlePreview = (sequence: Sequence) => {
               <div className="relative z-10">
 
                 <div className="h-16 w-16 rounded-full bg-black text-white flex items-center justify-center font-bold text-sm shadow-sm text-center leading-tight">
-                  Day
-                  <br />
-                  {sequence.delay_days}
-                </div>
+                   {campaign.name === 'Monthly Homeowner Newsletter' ? (
+    <>
+      Monthly
+      <br />
+      1st • 9AM
+    </>
+  ) : (
+    <>
+      Day
+      <br />
+      {sequence.delay_days}
+    </>
+  )}
+
+</div>
 
               </div>
 

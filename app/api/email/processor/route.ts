@@ -10,6 +10,11 @@ const supabase = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+const NEWSLETTER_CAMPAIGN_ID =
+  'bb0b2174-639b-43fc-9f03-2bb289210de2'
+
+const MAX_EMAILS_PER_DAY = 95
+
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
 
@@ -18,6 +23,36 @@ export async function GET(req: Request) {
   }
 
   try {
+    // =====================================
+    // DAILY SEND CAP
+    // =====================================
+
+    const startOfDay = new Date()
+    startOfDay.setHours(0, 0, 0, 0)
+
+    const { count: sentToday } = await supabase
+      .from('email_logs')
+      .select('*', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('status', 'sent')
+      .gte('created_at', startOfDay.toISOString())
+
+    const remainingQuota =
+      MAX_EMAILS_PER_DAY - (sentToday || 0)
+
+    if (remainingQuota <= 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'Daily email cap reached',
+      })
+    }
+
+    // =====================================
+    // FETCH DUE CAMPAIGNS
+    // =====================================
+
     const { data: campaigns, error } = await supabase
       .from('contact_campaigns')
       .select(`
@@ -29,10 +64,21 @@ export async function GET(req: Request) {
       `)
       .eq('status', 'active')
       .lte('next_send_at', new Date().toISOString())
+      .order('next_send_at', { ascending: true })
 
     if (error) throw error
 
-    for (const c of campaigns || []) {
+    for (
+      const [index, c] of (campaigns || []).entries()
+    ) {
+      // =====================================
+      // STOP AT DAILY CAP
+      // =====================================
+
+      if (index >= remainingQuota) {
+        break
+      }
+
       const { data: sequence } = await supabase
         .from('email_sequences')
         .select('*')
@@ -44,13 +90,18 @@ export async function GET(req: Request) {
 
       const { data: contact } = await supabase
         .from('contacts')
-        .select('email, first_name, assigned_user_id, account_id')
+        .select(
+          'email, first_name, assigned_user_id, account_id'
+        )
         .eq('id', c.contact_id)
         .single()
 
       if (!contact?.email) continue
 
-      // 🚫 UNSUBSCRIBE CHECK
+      // =====================================
+      // UNSUBSCRIBE CHECK
+      // =====================================
+
       const { data: sub } = await supabase
         .from('contact_subscriptions')
         .select('unsubscribed')
@@ -59,28 +110,47 @@ export async function GET(req: Request) {
 
       if (sub?.unsubscribed) continue
 
+      // =====================================
       // AGENT
+      // =====================================
+
       const { data: agent } = await supabase
         .from('profiles')
-        .select('full_name, email, phone, agent_photo_url')
+        .select(
+          'full_name, email, phone, agent_photo_url'
+        )
         .eq('id', contact.assigned_user_id)
         .single()
 
+      // =====================================
       // ACCOUNT
+      // =====================================
+
       const { data: account } = await supabase
         .from('accounts')
-        .select('team_logo_url, brokerage_logo_url, brokerage_name')
+        .select(
+          'team_logo_url, brokerage_logo_url, brokerage_name'
+        )
         .eq('id', contact.account_id)
         .single()
 
-      // CTA (OPTIONAL)
+      // =====================================
+      // CTA
+      // =====================================
+
       const ctaLink = sequence.cta_link || null
       const ctaText = sequence.cta_text || null
 
+      // =====================================
       // UNSUBSCRIBE LINK
+      // =====================================
+
       const unsubscribeLink = `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=${c.contact_id}`
 
+      // =====================================
       // CONTENT
+      // =====================================
+
       const rawContent = sequence.body_html.replace(
         '{{first_name}}',
         contact.first_name || ''
@@ -103,6 +173,10 @@ export async function GET(req: Request) {
 
       const accountId = contact.account_id
 
+      // =====================================
+      // FROM EMAIL
+      // =====================================
+
       const { data: sender } = await supabase
         .from('email_addresses')
         .select('*')
@@ -114,12 +188,20 @@ export async function GET(req: Request) {
         ? `${sender.name} <${sender.email}>`
         : 'The FC Group <info@thefcgroup.ca>'
 
+      // =====================================
+      // SEND EMAIL
+      // =====================================
+
       const send = await resend.emails.send({
         from: fromEmail,
         to: contact.email,
         subject: sequence.subject,
         html: body,
       })
+
+      // =====================================
+      // LOG EMAIL
+      // =====================================
 
       await supabase.from('email_logs').insert({
         account_id: accountId,
@@ -141,6 +223,10 @@ export async function GET(req: Request) {
         .eq('step_number', nextStep)
         .single()
 
+      // =====================================
+      // COMPLETE CAMPAIGN
+      // =====================================
+
       if (!nextSequence) {
         await supabase
           .from('contact_campaigns')
@@ -150,38 +236,57 @@ export async function GET(req: Request) {
           })
           .eq('id', c.id)
       } else {
-       let nextDate = new Date()
+        let nextDate = new Date()
 
-// MONTHLY NEWSLETTER LOGIC
-if (c.campaign_id === 'bb0b2174-639b-43fc-9f03-2bb289210de2') {
-  nextDate = new Date()
+        // =====================================
+        // MONTHLY NEWSLETTER LOGIC
+        // =====================================
 
-  // Move to first of next month
-  nextDate.setMonth(nextDate.getMonth() + 1)
-  nextDate.setDate(1)
+        if (
+          c.campaign_id ===
+          NEWSLETTER_CAMPAIGN_ID
+        ) {
+          nextDate = new Date()
 
-  // Set 9AM
-  nextDate.setHours(9, 0, 0, 0)
-} else {
-  // NORMAL DRIP CAMPAIGNS
-  nextDate = new Date()
-  nextDate.setDate(
-    nextDate.getDate() + nextSequence.delay_days
-  )
-}
+          // START SENDING ON THE 27TH
+          // OF THE PREVIOUS MONTH
+          nextDate.setDate(27)
 
-await supabase
-  .from('contact_campaigns')
-  .update({
-    current_step: nextStep,
-    next_send_at: nextDate.toISOString(),
-  })
-  .eq('id', c.id)
+          // 9AM
+          nextDate.setHours(9, 0, 0, 0)
+
+          // MOVE TO NEXT MONTH
+          nextDate.setMonth(
+            nextDate.getMonth() + 1
+          )
+        } else {
+          // =====================================
+          // NORMAL DRIP CAMPAIGNS
+          // =====================================
+
+          nextDate = new Date()
+
+          nextDate.setDate(
+            nextDate.getDate() +
+              nextSequence.delay_days
+          )
+        }
+
+        await supabase
+          .from('contact_campaigns')
+          .update({
+            current_step: nextStep,
+            next_send_at: nextDate.toISOString(),
+          })
+          .eq('id', c.id)
       }
     }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    )
   }
 }
