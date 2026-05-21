@@ -27,7 +27,20 @@ type Sequence = {
   cta_link: string | null
   created_at: string
 }
+type CampaignContact = {
+  id: string
+  contact_id: string
+  current_step: number
+  next_send_at: string | null
+  status: string
 
+  contacts: {
+    first_name: string | null
+    last_name: string | null
+    email: string | null
+    lifecycle_stage: string | null
+  } | null
+}
 export default function CampaignDetailPage() {
   const params = useParams()
 
@@ -51,6 +64,7 @@ export default function CampaignDetailPage() {
   const [agent, setAgent] = useState<any>(null)
 
   const [account, setAccount] = useState<any>(null)
+  const [campaignContacts, setCampaignContacts] = useState<CampaignContact[]>([])
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -69,6 +83,27 @@ export default function CampaignDetailPage() {
 
       setCampaign(campaignData || null)
       setSequences(sequenceData || [])
+      const { data: campaignContactsData } = await supabase
+  .from('contact_campaigns')
+  .select(`
+    id,
+    contact_id,
+    current_step,
+    next_send_at,
+    status,
+    contacts (
+      first_name,
+      last_name,
+      email,
+      lifecycle_stage
+    )
+  `)
+  .eq('campaign_id', campaignId)
+  .order('next_send_at', { ascending: true })
+
+setCampaignContacts(
+  ((campaignContactsData || []) as unknown as CampaignContact[])
+)
             const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -324,7 +359,129 @@ const handlePreview = (sequence: Sequence) => {
 
           </div>
         ))}
+{/* ACTIVE CONTACTS */}
+<div className="mt-16">
 
+  <div className="flex items-center justify-between mb-6">
+
+    <div>
+
+      <h2 className="text-2xl font-bold text-gray-900">
+        Active Campaign Contacts
+      </h2>
+
+      <p className="text-gray-500 mt-1">
+        Contacts currently enrolled in this automation
+      </p>
+
+    </div>
+
+    <div className="inline-flex items-center rounded-full bg-black text-white px-4 py-2 text-sm font-medium">
+      {campaignContacts.length} Active
+    </div>
+
+  </div>
+
+  <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
+
+    {campaignContacts.length === 0 ? (
+      <div className="p-10 text-center text-gray-500">
+        No contacts enrolled in this campaign yet.
+      </div>
+    ) : (
+      <table className="w-full">
+
+        <thead className="bg-gray-50 border-b text-sm text-gray-500">
+          <tr>
+
+            <th className="text-left px-6 py-4 font-medium">
+              Contact
+            </th>
+
+            <th className="text-left px-6 py-4 font-medium">
+              Lifecycle
+            </th>
+
+            <th className="text-left px-6 py-4 font-medium">
+              Current Step
+            </th>
+
+            <th className="text-left px-6 py-4 font-medium">
+              Next Send
+            </th>
+
+            <th className="text-left px-6 py-4 font-medium">
+              Status
+            </th>
+
+          </tr>
+        </thead>
+
+        <tbody>
+
+          {campaignContacts.map((item) => (
+
+            <tr
+              key={item.id}
+              className="border-b last:border-b-0"
+            >
+
+              <td className="px-6 py-5">
+
+                <div className="font-semibold text-gray-900">
+                  {item.contacts?.first_name} {item.contacts?.last_name}
+                </div>
+
+                <div className="text-sm text-gray-500 mt-1">
+                  {item.contacts?.email}
+                </div>
+
+              </td>
+
+              <td className="px-6 py-5 text-sm text-gray-700">
+                {item.contacts?.lifecycle_stage || '—'}
+              </td>
+
+              <td className="px-6 py-5">
+                <div className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-sm font-medium">
+                  Email {item.current_step}
+                </div>
+              </td>
+
+              <td className="px-6 py-5 text-sm text-gray-700">
+
+                {item.next_send_at
+                  ? new Date(item.next_send_at).toLocaleDateString()
+                  : 'Completed'}
+
+              </td>
+
+              <td className="px-6 py-5">
+
+                {item.status === 'active' ? (
+                  <div className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-medium">
+                    Active
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center rounded-full bg-gray-200 text-gray-700 px-3 py-1 text-sm font-medium">
+                    {item.status}
+                  </div>
+                )}
+
+              </td>
+
+            </tr>
+
+          ))}
+
+        </tbody>
+
+      </table>
+    )}
+
+  </div>
+
+</div>
       </div>
 
       {/* EDIT MODAL */}
