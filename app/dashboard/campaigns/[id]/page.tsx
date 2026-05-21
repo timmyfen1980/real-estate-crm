@@ -393,25 +393,106 @@ const handlePreview = (sequence: Sequence) => {
 
               </div>
 
-              <div>
+              <div className="space-y-4">
 
-                <label className="block text-sm font-medium mb-2">
-                  Email Content
-                </label>
+  <div className="flex items-center justify-between">
 
-                <textarea
-                  value={editingSequence.body_html}
-                  onChange={(e) =>
-                    setEditingSequence({
-                      ...editingSequence,
-                      body_html: e.target.value,
-                    })
-                  }
-                  className="w-full border rounded-xl px-4 py-4 min-h-[300px]"
-                />
+    <label className="block text-sm font-medium">
+      Email Content
+    </label>
 
-              </div>
+    <div className="flex items-center gap-2 flex-wrap">
 
+      <button
+        type="button"
+        onClick={() =>
+          setEditingSequence({
+            ...editingSequence,
+            body_html:
+              `${editingSequence.body_html} {{first_name}}`,
+          })
+        }
+        className="text-xs border rounded-full px-3 py-1 hover:bg-gray-100 transition"
+      >
+        + First Name
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          setEditingSequence({
+            ...editingSequence,
+            body_html:
+              `${editingSequence.body_html}\n\n<p><strong>Market Insight:</strong></p>`,
+          })
+        }
+        className="text-xs border rounded-full px-3 py-1 hover:bg-gray-100 transition"
+      >
+        + Market Section
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          setEditingSequence({
+            ...editingSequence,
+            body_html:
+              `${editingSequence.body_html}\n\n<p>Let me know if you'd like to schedule a quick call.</p>`,
+          })
+        }
+        className="text-xs border rounded-full px-3 py-1 hover:bg-gray-100 transition"
+      >
+        + Consultation CTA
+      </button>
+
+    </div>
+
+  </div>
+
+  <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-600 leading-7">
+
+    <div className="font-semibold text-gray-900 mb-2">
+      Writing Guidelines
+    </div>
+
+    <ul className="space-y-1 list-disc pl-5">
+      <li>Keep emails conversational and relationship-focused</li>
+      <li>Avoid overly aggressive sales language</li>
+      <li>Use short paragraphs for mobile readability</li>
+      <li>Encourage replies and conversations</li>
+      <li>Educational emails perform best</li>
+    </ul>
+
+  </div>
+
+  <textarea
+    value={editingSequence.body_html}
+    onChange={(e) =>
+      setEditingSequence({
+        ...editingSequence,
+        body_html: e.target.value,
+      })
+    }
+    className="w-full border rounded-2xl px-5 py-5 min-h-[350px] leading-7"
+  />
+
+</div>
+<div className="rounded-2xl border bg-blue-50 p-5">
+
+  <div className="font-semibold text-blue-900 mb-2">
+    CTA Best Practices
+  </div>
+
+  <div className="text-sm text-blue-800 leading-7">
+    Use one clear action per email.
+    Examples:
+    book a consultation,
+    request a valuation,
+    browse listings,
+    or reply directly to the agent.
+  </div>
+
+</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                 <div>
