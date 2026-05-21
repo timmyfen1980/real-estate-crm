@@ -291,9 +291,15 @@ const { data: assignedCampaigns } = await supabase
   .from('contact_campaigns')
   .select(`
     id,
+    campaign_id,
     status,
     current_step,
-    email_campaigns (name)
+    next_send_at,
+    email_campaigns (
+      id,
+      name,
+      type
+    )
   `)
   .eq('contact_id', contactId)
 
@@ -551,16 +557,22 @@ const assignCampaign = async () => {
 
   // reload campaigns
   const { data: assignedCampaigns } = await supabase
-    .from('contact_campaigns')
-    .select(`
+  .from('contact_campaigns')
+  .select(`
+    id,
+    campaign_id,
+    status,
+    current_step,
+    next_send_at,
+    email_campaigns (
       id,
-      status,
-      current_step,
-      email_campaigns (name)
-    `)
-    .eq('contact_id', contactId)
+      name,
+      type
+    )
+  `)
+  .eq('contact_id', contactId)
 
-  setContactCampaigns(assignedCampaigns || [])
+setContactCampaigns(assignedCampaigns || [])
 }
 const handleSave = async () => {
   if (!formData || !contact) return
