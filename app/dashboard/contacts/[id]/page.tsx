@@ -87,6 +87,25 @@ type Property = {
   city: string | null
   province: string | null
 }
+type ContactCampaign = {
+  id: string
+  campaign_id: string
+  status: string
+  current_step: number
+  next_send_at: string | null
+  email_campaigns: {
+    id: string
+    name: string
+    type: string | null
+  }
+}
+
+type EmailCampaign = {
+  id: string
+  name: string
+  type: string | null
+}
+
 type SectionKey =
   | 'personal'
   | 'crm'
@@ -115,6 +134,7 @@ export default function ContactDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [properties, setProperties] = useState<Property[]>([])
+  
   const [deals, setDeals] = useState<any[]>([])
 const [newTask, setNewTask] = useState('')
   const [newNote, setNewNote] = useState('')
@@ -256,6 +276,8 @@ setDeals(parsedDeals)
 // =========================
 
 // get account id from membership (already fetched above)
+
+
 const acctId = membership.account_id
 
 const { data: campaignsData } = await supabase
@@ -282,6 +304,76 @@ setContactCampaigns(assignedCampaigns || [])
   useEffect(() => {
     if (contactId) loadData()
   }, [contactId])
+const enrollContactInCampaign = async () => {
+
+  if (!selectedCampaign) return
+
+  const existing = contactCampaigns.find(
+    (c) =>
+      c.campaign_id === selectedCampaign
+  )
+
+  if (existing) {
+    alert('Contact already enrolled')
+    return
+  }
+
+  const { error } = await supabase
+    .from('contact_campaigns')
+    .insert([
+      {
+        contact_id: contactId,
+        campaign_id: selectedCampaign,
+        current_step: 1,
+        status: 'active',
+        next_send_at: new Date().toISOString(),
+      },
+    ])
+
+  if (!error) {
+    setShowCampaignModal(false)
+    setSelectedCampaign(null)
+    loadData()
+  }
+}
+
+const pauseCampaign = async (
+  campaignRowId: string,
+  currentStatus: string
+) => {
+
+  const nextStatus =
+    currentStatus === 'paused'
+      ? 'active'
+      : 'paused'
+
+  await supabase
+    .from('contact_campaigns')
+    .update({
+      status: nextStatus,
+    })
+    .eq('id', campaignRowId)
+
+  loadData()
+}
+
+const removeCampaign = async (
+  campaignRowId: string
+) => {
+
+  const confirmed = window.confirm(
+    'Remove this contact from the campaign?'
+  )
+
+  if (!confirmed) return
+
+  await supabase
+    .from('contact_campaigns')
+    .delete()
+    .eq('id', campaignRowId)
+
+  loadData()
+}
   const updateField = (field: string, value: any) => {
   if (!formData) return
 
@@ -1124,49 +1216,135 @@ const handleSave = async () => {
   </div>
 
 </div>
-{/* EMAIL CAMPAIGNS */}
+{/* EMAIL AUTOMATIONS */}
 
-<div className="bg-white rounded-xl shadow p-6">
+<div className="bg-white rounded-2xl shadow p-6">
 
-  <h3 className="font-semibold mb-4">Email Campaigns</h3>
+  <div className="flex items-center justify-between mb-6">
 
-  {contactCampaigns.length === 0 && (
-    <p className="text-sm text-gray-500">
-      No campaigns assigned.
-    </p>
-  )}
+    <div>
 
-  <div className="space-y-3">
+      <h3 className="text-xl font-semibold text-gray-900">
+        Email Automations
+      </h3>
 
-    {contactCampaigns.map((c: any) => (
+      <p className="text-sm text-gray-500 mt-1">
+        Manage nurture campaigns and automated follow-up.
+      </p>
 
-      <div
-        key={c.id}
-        className="border rounded p-3 bg-gray-50"
-      >
+    </div>
 
-        <p className="text-sm font-medium">
-          {Array.isArray(c.email_campaigns)
-            ? c.email_campaigns[0]?.name
-            : c.email_campaigns?.name}
-        </p>
-
-        <p className="text-xs text-gray-500">
-          Status: {c.status} • Step: {c.current_step}
-        </p>
-
-      </div>
-
-    ))}
+    <button
+      onClick={() => setShowCampaignModal(true)}
+      className="bg-black text-white px-5 py-2.5 rounded-xl hover:opacity-90 transition"
+    >
+      Add To Campaign
+    </button>
 
   </div>
 
-  <button
-    onClick={() => setShowCampaignModal(true)}
-    className="mt-4 bg-black text-white px-4 py-2 rounded"
-  >
-    Assign Campaign
-  </button>
+  {contactCampaigns.length === 0 && (
+
+    <div className="border rounded-2xl p-10 text-center bg-gray-50">
+
+      <p className="text-gray-500">
+        This contact is not enrolled in any campaigns.
+      </p>
+
+    </div>
+
+  )}
+
+  <div className="space-y-4">
+
+    {contactCampaigns.map((c: any) => {
+
+      const campaign =
+        Array.isArray(c.email_campaigns)
+          ? c.email_campaigns[0]
+          : c.email_campaigns
+
+      return (
+
+        <div
+          key={c.id}
+          className="border rounded-2xl p-5 bg-gray-50"
+        >
+
+          <div className="flex items-start justify-between gap-4">
+
+            <div>
+
+              <div className="flex items-center gap-3">
+
+                <h4 className="font-semibold text-gray-900">
+                  {campaign?.name}
+                </h4>
+
+                {c.status === 'active' ? (
+                  <div className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-medium">
+                    Active
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center rounded-full bg-yellow-100 text-yellow-700 px-3 py-1 text-xs font-medium">
+                    Paused
+                  </div>
+                )}
+
+              </div>
+
+              <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+
+                <div>
+                  Step {c.current_step}
+                </div>
+
+                <div>
+                  •
+                </div>
+
+                <div>
+                  {c.next_send_at
+                    ? `Next Email ${new Date(c.next_send_at).toLocaleDateString()}`
+                    : 'Sequence Complete'}
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="flex items-center gap-2">
+
+              <button
+                onClick={() =>
+                  pauseCampaign(c.id, c.status)
+                }
+                className="border px-4 py-2 rounded-xl text-sm hover:bg-gray-100 transition"
+              >
+                {c.status === 'paused'
+                  ? 'Resume'
+                  : 'Pause'}
+              </button>
+
+              <button
+                onClick={() =>
+                  removeCampaign(c.id)
+                }
+                className="border border-red-200 text-red-600 px-4 py-2 rounded-xl text-sm hover:bg-red-50 transition"
+              >
+                Remove
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )
+    })}
+
+  </div>
 
 </div>
                 {/* NOTES */}
