@@ -240,7 +240,56 @@ const handleEnrollContacts = async () => {
 
   setEnrolling(false)
 }
+const handlePauseContact = async (id: string) => {
+  await supabase
+    .from('contact_campaigns')
+    .update({
+      status: 'paused',
+    })
+    .eq('id', id)
 
+  setCampaignContacts((prev) =>
+    prev.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            status: 'paused',
+          }
+        : item
+    )
+  )
+}
+
+const handleResumeContact = async (id: string) => {
+  await supabase
+    .from('contact_campaigns')
+    .update({
+      status: 'active',
+    })
+    .eq('id', id)
+
+  setCampaignContacts((prev) =>
+    prev.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            status: 'active',
+          }
+        : item
+    )
+  )
+}
+
+const handleRemoveContact = async (id: string) => {
+  await supabase
+    .from('contact_campaigns')
+    .delete()
+    .eq('id', id)
+
+  setCampaignContacts((prev) =>
+    prev.filter((item) => item.id !== id)
+  )
+}
 const handlePreview = (sequence: Sequence) => {
   if (!agent || !account) return
 
@@ -491,67 +540,104 @@ const handlePreview = (sequence: Sequence) => {
             <th className="text-left px-6 py-4 font-medium">
               Status
             </th>
+            <th className="text-right px-6 py-4 font-medium">
+  Actions
+</th>
 
           </tr>
         </thead>
 
         <tbody>
 
-          {campaignContacts.map((item) => (
+      {campaignContacts.map((item) => (
 
-            <tr
-              key={item.id}
-              className="border-b last:border-b-0"
-            >
+  <tr
+    key={item.id}
+    className="border-b last:border-b-0"
+  >
 
-              <td className="px-6 py-5">
+    <td className="px-6 py-5">
 
-                <div className="font-semibold text-gray-900">
-                  {item.contacts?.first_name} {item.contacts?.last_name}
-                </div>
+      <div className="font-semibold text-gray-900">
+        {item.contacts?.first_name} {item.contacts?.last_name}
+      </div>
 
-                <div className="text-sm text-gray-500 mt-1">
-                  {item.contacts?.email}
-                </div>
+      <div className="text-sm text-gray-500 mt-1">
+        {item.contacts?.email}
+      </div>
 
-              </td>
+    </td>
 
-              <td className="px-6 py-5 text-sm text-gray-700">
-                {item.contacts?.lifecycle_stage || '—'}
-              </td>
+    <td className="px-6 py-5 text-sm text-gray-700">
+      {item.contacts?.lifecycle_stage || '—'}
+    </td>
 
-              <td className="px-6 py-5">
-                <div className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-sm font-medium">
-                  Email {item.current_step}
-                </div>
-              </td>
+    <td className="px-6 py-5">
+      <div className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-sm font-medium">
+        Email {item.current_step}
+      </div>
+    </td>
 
-              <td className="px-6 py-5 text-sm text-gray-700">
+    <td className="px-6 py-5 text-sm text-gray-700">
 
-                {item.next_send_at
-                  ? new Date(item.next_send_at).toLocaleDateString()
-                  : 'Completed'}
+      {item.next_send_at
+        ? new Date(item.next_send_at).toLocaleDateString()
+        : 'Completed'}
 
-              </td>
+    </td>
 
-              <td className="px-6 py-5">
+    <td className="px-6 py-5">
 
-                {item.status === 'active' ? (
-                  <div className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-medium">
-                    Active
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center rounded-full bg-gray-200 text-gray-700 px-3 py-1 text-sm font-medium">
-                    {item.status}
-                  </div>
-                )}
+      {item.status === 'active' ? (
+        <div className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-medium">
+          Active
+        </div>
+      ) : item.status === 'paused' ? (
+        <div className="inline-flex items-center rounded-full bg-yellow-100 text-yellow-700 px-3 py-1 text-sm font-medium">
+          Paused
+        </div>
+      ) : (
+        <div className="inline-flex items-center rounded-full bg-gray-200 text-gray-700 px-3 py-1 text-sm font-medium">
+          {item.status}
+        </div>
+      )}
 
-              </td>
+    </td>
 
-            </tr>
+    <td className="px-6 py-5">
 
-          ))}
+      <div className="flex items-center justify-end gap-2">
 
+        {item.status === 'active' ? (
+          <button
+            onClick={() => handlePauseContact(item.id)}
+            className="border px-3 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
+          >
+            Pause
+          </button>
+        ) : (
+          <button
+            onClick={() => handleResumeContact(item.id)}
+            className="border px-3 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
+          >
+            Resume
+          </button>
+        )}
+
+        <button
+          onClick={() => handleRemoveContact(item.id)}
+          className="border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm hover:bg-red-50 transition"
+        >
+          Remove
+        </button>
+
+      </div>
+
+    </td>
+
+  </tr>
+
+))}
         </tbody>
 
       </table>
