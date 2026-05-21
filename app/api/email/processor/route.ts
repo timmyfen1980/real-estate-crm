@@ -150,16 +150,33 @@ export async function GET(req: Request) {
           })
           .eq('id', c.id)
       } else {
-        const nextDate = new Date()
-        nextDate.setDate(nextDate.getDate() + nextSequence.delay_days)
+       let nextDate = new Date()
 
-        await supabase
-          .from('contact_campaigns')
-          .update({
-            current_step: nextStep,
-            next_send_at: nextDate.toISOString(),
-          })
-          .eq('id', c.id)
+// MONTHLY NEWSLETTER LOGIC
+if (c.campaign_id === 'bb0b2174-639b-43fc-9f03-2bb289210de2') {
+  nextDate = new Date()
+
+  // Move to first of next month
+  nextDate.setMonth(nextDate.getMonth() + 1)
+  nextDate.setDate(1)
+
+  // Set 9AM
+  nextDate.setHours(9, 0, 0, 0)
+} else {
+  // NORMAL DRIP CAMPAIGNS
+  nextDate = new Date()
+  nextDate.setDate(
+    nextDate.getDate() + nextSequence.delay_days
+  )
+}
+
+await supabase
+  .from('contact_campaigns')
+  .update({
+    current_step: nextStep,
+    next_send_at: nextDate.toISOString(),
+  })
+  .eq('id', c.id)
       }
     }
 
