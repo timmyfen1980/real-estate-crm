@@ -540,10 +540,11 @@ const assignCampaign = async () => {
       },
     ])
 
-  if (error) {
-    alert('Error assigning campaign')
-    return
-  }
+ if (error) {
+  console.error(error)
+  alert(error.message)
+  return
+}
 
   setShowCampaignModal(false)
   setSelectedCampaign(null)
