@@ -276,14 +276,39 @@ if (updateError) {
             </p>
           </div>
 
-          <button
-            onClick={() =>
-              router.push(`/dashboard/open-houses/new?property_id=${property.id}`)
-            }
-            className="px-5 py-2 border border-black rounded-md hover:bg-black hover:text-white transition"
-          >
-            Create Open House
-          </button>
+          <div className="flex gap-2">
+
+  <button
+    onClick={() =>
+      router.push(`/dashboard/open-houses/new?property_id=${property.id}`)
+    }
+    className="px-5 py-2 border border-black rounded-md hover:bg-black hover:text-white transition"
+  >
+    Create Open House
+  </button>
+
+  <button
+    onClick={() =>
+      window.open(`/s/${property.id}`, '_blank')
+    }
+    className="px-5 py-2 border border-black rounded-md hover:bg-black hover:text-white transition"
+  >
+    View Squeeze Page
+  </button>
+
+  <button
+    onClick={() => {
+      navigator.clipboard.writeText(
+        `${window.location.origin}/s/${property.id}`
+      )
+      alert('Squeeze page link copied')
+    }}
+    className="px-5 py-2 border border-black rounded-md hover:bg-black hover:text-white transition"
+  >
+    Copy Link
+  </button>
+
+</div>
 
         </div>
 
