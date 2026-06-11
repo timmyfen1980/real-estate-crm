@@ -174,7 +174,16 @@ if (!existingCampaign) {
       if (leadError) throw leadError;
       leadId = newLead.id;
     }
+if (leadId) {
+  await supabaseAdmin.from("notes").insert({
+    lead_id: leadId,
+    content: `Lead Source: Home Valuation
 
+Property Address: ${address || "N/A"}
+
+Customer requested a home valuation.`,
+  });
+}
     // 🔥 FILE UPLOAD (CORRECT WAY)
     const files = formData.getAll("images") as File[];
     const uploadedUrls: string[] = [];
