@@ -153,7 +153,16 @@ export async function POST(req: Request) {
 
       leadId = newLead.id;
     }
+if (leadId) {
+  await supabaseAdmin.from("notes").insert({
+    lead_id: leadId,
+    content: `Lead Source: Watch My Area
 
+Property Address: ${property_address || "N/A"}
+
+Customer requested neighbourhood market updates.`,
+  });
+}
     await resend.emails.send({
       from: "info@thefcgroup.ca",
       to: account.owner_email,
