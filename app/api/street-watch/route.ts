@@ -144,7 +144,7 @@ export async function POST(req: Request) {
           address: property_address,
           source: "Watch My Area",
           status: "New",
-          deal_type: "Buyer",
+          deal_type: "Seller",
         })
         .select("id")
         .single();
