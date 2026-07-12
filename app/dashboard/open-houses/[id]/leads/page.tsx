@@ -34,6 +34,7 @@ export default function EventLeadsPage() {
   const [property, setProperty] = useState<Property | null>(null)
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
+  const [underContractCount, setUnderContractCount] = useState(0)
 
   const loadData = async () => {
     const { data: eventData } = await supabase
@@ -62,6 +63,13 @@ export default function EventLeadsPage() {
       .select('*')
       .eq('open_house_event_id', eventId)
       .order('created_at', { ascending: false })
+
+    const { count: visitorCount } = await supabase
+  .from('open_house_visitors_under_contract')
+  .select('*', { count: 'exact', head: true })
+  .eq('open_house_event_id', eventId)
+
+setUnderContractCount(visitorCount || 0)
 
     setLeads(leadData || [])
     setLoading(false)
@@ -99,7 +107,8 @@ export default function EventLeadsPage() {
     }
   }
 
-  const total = leads.length
+  const leadTotal = leads.length
+  const totalVisitors = leadTotal + underContractCount
   const hotCount = leads.filter(l => l.status === 'Hot').length
   const newCount = leads.filter(l => l.status === 'New').length
   const contactedCount = leads.filter(l => l.status === 'Contacted').length
@@ -128,10 +137,29 @@ export default function EventLeadsPage() {
           </div>
 
           <div className="text-right text-sm">
-            <div className="font-semibold">{total} Total</div>
-            <div className="text-red-600">{hotCount} Hot</div>
-            <div>{newCount} New</div>
-            <div>{contactedCount} Contacted</div>
+            <div className="font-semibold">
+  {totalVisitors} Visitors
+</div>
+
+<div>
+  {leadTotal} Leads
+</div>
+
+<div>
+  {underContractCount} Under Contract
+</div>
+
+<div className="text-red-600">
+  {hotCount} Hot
+</div>
+
+<div>
+  {newCount} New
+</div>
+
+<div>
+  {contactedCount} Contacted
+</div>
 
             <button
               onClick={() => router.push('/dashboard/open-houses')}
