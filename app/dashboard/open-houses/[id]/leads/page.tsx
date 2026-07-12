@@ -171,12 +171,13 @@ setUnderContractCount(visitorCount || 0)
         </div>
 
         <div className="bg-white rounded-xl shadow overflow-hidden">
-
-          {leads.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              No leads collected yet.
-            </div>
-          ) : (
+{leadTotal === 0 ? (
+  <div className="p-8 text-center text-gray-500">
+    {underContractCount > 0
+      ? 'No CRM leads were created. All visitors were represented by another Realtor.'
+      : 'No leads collected yet.'}
+  </div>
+) : (
             <table className="w-full text-left">
               <thead className="border-b bg-gray-50 text-sm">
                 <tr>
