@@ -123,12 +123,55 @@ export async function POST(req: Request) {
       .eq('email', normalizedEmail)
       .eq('account_id', property.account_id)
       .maybeSingle()
+let leadId: string | null = null
 
-    let leadId: string | null = null
+// =====================================
+// STORE UNDER CONTRACT VISITORS
+// =====================================
 
-    // =====================================
-    // NON-REPRESENTED BUYERS ENTER CRM
-    // =====================================
+if (working_with_realtor === true && under_contract === true) {
+  const { error: visitorError } = await supabaseAdmin
+    .from('open_house_visitors_under_contract')
+    .insert([
+      {
+        account_id: property.account_id,
+        property_id,
+        open_house_event_id,
+
+        first_name,
+        last_name,
+        email: normalizedEmail,
+        phone,
+
+        working_with_realtor,
+        under_contract,
+
+        realtor_name: realtor_name || null,
+
+        buyer_stage: buyer_stage || null,
+
+        hear_about: hear_about || null,
+        hear_about_other:
+          hear_about === 'Other'
+            ? hear_about_other
+            : null,
+
+        wants_feature_sheet:
+          wants_feature_sheet ?? false,
+      },
+    ])
+
+  if (visitorError) {
+    return NextResponse.json(
+      { error: visitorError.message },
+      { status: 500 }
+    )
+  }
+}
+
+// =====================================
+// NON-REPRESENTED BUYERS ENTER CRM
+// =====================================
 
     if (!(working_with_realtor === true && under_contract === true)) {
       if (existingLead) {
@@ -399,19 +442,19 @@ buyer_stage: buyer_stage || null,
     }
 
     // =========================
-    // REPRESENTED BUYER ANALYTICS
-    // =========================
+// REPRESENTED BUYER ANALYTICS
+// =========================
 
-    if (working_with_realtor === true && under_contract === true) {
-      await supabaseAdmin.rpc('increment_open_house_with_agent', {
-        event_id_input: open_house_event_id,
-      })
+if (working_with_realtor === true && under_contract === true) {
+  await supabaseAdmin.rpc('increment_open_house_with_agent', {
+    event_id_input: open_house_event_id,
+  })
 
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-      })
-    }
+  return NextResponse.json({
+    success: true,
+    visitor_only: true,
+  })
+}
 
     return NextResponse.json({ success: true })
   } catch {
