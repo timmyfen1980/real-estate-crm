@@ -35,6 +35,7 @@ const [agent, setAgent] = useState<any>(null)
   const [wantsFeatureSheet, setWantsFeatureSheet] = useState(true)
 
   const [workingWithRealtor, setWorkingWithRealtor] = useState<boolean | null>(null)
+  const [underContract, setUnderContract] = useState(false)
   const [realtorName, setRealtorName] = useState('')
 
   const [hearAbout, setHearAbout] = useState('')
@@ -53,6 +54,7 @@ const [agent, setAgent] = useState<any>(null)
       setPhone('')
       setWantsFeatureSheet(true)
       setWorkingWithRealtor(null)
+      setUnderContract(false)
       setRealtorName('')
       setHearAbout('')
       setHearAboutOther('')
@@ -171,7 +173,8 @@ setBranding({
           open_house_event_id: event.id,
           wants_feature_sheet: wantsFeatureSheet,
           working_with_realtor: workingWithRealtor,
-          realtor_name: realtorName || null,
+under_contract: underContract,
+realtor_name: realtorName || null,
           hear_about: hearAbout || null,
           hear_about_other: hearAbout === 'Other' ? hearAboutOther : null,
           buyer_stage: buyerStage || null,
@@ -391,14 +394,44 @@ setBranding({
                 No
               </label>
 
-              {workingWithRealtor && (
-                <input
-                  className="w-full mt-3 p-3 border rounded-lg"
-                  placeholder="Realtor Name"
-                  value={realtorName}
-                  onChange={(e) => setRealtorName(e.target.value)}
-                />
-              )}
+             {workingWithRealtor && (
+  <>
+    <input
+      className="w-full mt-3 p-3 border rounded-lg"
+      placeholder="Realtor Name"
+      value={realtorName}
+      onChange={(e) => setRealtorName(e.target.value)}
+    />
+
+    <p className="text-sm font-medium mt-5 mb-2">
+      Have you signed a Buyer Representation Agreement with this Realtor?
+    </p>
+
+    <label className="block mb-2">
+      <input
+        type="radio"
+        checked={!underContract}
+        onChange={() => setUnderContract(false)}
+        className="mr-2"
+      />
+      No
+    </label>
+
+    <label className="block mb-2">
+      <input
+        type="radio"
+        checked={underContract}
+        onChange={() => setUnderContract(true)}
+        className="mr-2"
+      />
+      Yes
+    </label>
+
+    <p className="text-xs text-gray-500 mt-2">
+      If you're unsure, please select No.
+    </p>
+  </>
+)}
             </div>
           )}
 

@@ -48,21 +48,21 @@ export async function POST(req: Request) {
       )
     }
 
-    const {
-      first_name,
-      last_name,
-      email,
-      phone,
-      property_id,
-      open_house_event_id,
-      hear_about,
-      hear_about_other,
-      working_with_realtor,
-      realtor_name,
-      buyer_stage,
-      wants_feature_sheet,
-    } = body
-
+   const {
+  first_name,
+  last_name,
+  email,
+  phone,
+  property_id,
+  open_house_event_id,
+  hear_about,
+  hear_about_other,
+  working_with_realtor,
+  under_contract,
+  realtor_name,
+  buyer_stage,
+  wants_feature_sheet,
+} = body
     if (!first_name || !email || !property_id || !open_house_event_id) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
     // NON-REPRESENTED BUYERS ENTER CRM
     // =====================================
 
-    if (working_with_realtor !== true) {
+    if (!(working_with_realtor === true && under_contract === true)) {
       if (existingLead) {
         leadId = existingLead.id
 
@@ -273,9 +273,10 @@ export async function POST(req: Request) {
                   hear_about === 'Other'
                     ? hear_about_other
                     : null,
-                working_with_realtor,
-                realtor_name: realtor_name || null,
-                buyer_stage: buyer_stage || null,
+               working_with_realtor,
+under_contract: under_contract ?? false,
+realtor_name: realtor_name || null,
+buyer_stage: buyer_stage || null,
                 wants_feature_sheet:
                   wants_feature_sheet ?? false,
                 source: 'Open House',
@@ -401,7 +402,7 @@ export async function POST(req: Request) {
     // REPRESENTED BUYER ANALYTICS
     // =========================
 
-    if (working_with_realtor === true) {
+    if (working_with_realtor === true && under_contract === true) {
       await supabaseAdmin.rpc('increment_open_house_with_agent', {
         event_id_input: open_house_event_id,
       })
