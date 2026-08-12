@@ -37,7 +37,7 @@ export async function GET(req: Request) {
         head: true,
       })
       .eq('status', 'sent')
-      .gte('created_at', startOfDay.toISOString())
+      .gte('sent_at', startOfDay.toISOString())
 
     const remainingQuota =
       MAX_EMAILS_PER_DAY - (sentToday || 0)
@@ -210,6 +210,7 @@ export async function GET(req: Request) {
         sequence_id: sequence.id,
         subject: sequence.subject,
         body_html: body,
+        sent_at: new Date().toISOString(),
         status: send?.error ? 'failed' : 'sent',
         resend_id: send?.data?.id,
       })
