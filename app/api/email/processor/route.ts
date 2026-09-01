@@ -328,7 +328,10 @@ console.log('Resend response:', send)
       }
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+  success: true,
+  campaignsFound: campaigns?.length ?? 0,
+})
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message },
