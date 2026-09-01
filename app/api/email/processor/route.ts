@@ -67,10 +67,14 @@ export async function GET(req: Request) {
       .order('next_send_at', { ascending: true })
 
     if (error) throw error
+    console.log(`Found ${(campaigns || []).length} due campaigns`)
 
     for (
       const [index, c] of (campaigns || []).entries()
     ) {
+      console.log(
+  `Campaign: ${c.campaign_id} | Contact: ${c.contact_id} | Step: ${c.current_step}`
+)
       // =====================================
       // STOP AT DAILY CAP
       // =====================================
@@ -86,7 +90,14 @@ export async function GET(req: Request) {
         .eq('step_number', c.current_step)
         .single()
 
-      if (!sequence) continue
+      if (!sequence) {
+  console.log(
+    `No sequence found for campaign ${c.campaign_id}, step ${c.current_step}`
+  )
+  continue
+}
+
+console.log(`Sequence found: ${sequence.subject}`)
 
       const { data: contact } = await supabase
         .from('contacts')
@@ -96,7 +107,12 @@ export async function GET(req: Request) {
         .eq('id', c.contact_id)
         .single()
 
-      if (!contact?.email) continue
+      if (!contact?.email) {
+  console.log(`No email found for contact ${c.contact_id}`)
+  continue
+}
+
+console.log(`Contact email: ${contact.email}`)
 
       // =====================================
       // UNSUBSCRIBE CHECK
@@ -108,7 +124,10 @@ export async function GET(req: Request) {
         .eq('contact_id', c.contact_id)
         .single()
 
-      if (sub?.unsubscribed) continue
+      if (sub?.unsubscribed) {
+  console.log(`${contact.email} is unsubscribed`)
+  continue
+}
 
       // =====================================
       // AGENT
@@ -191,14 +210,16 @@ export async function GET(req: Request) {
       // =====================================
       // SEND EMAIL
       // =====================================
-
+      console.log(
+  `Sending "${sequence.subject}" to ${contact.email}`
+)
       const send = await resend.emails.send({
         from: fromEmail,
         to: contact.email,
         subject: sequence.subject,
         html: body,
       })
-
+console.log('Resend response:', send)
       // =====================================
       // LOG EMAIL
       // =====================================
