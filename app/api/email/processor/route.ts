@@ -83,33 +83,57 @@ export async function GET(req: Request) {
         break
       }
 
-      const { data: sequence } = await supabase
-        .from('email_sequences')
-        .select('*')
-        .eq('campaign_id', c.campaign_id)
-        .eq('step_number', c.current_step)
-        .single()
+      const {
+  data: sequence,
+  error: sequenceError,
+} = await supabase
+  .from('email_sequences')
+  .select('*')
+  .eq('campaign_id', c.campaign_id)
+  .eq('step_number', c.current_step)
+  .single()
 
-      if (!sequence) {
-  console.log(
-    `No sequence found for campaign ${c.campaign_id}, step ${c.current_step}`
+if (sequenceError) {
+  throw new Error(
+    `SEQUENCE LOOKUP FAILED: ${sequenceError.message} | Campaign: ${c.campaign_id} | Step: ${c.current_step}`
   )
-  continue
+}
+
+if (!sequence) {
+  throw new Error(
+    `SEQUENCE IS NULL | Campaign: ${c.campaign_id} | Step: ${c.current_step}`
+  )
 }
 
 console.log(`Sequence found: ${sequence.subject}`)
 
-      const { data: contact } = await supabase
-        .from('contacts')
-        .select(
-          'email, first_name, assigned_user_id, account_id'
-        )
-        .eq('id', c.contact_id)
-        .single()
+      const {
+  data: contact,
+  error: contactError,
+} = await supabase
+  .from('contacts')
+  .select(
+    'email, first_name, assigned_user_id, account_id'
+  )
+  .eq('id', c.contact_id)
+  .single()
 
-      if (!contact?.email) {
-  console.log(`No email found for contact ${c.contact_id}`)
-  continue
+if (contactError) {
+  throw new Error(
+    `CONTACT LOOKUP FAILED: ${contactError.message} | Contact ID: ${c.contact_id}`
+  )
+}
+
+if (!contact) {
+  throw new Error(
+    `CONTACT IS NULL | Contact ID: ${c.contact_id}`
+  )
+}
+
+if (!contact.email) {
+  throw new Error(
+    `CONTACT HAS NO EMAIL | Contact ID: ${c.contact_id}`
+  )
 }
 
 console.log(`Contact email: ${contact.email}`)
