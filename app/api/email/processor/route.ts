@@ -332,10 +332,15 @@ console.log('Resend response:', send)
   success: true,
   campaignsFound: campaigns?.length ?? 0,
 })
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 500 }
-    )
-  }
+  }catch (err: any) {
+  console.error('EMAIL PROCESSOR FAILED')
+  console.error(err)
+
+  return NextResponse.json(
+    {
+      error: err.message,
+    },
+    { status: 500 }
+  )
+}
 }
