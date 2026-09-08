@@ -213,7 +213,7 @@ console.log(`Contact email: ${contact.email}`)
         ctaLink,
         ctaText,
       })
-
+console.log('Email template built successfully')
       const accountId = contact.account_id
 
       // =====================================
