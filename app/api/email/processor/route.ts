@@ -285,28 +285,30 @@ console.log('Resend response:', send)
       } else {
         let nextDate = new Date()
 
-        // =====================================
-        // MONTHLY NEWSLETTER LOGIC
-        // =====================================
+       // =====================================
+// MONTHLY NEWSLETTER LOGIC
+// =====================================
 
-        if (
-          c.campaign_id ===
-          NEWSLETTER_CAMPAIGN_ID
-        ) {
-          nextDate = new Date()
+if (
+  c.campaign_id ===
+  NEWSLETTER_CAMPAIGN_ID
+) {
+  // Look up this contact's newsletter batch
+  const { data: campaignRow } = await supabase
+    .from('contact_campaigns')
+    .select('newsletter_batch')
+    .eq('id', c.id)
+    .single()
 
-          // START SENDING ON THE 27TH
-          // OF THE PREVIOUS MONTH
-          nextDate.setDate(27)
+  const batch = campaignRow?.newsletter_batch || 1
 
-          // 9AM
-          nextDate.setHours(9, 0, 0, 0)
+  nextDate = new Date()
 
-          // MOVE TO NEXT MONTH
-          nextDate.setMonth(
-            nextDate.getMonth() + 1
-          )
-        } else {
+  // Send on the same day every month as the batch number
+  nextDate.setMonth(nextDate.getMonth() + 1)
+  nextDate.setDate(batch)
+  nextDate.setHours(9, 0, 0, 0)
+} else {
           // =====================================
           // NORMAL DRIP CAMPAIGNS
           // =====================================

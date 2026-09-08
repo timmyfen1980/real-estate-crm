@@ -599,19 +599,19 @@ const assignCampaign = async () => {
     .from('contact_campaigns')
     .insert([
       {
-        contact_id: contactId,
-        campaign_id: selectedCampaign,
+  contact_id: contactId,
+  campaign_id: selectedCampaign,
 
-        status: 'active',
+  status: 'active',
 
-        current_step: isNewsletter ? 5 : 1,
+  current_step: isNewsletter ? 5 : 1,
 
-        next_send_at: isNewsletter
-          ? '2026-10-01T09:00:00'
-          : new Date().toISOString(),
+  next_send_at: isNewsletter
+    ? `2026-10-${String(newsletterBatch).padStart(2, '0')}T09:00:00`
+    : new Date().toISOString(),
 
-        newsletter_batch: newsletterBatch,
-      },
+  newsletter_batch: newsletterBatch,
+}
     ])
 
   if (error) {
