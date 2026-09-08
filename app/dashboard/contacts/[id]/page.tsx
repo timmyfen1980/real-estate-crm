@@ -523,7 +523,7 @@ const handleDelete = async () => {
 const assignCampaign = async () => {
   if (!selectedCampaign) return
 
-  // 🔒 prevent duplicates
+  // Prevent duplicates
   const { data: existing } = await supabase
     .from('contact_campaigns')
     .select('id')
@@ -536,6 +536,60 @@ const assignCampaign = async () => {
     return
   }
 
+  let newsletterBatch: number | null = null
+
+  // Only run batching for the newsletter
+  const campaign = campaigns.find(
+    (c: any) => c.id === selectedCampaign
+  )
+
+  if (campaign?.name === 'Monthly Homeowner Newsletter') {
+
+    const { data: batchRows, error: batchError } = await supabase
+      .from('contact_campaigns')
+      .select('newsletter_batch')
+      .eq('campaign_id', selectedCampaign)
+      .not('newsletter_batch', 'is', null)
+
+    if (batchError) {
+      console.error(batchError)
+      alert(batchError.message)
+      return
+    }
+
+    const counts: Record<number, number> = {}
+
+    ;(batchRows || []).forEach((row: any) => {
+      const batch = row.newsletter_batch
+      counts[batch] = (counts[batch] || 0) + 1
+    })
+
+    // First newsletter subscriber
+    if (Object.keys(counts).length === 0) {
+      newsletterBatch = 1
+    } else {
+
+      const highestBatch = Math.max(...Object.keys(counts).map(Number))
+
+      newsletterBatch = null
+
+      // Find the first batch with room
+      for (let batch = 1; batch <= highestBatch; batch++) {
+        const count = counts[batch] || 0
+
+        if (count < 50) {
+          newsletterBatch = batch
+          break
+        }
+      }
+
+      // Every existing batch is full
+      if (newsletterBatch === null) {
+        newsletterBatch = highestBatch + 1
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('contact_campaigns')
     .insert([
@@ -543,36 +597,36 @@ const assignCampaign = async () => {
         contact_id: contactId,
         campaign_id: selectedCampaign,
         next_send_at: new Date().toISOString(),
+        newsletter_batch: newsletterBatch,
       },
     ])
 
- if (error) {
-  console.error(error)
-  alert(error.message)
-  return
-}
+  if (error) {
+    console.error(error)
+    alert(error.message)
+    return
+  }
 
   setShowCampaignModal(false)
   setSelectedCampaign(null)
 
-  // reload campaigns
   const { data: assignedCampaigns } = await supabase
-  .from('contact_campaigns')
-  .select(`
-    id,
-    campaign_id,
-    status,
-    current_step,
-    next_send_at,
-    email_campaigns (
+    .from('contact_campaigns')
+    .select(`
       id,
-      name,
-      type
-    )
-  `)
-  .eq('contact_id', contactId)
+      campaign_id,
+      status,
+      current_step,
+      next_send_at,
+      email_campaigns (
+        id,
+        name,
+        type
+      )
+    `)
+    .eq('contact_id', contactId)
 
-setContactCampaigns(assignedCampaigns || [])
+  setContactCampaigns(assignedCampaigns || [])
 }
 const handleSave = async () => {
   if (!formData || !contact) return
