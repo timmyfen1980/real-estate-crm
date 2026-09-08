@@ -13,7 +13,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const NEWSLETTER_CAMPAIGN_ID =
   'bb0b2174-639b-43fc-9f03-2bb289210de2'
 
-const MAX_EMAILS_PER_DAY = 95
+const MAX_EMAILS_PER_DAY = 96
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
