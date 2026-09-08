@@ -131,9 +131,10 @@ if (!contact) {
 }
 
 if (!contact.email) {
-  throw new Error(
-    `CONTACT HAS NO EMAIL | Contact ID: ${c.contact_id}`
+  console.log(
+    `Skipping contact with no email: ${c.contact_id}`
   )
+  continue
 }
 
 console.log(`Contact email: ${contact.email}`)
