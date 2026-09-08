@@ -538,12 +538,16 @@ const assignCampaign = async () => {
 
   let newsletterBatch: number | null = null
 
-  // Only run batching for the newsletter
+  // Find selected campaign
   const campaign = campaigns.find(
     (c: any) => c.id === selectedCampaign
   )
 
-  if (campaign?.name === 'Monthly Homeowner Newsletter') {
+  const isNewsletter =
+    campaign?.name === 'Monthly Homeowner Newsletter'
+
+  // Only calculate batches for the newsletter
+  if (isNewsletter) {
 
     const { data: batchRows, error: batchError } = await supabase
       .from('contact_campaigns')
@@ -560,34 +564,35 @@ const assignCampaign = async () => {
     const counts: Record<number, number> = {}
 
     ;(batchRows || []).forEach((row: any) => {
-      const batch = row.newsletter_batch
-      counts[batch] = (counts[batch] || 0) + 1
+      counts[row.newsletter_batch] =
+        (counts[row.newsletter_batch] || 0) + 1
     })
 
-    // First newsletter subscriber
     if (Object.keys(counts).length === 0) {
+
       newsletterBatch = 1
+
     } else {
 
-      const highestBatch = Math.max(...Object.keys(counts).map(Number))
+      const highestBatch = Math.max(
+        ...Object.keys(counts).map(Number)
+      )
 
-      newsletterBatch = null
-
-      // Find the first batch with room
       for (let batch = 1; batch <= highestBatch; batch++) {
-        const count = counts[batch] || 0
 
-        if (count < 50) {
+        if ((counts[batch] || 0) < 50) {
           newsletterBatch = batch
           break
         }
+
       }
 
-      // Every existing batch is full
       if (newsletterBatch === null) {
         newsletterBatch = highestBatch + 1
       }
+
     }
+
   }
 
   const { error } = await supabase
@@ -596,7 +601,15 @@ const assignCampaign = async () => {
       {
         contact_id: contactId,
         campaign_id: selectedCampaign,
-        next_send_at: new Date().toISOString(),
+
+        status: 'active',
+
+        current_step: isNewsletter ? 5 : 1,
+
+        next_send_at: isNewsletter
+          ? '2026-10-01T09:00:00'
+          : new Date().toISOString(),
+
         newsletter_batch: newsletterBatch,
       },
     ])
