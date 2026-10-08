@@ -213,6 +213,7 @@ console.log(`Contact email: ${contact.email}`)
         unsubscribeLink,
         ctaLink,
         ctaText,
+        emailHeaderImage: `${process.env.NEXT_PUBLIC_SITE_URL}/api/email-hero`,
       })
 console.log('Email template built successfully')
       const accountId = contact.account_id
