@@ -63,6 +63,7 @@ export async function POST(req: Request) {
       unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
       ctaLink: cta_link,
       ctaText: cta_text,
+      emailHeaderImage: `${process.env.NEXT_PUBLIC_SITE_URL}/api/email-hero`,
     })
 
     // 📤 SEND TO SELF
