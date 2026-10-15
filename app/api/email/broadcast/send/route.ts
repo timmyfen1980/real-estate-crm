@@ -93,11 +93,15 @@ export async function POST(req: Request) {
           continue
         }
 
+        // Prepend the team hero header banner
+        const heroUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/api/email-hero`
+        const htmlWithHero = `<img src="${heroUrl}" alt="The FC Group" style="width:100%;max-width:600px;height:auto;display:block;margin:0 auto;" />${body_html}`
+
         const response = await resend.emails.send({
           from: 'The FC Group <info@thefcgroup.ca>',
           to: contact.email,
           subject,
-          html: body_html,
+          html: htmlWithHero,
         })
 
         // 🧾 LOG SUCCESS
