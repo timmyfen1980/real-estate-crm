@@ -18,7 +18,8 @@ export default function NewClientFilePage() {
 
   const [checklistTypes, setChecklistTypes] = useState<ChecklistType[]>(['buyer']);
   const [clientNames, setClientNames] = useState('');
-  const [phoneEmail, setPhoneEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [propertyAddress, setPropertyAddress] = useState('');
   const [lawyerName, setLawyerName] = useState('');
   const [lawyerFirm, setLawyerFirm] = useState('');
@@ -64,7 +65,8 @@ export default function NewClientFilePage() {
         account_id: accountId,
         checklist_types: checklistTypes,
         client_names: clientNames.trim(),
-        phone_email: phoneEmail.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
         property_address: propertyAddress.trim(),
         lawyer_name: lawyerName.trim(),
         lawyer_firm: lawyerFirm.trim(),
@@ -130,11 +132,22 @@ export default function NewClientFilePage() {
             />
           </div>
           <div>
-            <label className={labelClass}>Phone / Email</label>
+            <label className={labelClass}>Phone</label>
             <input
               className={inputClass}
-              value={phoneEmail}
-              onChange={(e) => setPhoneEmail(e.target.value)}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. (905) 555-0123"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Email</label>
+            <input
+              type="email"
+              className={inputClass}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. client@email.com"
             />
           </div>
         </div>

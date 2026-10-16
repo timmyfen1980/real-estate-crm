@@ -11,6 +11,8 @@ export interface ClientFile {
   crm_contact_id: string | null;
   checklist_types: ChecklistType[];
   client_names: string;
+  phone: string | null;
+  email: string | null;
   phone_email: string | null;
   property_address: string | null;
   lawyer_name: string | null;
@@ -60,6 +62,8 @@ export async function createClientFile(input: {
   account_id: string;
   checklist_types: ChecklistType[];
   client_names: string;
+  phone?: string;
+  email?: string;
   phone_email?: string;
   property_address?: string;
   lawyer_name?: string;
@@ -79,6 +83,8 @@ export async function createClientFile(input: {
       account_id: input.account_id,
       checklist_types: input.checklist_types,
       client_names: input.client_names,
+      phone: input.phone || null,
+      email: input.email || null,
       phone_email: input.phone_email || null,
       property_address: input.property_address || null,
       lawyer_name: input.lawyer_name || null,

@@ -163,10 +163,16 @@ export default function ClientFileDetailPage() {
 
         {/* Deal info grid */}
         <div className="grid md:grid-cols-3 gap-4 mt-6 text-sm">
-          {file.phone_email && (
+          {(file.phone || file.phone_email) && (
             <div>
-              <p className="text-gray-500">Phone / Email</p>
-              <p className="font-medium">{file.phone_email}</p>
+              <p className="text-gray-500">Phone</p>
+              <p className="font-medium">{file.phone || file.phone_email}</p>
+            </div>
+          )}
+          {file.email && (
+            <div>
+              <p className="text-gray-500">Email</p>
+              <p className="font-medium">{file.email}</p>
             </div>
           )}
           {(file.lawyer_name || file.lawyer_firm) && (
