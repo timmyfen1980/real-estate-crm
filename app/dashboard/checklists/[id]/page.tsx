@@ -45,6 +45,8 @@ export default function ClientFileDetailPage() {
   const [contactDeals, setContactDeals] = useState<any[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
   const [showDealPicker, setShowDealPicker] = useState(false);
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -177,6 +179,55 @@ export default function ClientFileDetailPage() {
       }
     } finally {
       setLoadingDeals(false);
+    }
+  };
+
+  const handleFileUpload = async (docId: string, file: File) => {
+    if (!file) return;
+    setUploadingDocId(docId);
+    try {
+      // Upload to Supabase storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${fileId}/${docId}_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('client-documents')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL (bucket is private, so we create a signed URL)
+      const { data: urlData } = await supabase.storage
+        .from('client-documents')
+        .createSignedUrl(fileName, 31536000); // 1 year
+
+      const fileUrl = urlData?.signedUrl || '';
+
+      // Update the document record
+      const { error: dbError } = await supabase
+        .from('client_documents')
+        .update({
+          file_url: fileUrl,
+          status: 'received',
+          received_at: new Date().toISOString(),
+          received_via: 'upload',
+        })
+        .eq('id', docId);
+
+      if (dbError) throw dbError;
+
+      // Update local state
+      setDocs((prev) => prev.map((d) => 
+        d.id === docId 
+          ? { ...d, file_url: fileUrl, status: 'received' as const }
+          : d
+      ));
+    } catch (err) {
+      console.error('Upload failed:', err);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploadingDocId(null);
+      setDragOverDocId(null);
     }
   };
 
@@ -521,7 +572,24 @@ export default function ClientFileDetailPage() {
                   {stageDocs.map((doc) => {
                     const badge = REQUIRED_BADGE[doc.required] || REQUIRED_BADGE.required;
                     return (
-                      <div key={doc.id} className="px-5 py-4 flex items-start gap-4">
+                      <div
+                        key={doc.id}
+                        className={`px-5 py-4 flex items-start gap-4 transition-colors ${
+                          dragOverDocId === doc.id ? 'bg-blue-50 border-2 border-blue-300 border-dashed' : ''
+                        }`}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverDocId(doc.id);
+                        }}
+                        onDragLeave={() => setDragOverDocId(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const files = e.dataTransfer.files;
+                          if (files.length > 0) {
+                            handleFileUpload(doc.id, files[0]);
+                          }
+                        }}
+                      >
                         <button
                           onClick={() =>
                             setStatus(doc.id, doc.status === 'received' ? 'pending' : 'received')
@@ -577,16 +645,43 @@ export default function ClientFileDetailPage() {
                             </a>
                           )}
                         </div>
-                        <select
-                          value={doc.status}
-                          onChange={(e) => setStatus(doc.id, e.target.value as ClientDocument['status'])}
-                          className="text-xs border border-gray-300 rounded px-2 py-1"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="received">Received</option>
-                          <option value="waived">Waived</option>
-                          <option value="na">N/A</option>
-                        </select>
+                        <div className="flex flex-col gap-2 items-end">
+                          <select
+                            value={doc.status}
+                            onChange={(e) => setStatus(doc.id, e.target.value as ClientDocument['status'])}
+                            className="text-xs border border-gray-300 rounded px-2 py-1"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="received">Received</option>
+                            <option value="waived">Waived</option>
+                            <option value="na">N/A</option>
+                          </select>
+                          <label className="cursor-pointer text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium border border-blue-200">
+                            {uploadingDocId === doc.id ? 'Uploading…' : doc.file_url ? 'Replace file' : 'Upload file'}
+                            <input
+                              type="file"
+                              className="hidden"
+                              disabled={uploadingDocId === doc.id}
+                              onChange={(e) => {
+                                const files = e.target.files;
+                                if (files && files.length > 0) {
+                                  handleFileUpload(doc.id, files[0]);
+                                }
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                          {doc.file_url && (
+                            <a
+                              href={doc.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Download →
+                            </a>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

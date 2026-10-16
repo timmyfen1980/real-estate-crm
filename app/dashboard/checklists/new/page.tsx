@@ -288,8 +288,13 @@ export default function NewClientFilePage() {
                     <button
                       type="button"
                       onClick={() => {
+                        const fullName = `${m.first_name || ''} ${m.last_name || ''}`.trim();
                         setSelectedContactId(m.id);
-                        setSelectedContactName(`${m.first_name || ''} ${m.last_name || ''}`.trim());
+                        setSelectedContactName(fullName);
+                        setClientNames(fullName);
+                        // Also fill phone/email from contact if empty
+                        if (m.phone && !phone.trim()) setPhone(m.phone);
+                        if (m.email && !email.trim()) setEmail(m.email);
                         setDuplicateWarning([]);
                         setContactMatches([]);
                       }}
