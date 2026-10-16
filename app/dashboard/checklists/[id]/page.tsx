@@ -279,15 +279,18 @@ export default function ClientFileDetailPage() {
   const linkDeal = async (deal: any) => {
     if (!file) return;
     // Auto-fill address from deal property
+    let addr = '';
     if (deal.property?.address) {
-      const addr = [deal.property.address, deal.property.city, deal.property.province]
+      addr = [deal.property.address, deal.property.city, deal.property.province]
         .filter(Boolean).join(', ');
       setFAddress(addr);
     }
-    // Link the deal
+    // Link the deal AND save the address to the database
+    const updates: any = { crm_deal_id: deal.id };
+    if (addr) updates.property_address = addr;
     const { data, error } = await supabase
       .from('client_files')
-      .update({ crm_deal_id: deal.id })
+      .update(updates)
       .eq('id', file.id)
       .select()
       .single();
