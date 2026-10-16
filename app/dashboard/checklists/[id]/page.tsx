@@ -27,6 +27,24 @@ export default function ClientFileDetailPage() {
   const [activeTab, setActiveTab] = useState<ChecklistType | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editingDeal, setEditingDeal] = useState(false);
+  const [savingDeal, setSavingDeal] = useState(false);
+  // Deal form fields
+  const [fAddress, setFAddress] = useState('');
+  const [fLawyerName, setFLawyerName] = useState('');
+  const [fLawyerFirm, setFLawyerFirm] = useState('');
+  const [fLawyerContact, setFLawyerContact] = useState('');
+  const [fCoop, setFCoop] = useState('');
+  const [fOfferDate, setFOfferDate] = useState('');
+  const [fClosingDate, setFClosingDate] = useState('');
+  const [fPrice, setFPrice] = useState('');
+  const [fDeposit, setFDeposit] = useState('');
+  const [fConditions, setFConditions] = useState('');
+  const [fNotes, setFNotes] = useState('');
+  // Deal picker
+  const [contactDeals, setContactDeals] = useState<any[]>([]);
+  const [loadingDeals, setLoadingDeals] = useState(false);
+  const [showDealPicker, setShowDealPicker] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -45,6 +63,19 @@ export default function ClientFileDetailPage() {
     }
     setFile(fileData as ClientFile);
     setActiveTab((fileData as ClientFile).checklist_types[0] || null);
+    // Populate deal form
+    const f = fileData as ClientFile;
+    setFAddress(f.property_address || '');
+    setFLawyerName(f.lawyer_name || '');
+    setFLawyerFirm(f.lawyer_firm || '');
+    setFLawyerContact(f.lawyer_contact || '');
+    setFCoop(f.coop_info || '');
+    setFOfferDate(f.deal_dates?.offer_date || '');
+    setFClosingDate(f.deal_dates?.closing_date || '');
+    setFPrice(f.financials?.price || '');
+    setFDeposit(f.financials?.deposit || '');
+    setFConditions(f.conditions || '');
+    setFNotes(f.notes || '');
 
     const { data: docData } = await supabase
       .from('client_documents')
@@ -88,6 +119,86 @@ export default function ClientFileDetailPage() {
     await navigator.clipboard.writeText(portalLink(file.portal_token));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveDeal = async () => {
+    if (!file) return;
+    setSavingDeal(true);
+    const { data, error } = await supabase
+      .from('client_files')
+      .update({
+        property_address: fAddress.trim(),
+        lawyer_name: fLawyerName.trim(),
+        lawyer_firm: fLawyerFirm.trim(),
+        lawyer_contact: fLawyerContact.trim(),
+        coop_info: fCoop.trim(),
+        deal_dates: { offer_date: fOfferDate, closing_date: fClosingDate },
+        financials: { price: fPrice, deposit: fDeposit },
+        conditions: fConditions.trim(),
+        notes: fNotes.trim(),
+      })
+      .eq('id', file.id)
+      .select()
+      .single();
+
+    setSavingDeal(false);
+    if (!error && data) {
+      setFile(data as ClientFile);
+      setEditingDeal(false);
+    }
+  };
+
+  const fetchDealsForPicker = async () => {
+    if (!file?.crm_contact_id) return;
+    setLoadingDeals(true);
+    setShowDealPicker(true);
+    try {
+      // Get account_id from file
+      const { data: deals } = await supabase
+        .from('deals')
+        .select('id, deal_type, status, property_id')
+        .eq('contact_id', file.crm_contact_id)
+        .eq('account_id', file.account_id)
+        .order('created_at', { ascending: false });
+
+      if (deals && deals.length > 0) {
+        const propIds = [...new Set(deals.map((d: any) => d.property_id).filter(Boolean))];
+        let propMap: Record<string, any> = {};
+        if (propIds.length > 0) {
+          const { data: props } = await supabase
+            .from('properties')
+            .select('id, address, city, province')
+            .in('id', propIds);
+          (props || []).forEach((p: any) => { propMap[p.id] = p; });
+        }
+        setContactDeals(deals.map((d: any) => ({ ...d, property: propMap[d.property_id] || null })));
+      } else {
+        setContactDeals([]);
+      }
+    } finally {
+      setLoadingDeals(false);
+    }
+  };
+
+  const linkDeal = async (deal: any) => {
+    if (!file) return;
+    // Auto-fill address from deal property
+    if (deal.property?.address) {
+      const addr = [deal.property.address, deal.property.city, deal.property.province]
+        .filter(Boolean).join(', ');
+      setFAddress(addr);
+    }
+    // Link the deal
+    const { data, error } = await supabase
+      .from('client_files')
+      .update({ crm_deal_id: deal.id })
+      .eq('id', file.id)
+      .select()
+      .single();
+    if (!error && data) {
+      setFile(data as ClientFile);
+    }
+    setShowDealPicker(false);
   };
 
   if (loading) {
@@ -161,61 +272,210 @@ export default function ClientFileDetailPage() {
           </div>
         </div>
 
-        {/* Deal info grid */}
-        <div className="grid md:grid-cols-3 gap-4 mt-6 text-sm">
-          {(file.phone || file.phone_email) && (
-            <div>
-              <p className="text-gray-500">Phone</p>
-              <p className="font-medium">{file.phone || file.phone_email}</p>
+        {/* Deal info - editable */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700">Deal Details</h3>
+            <div className="flex gap-2">
+              {file.crm_contact_id && !editingDeal && (
+                <button
+                  onClick={fetchDealsForPicker}
+                  className="text-xs px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium"
+                >
+                  Link Existing Deal
+                </button>
+              )}
+              {!editingDeal ? (
+                <button
+                  onClick={() => setEditingDeal(true)}
+                  className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                >
+                  Edit Details
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingDeal(false)}
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveDeal}
+                    disabled={savingDeal}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                  >
+                    {savingDeal ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Deal picker modal */}
+          {showDealPicker && (
+            <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-purple-900">
+                  Select a deal to link:
+                </p>
+                <button
+                  onClick={() => setShowDealPicker(false)}
+                  className="text-xs text-purple-700 hover:underline"
+                >
+                  Close
+                </button>
+              </div>
+              {loadingDeals ? (
+                <p className="text-xs text-purple-700">Loading deals…</p>
+              ) : contactDeals.length === 0 ? (
+                <p className="text-xs text-purple-700">No deals found for this contact.</p>
+              ) : (
+                <div className="space-y-2">
+                  {contactDeals.map((d: any) => (
+                    <button
+                      key={d.id}
+                      onClick={() => linkDeal(d)}
+                      className="w-full text-left px-3 py-2 rounded-lg border text-sm bg-white border-purple-200 hover:border-purple-400"
+                    >
+                      <span className="font-medium">{d.property?.address || 'No address'}</span>
+                      {d.deal_type && <span className="ml-2 text-xs text-gray-500">({d.deal_type})</span>}
+                      {d.status && <span className="ml-2 text-xs text-gray-500">— {d.status}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          {file.email && (
-            <div>
-              <p className="text-gray-500">Email</p>
-              <p className="font-medium">{file.email}</p>
+
+          {editingDeal ? (
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Property address</label>
+                <input value={fAddress} onChange={(e) => setFAddress(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="123 Main St, Whitby, ON" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Lawyer name</label>
+                <input value={fLawyerName} onChange={(e) => setFLawyerName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Law firm</label>
+                <input value={fLawyerFirm} onChange={(e) => setFLawyerFirm(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Lawyer contact</label>
+                <input value={fLawyerContact} onChange={(e) => setFLawyerContact(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Phone / email" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Co-operating side</label>
+                <input value={fCoop} onChange={(e) => setFCoop(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Other agent / brokerage" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Offer date</label>
+                <input value={fOfferDate} onChange={(e) => setFOfferDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="2026-10-16" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Closing date</label>
+                <input value={fClosingDate} onChange={(e) => setFClosingDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="2026-12-01" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Price / Rent</label>
+                <input value={fPrice} onChange={(e) => setFPrice(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Deposit</label>
+                <input value={fDeposit} onChange={(e) => setFDeposit(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Conditions + deadlines</label>
+                <textarea value={fConditions} onChange={(e) => setFConditions(e.target.value)} rows={2}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
             </div>
-          )}
-          {(file.lawyer_name || file.lawyer_firm) && (
-            <div>
-              <p className="text-gray-500">Lawyer</p>
-              <p className="font-medium">
-                {file.lawyer_name}
-                {file.lawyer_firm ? ` — ${file.lawyer_firm}` : ''}
-              </p>
-              {file.lawyer_contact && <p className="text-gray-500">{file.lawyer_contact}</p>}
-            </div>
-          )}
-          {file.coop_info && (
-            <div>
-              <p className="text-gray-500">Co-operating side</p>
-              <p className="font-medium">{file.coop_info}</p>
-            </div>
-          )}
-          {file.deal_dates?.closing_date && (
-            <div>
-              <p className="text-gray-500">Closing date</p>
-              <p className="font-medium">{file.deal_dates.closing_date}</p>
-            </div>
-          )}
-          {file.deal_dates?.offer_date && (
-            <div>
-              <p className="text-gray-500">Offer date</p>
-              <p className="font-medium">{file.deal_dates.offer_date}</p>
-            </div>
-          )}
-          {file.financials?.price && (
-            <div>
-              <p className="text-gray-500">Price / Rent</p>
-              <p className="font-medium">{file.financials.price}</p>
-            </div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                {(file.phone || file.phone_email) && (
+                  <div>
+                    <p className="text-gray-500">Phone</p>
+                    <p className="font-medium">{file.phone || file.phone_email}</p>
+                  </div>
+                )}
+                {file.email && (
+                  <div>
+                    <p className="text-gray-500">Email</p>
+                    <p className="font-medium">{file.email}</p>
+                  </div>
+                )}
+                {(file.lawyer_name || file.lawyer_firm) && (
+                  <div>
+                    <p className="text-gray-500">Lawyer</p>
+                    <p className="font-medium">
+                      {file.lawyer_name}
+                      {file.lawyer_firm ? ` — ${file.lawyer_firm}` : ''}
+                    </p>
+                    {file.lawyer_contact && <p className="text-gray-500">{file.lawyer_contact}</p>}
+                  </div>
+                )}
+                {file.coop_info && (
+                  <div>
+                    <p className="text-gray-500">Co-operating side</p>
+                    <p className="font-medium">{file.coop_info}</p>
+                  </div>
+                )}
+                {file.deal_dates?.closing_date && (
+                  <div>
+                    <p className="text-gray-500">Closing date</p>
+                    <p className="font-medium">{file.deal_dates.closing_date}</p>
+                  </div>
+                )}
+                {file.deal_dates?.offer_date && (
+                  <div>
+                    <p className="text-gray-500">Offer date</p>
+                    <p className="font-medium">{file.deal_dates.offer_date}</p>
+                  </div>
+                )}
+                {file.financials?.price && (
+                  <div>
+                    <p className="text-gray-500">Price / Rent</p>
+                    <p className="font-medium">{file.financials.price}</p>
+                  </div>
+                )}
+                {file.crm_deal_id && (
+                  <div>
+                    <p className="text-gray-500">Linked deal</p>
+                    <p className="font-medium text-purple-700">✓ Connected</p>
+                  </div>
+                )}
+              </div>
+              {file.conditions && (
+                <p className="text-sm mt-4">
+                  <span className="text-gray-500">Conditions: </span>
+                  {file.conditions}
+                </p>
+              )}
+              {!file.property_address && !file.lawyer_name && !file.deal_dates?.closing_date && (
+                <p className="text-sm text-gray-400 mt-2 italic">
+                  No deal details yet — click Edit Details to add them, or upload documents and fill in what they show.
+                </p>
+              )}
+            </>
           )}
         </div>
-        {file.conditions && (
-          <p className="text-sm mt-4">
-            <span className="text-gray-500">Conditions: </span>
-            {file.conditions}
-          </p>
-        )}
       </div>
 
       {/* Checklist tabs */}

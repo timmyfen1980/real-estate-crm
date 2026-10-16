@@ -20,26 +20,26 @@ export default function NewClientFilePage() {
   const [clientNames, setClientNames] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [propertyAddress, setPropertyAddress] = useState('');
-  const [lawyerName, setLawyerName] = useState('');
-  const [lawyerFirm, setLawyerFirm] = useState('');
-  const [lawyerContact, setLawyerContact] = useState('');
-  const [coopInfo, setCoopInfo] = useState('');
-  const [offerDate, setOfferDate] = useState('');
-  const [closingDate, setClosingDate] = useState('');
-  const [price, setPrice] = useState('');
-  const [deposit, setDeposit] = useState('');
-  const [conditions, setConditions] = useState('');
-  const [notes, setNotes] = useState('');
+
+
+
+
+
+
+
+
+
+
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [contactMatches, setContactMatches] = useState<any[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedContactName, setSelectedContactName] = useState('');
-  const [contactDeals, setContactDeals] = useState<any[]>([]);
-  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
-  const [loadingDeals, setLoadingDeals] = useState(false);
+
+
+
   const [duplicateWarning, setDuplicateWarning] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
 
@@ -110,42 +110,6 @@ export default function NewClientFilePage() {
     }
   };
 
-  // Fetch deals for the selected contact
-  const fetchContactDeals = async (contactId: string) => {
-    setLoadingDeals(true);
-    setContactDeals([]);
-    setSelectedDealId(null);
-    try {
-      const { data: deals } = await supabase
-        .from('deals')
-        .select('id, deal_type, status, property_id')
-        .eq('contact_id', contactId)
-        .eq('account_id', accountId)
-        .order('created_at', { ascending: false });
-
-      if (deals && deals.length > 0) {
-        // Get property addresses
-        const propIds = [...new Set(deals.map((d: any) => d.property_id).filter(Boolean))];
-        let propMap: Record<string, any> = {};
-        if (propIds.length > 0) {
-          const { data: props } = await supabase
-            .from('properties')
-            .select('id, address, city, province')
-            .in('id', propIds);
-          (props || []).forEach((p: any) => { propMap[p.id] = p; });
-        }
-        setContactDeals(
-          deals.map((d: any) => ({
-            ...d,
-            property: propMap[d.property_id] || null,
-          }))
-        );
-      }
-    } finally {
-      setLoadingDeals(false);
-    }
-  };
-
   // Debounced search on name/phone/email change
   useEffect(() => {
     const t = setTimeout(() => {
@@ -206,16 +170,6 @@ export default function NewClientFilePage() {
         phone: phone.trim(),
         email: email.trim(),
         crm_contact_id: contactId || undefined,
-        crm_deal_id: selectedDealId || undefined,
-        property_address: propertyAddress.trim(),
-        lawyer_name: lawyerName.trim(),
-        lawyer_firm: lawyerFirm.trim(),
-        lawyer_contact: lawyerContact.trim(),
-        coop_info: coopInfo.trim(),
-        deal_dates: { offer_date: offerDate, closing_date: closingDate },
-        financials: { price, deposit },
-        conditions: conditions.trim(),
-        notes: notes.trim(),
       });
       router.push(`/dashboard/checklists/${file.id}`);
     } catch (err: any) {
@@ -338,7 +292,6 @@ export default function NewClientFilePage() {
                         setSelectedContactName(`${m.first_name || ''} ${m.last_name || ''}`.trim());
                         setDuplicateWarning([]);
                         setContactMatches([]);
-                        fetchContactDeals(m.id);
                       }}
                       className="text-xs bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700"
                     >
@@ -373,128 +326,11 @@ export default function NewClientFilePage() {
           </>
         )}
 
-        {/* Deal picker - auto-fill from existing deals */}
-        {selectedContactId && (
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-purple-900 mb-2">
-              Link to an existing deal (optional):
-            </p>
-            {loadingDeals ? (
-              <p className="text-xs text-purple-700">Loading deals…</p>
-            ) : contactDeals.length === 0 ? (
-              <p className="text-xs text-purple-700">
-                No deals found for this contact. Fill in the details below manually.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {contactDeals.map((d: any) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedDealId(d.id);
-                      // Auto-fill property address from the deal
-                      if (d.property?.address) {
-                        const addr = [d.property.address, d.property.city, d.property.province]
-                          .filter(Boolean)
-                          .join(', ');
-                        setPropertyAddress(addr);
-                      }
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
-                      selectedDealId === d.id
-                        ? 'bg-purple-600 text-white border-purple-600'
-                        : 'bg-white text-gray-700 border-purple-200 hover:border-purple-400'
-                    }`}
-                  >
-                    <span className="font-medium">
-                      {d.property?.address || 'No address'}
-                    </span>
-                    {d.deal_type && (
-                      <span className="ml-2 text-xs opacity-75">({d.deal_type})</span>
-                    )}
-                    {d.status && (
-                      <span className="ml-2 text-xs opacity-75">— {d.status}</span>
-                    )}
-                  </button>
-                ))}
-                {selectedDealId && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDealId(null)}
-                    className="text-xs text-purple-700 hover:underline"
-                  >
-                    Clear deal selection
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
         <div>
-          <label className={labelClass}>Property address</label>
-          <input
-            className={inputClass}
-            value={propertyAddress}
-            onChange={(e) => setPropertyAddress(e.target.value)}
-            placeholder="e.g. 8 Calais Street, Whitby"
-          />
-        </div>
-
-        {/* Lawyer */}
-        <div className="border-t pt-4">
-          <h3 className="font-medium mb-3">Client&apos;s lawyer</h3>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Name</label>
-              <input className={inputClass} value={lawyerName} onChange={(e) => setLawyerName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Firm</label>
-              <input className={inputClass} value={lawyerFirm} onChange={(e) => setLawyerFirm(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Phone / Email</label>
-              <input className={inputClass} value={lawyerContact} onChange={(e) => setLawyerContact(e.target.value)} />
-            </div>
-          </div>
-        </div>
-
-        {/* Deal details */}
-        <div className="border-t pt-4">
-          <h3 className="font-medium mb-3">Deal details</h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Offer date</label>
-              <input type="date" className={inputClass} value={offerDate} onChange={(e) => setOfferDate(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Closing date</label>
-              <input type="date" className={inputClass} value={closingDate} onChange={(e) => setClosingDate(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Price / Rent</label>
-              <input className={inputClass} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g. $699,900" />
-            </div>
-            <div>
-              <label className={labelClass}>Deposit amount / held by</label>
-              <input className={inputClass} value={deposit} onChange={(e) => setDeposit(e.target.value)} />
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className={labelClass}>Conditions + deadlines</label>
-            <input className={inputClass} value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="e.g. Financing by Oct 25, inspection by Oct 28" />
-          </div>
-          <div className="mt-4">
-            <label className={labelClass}>Co-operating agent / brokerage</label>
-            <input className={inputClass} value={coopInfo} onChange={(e) => setCoopInfo(e.target.value)} />
-          </div>
-          <div className="mt-4">
-            <label className={labelClass}>Notes</label>
-            <textarea className={inputClass} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-        </div>
+        {/* Deal details are filled in on the checklist detail page */}
+        <p className="text-sm text-gray-500">
+          Property details, lawyer info, and dates get added on the next screen — either pulled from uploaded documents or entered manually.
+        </p>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
