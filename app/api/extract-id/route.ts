@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Send the licence photo to Rea in chat and she'll fill in the details.' },
+        { error: 'Send the licence photo to Rea in chat and she will fill in the details.' },
         { status: 503 }
       );
     }
