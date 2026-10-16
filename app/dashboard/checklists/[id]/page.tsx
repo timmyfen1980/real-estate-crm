@@ -684,13 +684,13 @@ export default function ClientFileDetailPage() {
                             setStatus(doc.id, doc.status === 'received' ? 'pending' : 'received')
                           }
                           className={`mt-0.5 w-6 h-6 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                            doc.status === 'received'
+                            ['received', 'waived', 'na'].includes(doc.status)
                               ? 'bg-green-500 border-green-500 text-white'
                               : 'border-gray-300 hover:border-green-400'
                           }`}
-                          title={doc.status === 'received' ? 'Mark as not received' : 'Mark as received'}
+                          title={['received', 'waived', 'na'].includes(doc.status) ? 'Mark as not received' : 'Mark as received'}
                         >
-                          {doc.status === 'received' && (
+                          {['received', 'waived', 'na'].includes(doc.status) && (
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
@@ -700,7 +700,7 @@ export default function ClientFileDetailPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <p
                               className={`font-medium ${
-                                doc.status === 'received' ? 'line-through text-gray-400' : ''
+                                ['received', 'waived', 'na'].includes(doc.status) ? 'line-through text-gray-400' : ''
                               }`}
                             >
                               {doc.document}
