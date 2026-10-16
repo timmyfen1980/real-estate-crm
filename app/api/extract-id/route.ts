@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'AI extraction not configured. Add OPENAI_API_KEY to Vercel environment variables.' },
+        { error: 'Send the licence photo to Rea in chat and she'll fill in the details.' },
         { status: 503 }
       );
     }
