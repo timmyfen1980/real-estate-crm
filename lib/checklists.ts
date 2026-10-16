@@ -114,6 +114,11 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             bethNote: 'Any changes to the accepted offer (price, dates, conditions). Each amendment gets its own form. Only if the deal was amended.',
           },
           {
+            document: 'Full REALTOR MLS Printout',
+            required: 'required',
+            bethNote: 'BROKERAGE REQUIREMENT: The full MLS listing printout for the purchased property. Required by the brokerage for the deal file.',
+          },
+          {
             document: 'Deposit receipt',
             required: 'conditional',
             bethNote: 'Proof the buyer\'s deposit was received. Needed whenever a deposit is part of the deal (almost always).',
@@ -165,11 +170,7 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             required: 'required',
             bethNote: 'BROKERAGE REQUIREMENT: RE/MAX Hallmark trade record sheet, signed by the agent. Required for commission release. The brokerage will not release commission without this.',
           },
-          {
-            document: 'Hallmark Brokerage Invoice',
-            required: 'required',
-            bethNote: 'BROKERAGE REQUIREMENT: The brokerage invoice for commission processing. Required before commission is released.',
-          },
+
         ],
       },
     ],
@@ -310,11 +311,7 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             required: 'required',
             bethNote: 'BROKERAGE REQUIREMENT: RE/MAX Hallmark trade record sheet, signed by the agent. Required for commission release. The brokerage will not release commission without this.',
           },
-          {
-            document: 'Hallmark Brokerage Invoice',
-            required: 'required',
-            bethNote: 'BROKERAGE REQUIREMENT: The brokerage invoice for commission processing. Required before commission is released.',
-          },
+
         ],
       },
     ],
