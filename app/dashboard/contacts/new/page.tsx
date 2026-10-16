@@ -8,6 +8,9 @@ export default function NewContactPage() {
 
   const router = useRouter()
 
+  const [extractingId, setExtractingId] = useState(false)
+  const [idExtractError, setIdExtractError] = useState('')
+
   const [contact, setContact] = useState({
     first_name: '',
     last_name: '',
@@ -105,6 +108,54 @@ if (data) {
   <h1 className="text-2xl font-semibold">
     New Contact
   </h1>
+      <div className="mt-4">
+        <label className="cursor-pointer inline-block text-sm px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium border border-blue-200">
+          {extractingId ? 'Reading ID…' : 'Upload Driver\'s Licence to Auto-Fill'}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={extractingId}
+            onChange={async (e) => {
+              const files = e.target.files;
+              if (!files || files.length === 0) return;
+              setExtractingId(true);
+              setIdExtractError('');
+              try {
+                const formData = new FormData();
+                formData.append('file', files[0]);
+                const res = await fetch('/api/extract-id', {
+                  method: 'POST',
+                  body: formData,
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Extraction failed');
+                const ext = data.extracted;
+                const updates: any = {};
+                if (ext.first_name) updates.first_name = ext.first_name;
+                if (ext.last_name) updates.last_name = ext.last_name;
+                if (ext.date_of_birth) updates.birthday = ext.date_of_birth;
+                if (ext.address) updates.address = ext.address;
+                if (ext.city) updates.city = ext.city;
+                if (ext.province) updates.province = ext.province;
+                if (ext.postal_code) updates.postal_code = ext.postal_code;
+                setContact(prev => ({ ...prev, ...updates }));
+              } catch (err: any) {
+                setIdExtractError(err.message || 'Failed to read ID.');
+              } finally {
+                setExtractingId(false);
+                e.target.value = '';
+              }
+            }}
+          />
+        </label>
+        {idExtractError && (
+          <p className="text-xs text-red-600 mt-2">{idExtractError}</p>
+        )}
+        <p className="text-xs text-gray-500 mt-2">
+          Upload a driver's licence photo to automatically fill name, address, and birthday.
+        </p>
+      </div>
 
   <button
     onClick={createContact}

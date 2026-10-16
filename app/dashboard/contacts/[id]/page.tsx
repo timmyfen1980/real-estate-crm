@@ -136,6 +136,8 @@ export default function ContactDetailPage() {
   const [properties, setProperties] = useState<Property[]>([])
   
   const [deals, setDeals] = useState<any[]>([])
+  const [extractingId, setExtractingId] = useState(false)
+  const [idExtractError, setIdExtractError] = useState('')
   const [checklistFiles, setChecklistFiles] = useState<any[]>([]);
 const [newTask, setNewTask] = useState('')
   const [newNote, setNewNote] = useState('')
@@ -799,7 +801,66 @@ const handleSave = async () => {
 
   <div className="bg-white rounded-xl shadow p-6 space-y-4">
 
-    <h3 className="font-semibold">Contact Information</h3>
+    <div className="flex items-center justify-between">
+      <h3 className="font-semibold">Contact Information</h3>
+      <label className="cursor-pointer text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium border border-blue-200">
+        {extractingId ? 'Reading ID…' : 'Upload ID'}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={extractingId}
+          onChange={async (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            setExtractingId(true);
+            setIdExtractError('');
+            try {
+              const formData = new FormData();
+              formData.append('file', files[0]);
+              const res = await fetch('/api/extract-id', {
+                method: 'POST',
+                body: formData,
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.error || 'Extraction failed');
+              }
+              const ext = data.extracted;
+              // Only fill empty fields - don't overwrite existing data
+              const updates: any = {};
+              if (ext.first_name && !formData?.first_name) updates.first_name = ext.first_name;
+              if (ext.last_name && !formData?.last_name) updates.last_name = ext.last_name;
+              if (ext.date_of_birth && !formData?.date_of_birth) updates.date_of_birth = ext.date_of_birth;
+              if (ext.address && !formData?.address) updates.address = ext.address;
+              if (ext.city && !formData?.city) updates.city = ext.city;
+              if (ext.province && !formData?.province) updates.province = ext.province;
+              if (ext.postal_code && !formData?.postal_code) updates.postal_code = ext.postal_code;
+              
+              // Apply updates
+              for (const [key, value] of Object.entries(updates)) {
+                updateField(key, value as string);
+              }
+              
+              const filled = Object.keys(updates).length;
+              if (filled === 0) {
+                setIdExtractError('No new information found (fields already filled).');
+              }
+              // Enable editing so Beth can review
+              if (filled > 0 && !isEditing) setIsEditing(true);
+            } catch (err: any) {
+              setIdExtractError(err.message || 'Failed to read ID. Try again.');
+            } finally {
+              setExtractingId(false);
+              e.target.value = '';
+            }
+          }}
+        />
+      </label>
+    </div>
+    {idExtractError && (
+      <p className="text-xs text-red-600">{idExtractError}</p>
+    )}
 
     <div>
       <label className="text-xs text-gray-500">First Name</label>
