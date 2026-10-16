@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   CHECKLISTS,
@@ -19,6 +19,7 @@ import {
 
 export default function ClientFileDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const fileId = params.id as string;
 
   const [file, setFile] = useState<ClientFile | null>(null);
@@ -45,6 +46,8 @@ export default function ClientFileDetailPage() {
   const [contactDeals, setContactDeals] = useState<any[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
   const [showDealPicker, setShowDealPicker] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
 
@@ -182,6 +185,25 @@ export default function ClientFileDetailPage() {
     }
   };
 
+  const handleDeleteFile = async () => {
+    if (!file) return;
+    setDeleting(true);
+    try {
+      // Delete associated documents first
+      await supabase.from('client_documents').delete().eq('client_file_id', file.id);
+      // Delete the file record
+      const { error } = await supabase.from('client_files').delete().eq('id', file.id);
+      if (error) throw error;
+      // Redirect to list
+      router.push('/dashboard/checklists');
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Failed to delete. Please try again.');
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const handleFileUpload = async (docId: string, file: File) => {
     if (!file) return;
     setUploadingDocId(docId);
@@ -298,6 +320,12 @@ export default function ClientFileDetailPage() {
             </div>
           </div>
           <div className="text-right">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="mb-2 px-3 py-1.5 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg border border-red-200"
+            >
+              Delete file
+            </button>
             {!file.portal_enabled ? (
               <button
                 onClick={handleEnablePortal}
@@ -552,6 +580,35 @@ export default function ClientFileDetailPage() {
           );
         })}
       </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-gray-900">Delete this file?</h3>
+            <p className="text-sm text-gray-600 mt-2">
+              This will permanently delete <strong>{file.client_names}</strong> and all
+              associated checklist documents. This cannot be undone.
+            </p>
+            <div className="flex gap-3 mt-6 justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteFile}
+                disabled={deleting}
+                className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stages */}
       {activeTab && (
