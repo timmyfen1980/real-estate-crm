@@ -318,7 +318,7 @@ export default function ClientFileDetailPage() {
 
   const tabDocs = docs.filter((d) => d.checklist_type === activeTab);
   const stages = activeTab ? CHECKLISTS[activeTab].stages : [];
-  const received = tabDocs.filter((d) => d.status === 'received').length;
+  const received = tabDocs.filter((d) => ['received', 'waived', 'na'].includes(d.status)).length;
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -585,7 +585,7 @@ export default function ClientFileDetailPage() {
         {file.checklist_types.map((t) => {
           const ct = t as ChecklistType;
           const count = docs.filter(
-            (d) => d.checklist_type === ct && d.status === 'received'
+            (d) => d.checklist_type === ct && ['received', 'waived', 'na'].includes(d.status)
           ).length;
           const total = docs.filter((d) => d.checklist_type === ct).length;
           return (

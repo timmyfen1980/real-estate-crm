@@ -52,7 +52,7 @@ export default function ChecklistsPage() {
       (docs || []).forEach((d: any) => {
         if (!map[d.client_file_id]) map[d.client_file_id] = { total: 0, received: 0 };
         map[d.client_file_id].total += 1;
-        if (d.status === 'received') map[d.client_file_id].received += 1;
+        if (['received', 'waived', 'na'].includes(d.status)) map[d.client_file_id].received += 1;
       });
       setProgress(map);
     }
