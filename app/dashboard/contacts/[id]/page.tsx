@@ -295,7 +295,7 @@ if (checklistData && checklistData.length > 0) {
   (docsData || []).forEach((d: any) => {
     if (!progressMap[d.client_file_id]) progressMap[d.client_file_id] = { total: 0, received: 0 };
     progressMap[d.client_file_id].total += 1;
-    if (d.status === 'received') progressMap[d.client_file_id].received += 1;
+    if (['received', 'waived', 'na'].includes(d.status)) progressMap[d.client_file_id].received += 1;
   });
 
   setChecklistFiles(
