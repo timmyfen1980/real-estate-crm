@@ -136,6 +136,7 @@ export default function ContactDetailPage() {
   const [properties, setProperties] = useState<Property[]>([])
   
   const [deals, setDeals] = useState<any[]>([])
+  const [checklistFiles, setChecklistFiles] = useState<any[]>([]);
 const [newTask, setNewTask] = useState('')
   const [newNote, setNewNote] = useState('')
 
@@ -271,6 +272,36 @@ const parsedDeals =
   }) || []
 
 setDeals(parsedDeals)
+
+// Load linked checklist files
+const { data: checklistData } = await supabase
+  .from('client_files')
+  .select('id, client_names, property_address, checklist_types, created_at')
+  .eq('crm_contact_id', contactId)
+  .order('created_at', { ascending: false });
+
+if (checklistData && checklistData.length > 0) {
+  // Get progress for each file
+  const fileIds = checklistData.map((f: any) => f.id);
+  const { data: docsData } = await supabase
+    .from('client_documents')
+    .select('client_file_id, status')
+    .in('client_file_id', fileIds);
+
+  const progressMap: Record<string, { total: number; received: number }> = {};
+  (docsData || []).forEach((d: any) => {
+    if (!progressMap[d.client_file_id]) progressMap[d.client_file_id] = { total: 0, received: 0 };
+    progressMap[d.client_file_id].total += 1;
+    if (d.status === 'received') progressMap[d.client_file_id].received += 1;
+  });
+
+  setChecklistFiles(
+    checklistData.map((f: any) => ({
+      ...f,
+      progress: progressMap[f.id] || { total: 0, received: 0 },
+    }))
+  );
+}
 // =========================
 // LOAD EMAIL CAMPAIGNS
 // =========================
@@ -1247,7 +1278,61 @@ const handleSave = async () => {
   </div>
 
 </div>
-{/* PROPERTIES */}
+{/* PAPERWORK / CHECKLISTS */}
+      <div className="bg-white rounded-xl shadow p-6">
+        <h3 className="font-semibold mb-4">Paperwork</h3>
+        {checklistFiles.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No checklist files for this contact.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {checklistFiles.map((f: any) => {
+              const pct = f.progress.total > 0
+                ? Math.round((f.progress.received / f.progress.total) * 100)
+                : 0;
+              return (
+                <a
+                  key={f.id}
+                  href={`/dashboard/checklists/${f.id}`}
+                  className="block border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium">{f.client_names}</p>
+                      {f.property_address && (
+                        <p className="text-sm text-gray-500">{f.property_address}</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">{pct}%</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {(f.checklist_types || []).map((t: string) => (
+                      <span
+                        key={t}
+                        className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full capitalize"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-600 rounded-full"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {f.progress.received} of {f.progress.total} documents
+                  </p>
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* PROPERTIES */}
 
 <div className="bg-white rounded-xl shadow p-6">
 
