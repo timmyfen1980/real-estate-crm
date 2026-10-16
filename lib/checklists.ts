@@ -173,6 +173,32 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
 
         ],
       },
+      {
+        title: 'Stage 4 — Post-Closing',
+        description: 'After the deal closes — gifts, reviews, and keeping the relationship warm.',
+        items: [
+          {
+            document: 'Closing gift sent',
+            required: 'recommended',
+            bethNote: 'Send the closing gift to the buyer. Note what was sent and when, so we don\'t double up.',
+          },
+          {
+            document: 'Utility transfer info sent',
+            required: 'recommended',
+            bethNote: 'Send the buyer our utility contact sheet (hydro, water, gas, internet providers with phone numbers and websites) so they can set up accounts for the new property.',
+          },
+          {
+            document: 'Closing package emailed to client',
+            required: 'required',
+            bethNote: 'Email the buyer their complete closing package — all executed documents in one place for their records. Confirm they received it.',
+          },
+          {
+            document: 'Google review requested',
+            required: 'recommended',
+            bethNote: 'Ask the buyer for a Google review. Best timed a week or two after move-in when the excitement is fresh. Send them the review link.',
+          },
+        ],
+      },
     ],
     namingStandard: 'Use the exact OREA form names with (EXECUTED) suffix for signed copies. FINTRAC forms: FINTRAC - Individual Identification Information Record.pdf and FINTRAC - Receipt Of Funds Record.pdf.',
   },
@@ -312,6 +338,27 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             bethNote: 'BROKERAGE REQUIREMENT: RE/MAX Hallmark trade record sheet, signed by the agent. Required for commission release. The brokerage will not release commission without this.',
           },
 
+        ],
+      },
+      {
+        title: 'Stage 4 — Post-Closing',
+        description: 'After the deal closes — gifts, reviews, and keeping the relationship warm.',
+        items: [
+          {
+            document: 'Closing gift sent',
+            required: 'recommended',
+            bethNote: 'Send the closing gift to the seller. Note what was sent and when.',
+          },
+          {
+            document: 'Closing package emailed to client',
+            required: 'required',
+            bethNote: 'Email the seller their complete closing package — all executed documents in one place for their records. Confirm they received it.',
+          },
+          {
+            document: 'Google review requested',
+            required: 'recommended',
+            bethNote: 'Ask the seller for a Google review. Best timed a week or two after closing. Send them the review link.',
+          },
         ],
       },
     ],
@@ -458,6 +505,27 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             document: 'Final documents',
             required: 'required',
             bethNote: 'Confirm the full lease package (executed lease, schedules, co-op, FINTRAC, deposit proof) is filed and complete.',
+          },
+        ],
+      },
+      {
+        title: 'Stage 4 — Post Move-In',
+        description: 'After the tenant is settled — follow-up and relationship.',
+        items: [
+          {
+            document: 'Utility transfer info sent',
+            required: 'recommended',
+            bethNote: 'Send the tenant our utility contact sheet so they can set up hydro, water, gas, and internet for the rental.',
+          },
+          {
+            document: 'Welcome package / lease copy emailed',
+            required: 'required',
+            bethNote: 'Email the tenant their complete signed lease package for their records. Confirm they received it.',
+          },
+          {
+            document: 'Google review requested',
+            required: 'recommended',
+            bethNote: 'Ask the tenant for a Google review once they\'re settled in.',
           },
         ],
       },
@@ -614,6 +682,27 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             document: 'Final documents',
             required: 'required',
             bethNote: 'Confirm the full lease package (executed standard lease, schedules, co-op, FINTRAC, deposit proof) is filed and complete.',
+          },
+        ],
+      },
+      {
+        title: 'Stage 4 — Post-Lease',
+        description: 'After the lease is finalized — wrap-up and relationship.',
+        items: [
+          {
+            document: 'Closing gift sent',
+            required: 'recommended',
+            bethNote: 'Send a closing gift to the landlord. Note what was sent and when.',
+          },
+          {
+            document: 'Lease package emailed to client',
+            required: 'required',
+            bethNote: 'Email the landlord their complete signed lease package for their records. Confirm they received it.',
+          },
+          {
+            document: 'Google review requested',
+            required: 'recommended',
+            bethNote: 'Ask the landlord for a Google review.',
           },
         ],
       },
