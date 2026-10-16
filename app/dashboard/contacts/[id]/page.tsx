@@ -387,14 +387,21 @@ const pauseCampaign = async (
       ? 'active'
       : 'paused'
 
-  await supabase
+  const { error } = await supabase
     .from('contact_campaigns')
     .update({
       status: nextStatus,
     })
     .eq('id', campaignRowId)
 
-  loadData()
+  if (error) {
+    alert('Could not update campaign: ' + error.message)
+    return
+  }
+
+  setContactCampaigns((prev: any[]) =>
+    prev.map((c) => c.id === campaignRowId ? { ...c, status: nextStatus } : c)
+  )
 }
 
 const removeCampaign = async (
@@ -407,12 +414,17 @@ const removeCampaign = async (
 
   if (!confirmed) return
 
-  await supabase
+  const { error } = await supabase
     .from('contact_campaigns')
     .delete()
     .eq('id', campaignRowId)
 
-  loadData()
+  if (error) {
+    alert('Could not remove from campaign: ' + error.message)
+    return
+  }
+
+  setContactCampaigns((prev: any[]) => prev.filter((c) => c.id !== campaignRowId))
 }
   const updateField = (field: string, value: any) => {
   if (!formData) return
