@@ -641,7 +641,7 @@ export default function ClientFileDetailPage() {
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:underline mt-1 inline-block"
                             >
-                              View blank form →
+                              View form →
                             </a>
                           )}
                         </div>
