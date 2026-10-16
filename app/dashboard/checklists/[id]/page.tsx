@@ -48,6 +48,7 @@ export default function ClientFileDetailPage() {
   const [showDealPicker, setShowDealPicker] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
 
@@ -182,6 +183,28 @@ export default function ClientFileDetailPage() {
       }
     } finally {
       setLoadingDeals(false);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    const docsWithFiles = docs.filter((d) => d.file_url);
+    if (docsWithFiles.length === 0) {
+      alert('No files uploaded yet.');
+      return;
+    }
+    setDownloadingAll(true);
+    try {
+      // Download each file individually (browser will handle multiple downloads)
+      // For a zip, we'd need a server endpoint - for now, open each in new tab
+      for (const doc of docsWithFiles) {
+        if (doc.file_url) {
+          window.open(doc.file_url, '_blank');
+          // Small delay to avoid browser blocking
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+    } finally {
+      setDownloadingAll(false);
     }
   };
 
@@ -613,9 +636,18 @@ export default function ClientFileDetailPage() {
       {/* Stages */}
       {activeTab && (
         <div className="mt-6 space-y-8">
-          <p className="text-sm text-gray-500">
-            {received} of {tabDocs.length} documents received
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              {received} of {tabDocs.length} documents received
+            </p>
+            <button
+              onClick={handleDownloadAll}
+              disabled={downloadingAll}
+              className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+            >
+              {downloadingAll ? 'Preparing…' : 'Download all files'}
+            </button>
+          </div>
           {stages.map((stage, si) => {
             const stageDocs = tabDocs.filter((d) => d.stage_index === si);
             if (stageDocs.length === 0) return null;
