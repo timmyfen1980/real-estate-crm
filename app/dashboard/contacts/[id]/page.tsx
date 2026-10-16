@@ -250,26 +250,27 @@ const parsedProperties =
 setProperties(parsedProperties)
 const { data: dealData } = await supabase
   .from('deals')
-  .select(`
-    id,
-    status,
-    deal_type,
-    property_id,
-    properties (
-      address
-    )
-  `)
+  .select('id, status, deal_type, property_id')
   .eq('contact_id', contactId)
 
-const parsedDeals =
-  dealData?.map((d: any) => {
-    const prop = d.properties
+// Fetch property addresses separately (FK join not configured)
+let propMap: Record<string, string> = {}
+const propIds = [...new Set((dealData || []).map((d: any) => d.property_id).filter(Boolean))]
+if (propIds.length > 0) {
+  const { data: propData } = await supabase
+    .from('properties')
+    .select('id, address, city')
+    .in('id', propIds)
+  ;(propData || []).forEach((p: any) => {
+    propMap[p.id] = [p.address, p.city].filter(Boolean).join(', ')
+  })
+}
 
-    return {
-      ...d,
-      address: Array.isArray(prop) ? prop[0]?.address : prop?.address
-    }
-  }) || []
+const parsedDeals =
+  (dealData || []).map((d: any) => ({
+    ...d,
+    address: propMap[d.property_id] || null
+  }))
 
 setDeals(parsedDeals)
 
