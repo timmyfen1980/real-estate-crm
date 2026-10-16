@@ -848,6 +848,9 @@ const handleSave = async () => {
               if (ext.city && !formData?.city) updates.city = ext.city;
               if (ext.province && !formData?.province) updates.province = ext.province;
               if (ext.postal_code && !formData?.postal_code) updates.postal_code = ext.postal_code;
+              if (ext.licence_number && !formData?.licence_number) updates.licence_number = ext.licence_number;
+              if (ext.expiry_date && !formData?.licence_expiry) updates.licence_expiry = ext.expiry_date;
+              if (ext.issue_date && !formData?.licence_issue_date) updates.licence_issue_date = ext.issue_date;
               
               // Apply updates
               for (const [key, value] of Object.entries(updates)) {
@@ -975,6 +978,67 @@ const handleSave = async () => {
 
   </div>
 
+</div>
+
+{/* DRIVER'S LICENCE - for FINTRAC */}
+<div className="bg-white rounded-xl shadow p-6 space-y-4">
+  <div className="flex items-center justify-between">
+    <h3 className="font-semibold">Driver's Licence <span className="text-xs font-normal text-gray-500">(for FINTRAC)</span></h3>
+    <button
+      onClick={async () => {
+        if (!confirm('Generate FINTRAC Form 630 from licence info?')) return;
+        try {
+          const res = await fetch('/api/generate-fintrac-630', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact_id: contactId }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Generation failed');
+          alert('FINTRAC Form 630 generated and saved to documents.');
+          loadData();
+        } catch (err: any) {
+          alert(err.message || 'Failed to generate form.');
+        }
+      }}
+      className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium border border-green-200"
+    >
+      Generate FINTRAC 630
+    </button>
+  </div>
+  <p className="text-xs text-gray-500">Fill manually or use Upload ID above to auto-fill from a licence photo.</p>
+  <div className="grid grid-cols-2 gap-4">
+    <div>
+      <label className="text-xs text-gray-500">Licence Number</label>
+      <input value={formData?.licence_number || ''} disabled={!isEditing}
+        onChange={(e) => updateField('licence_number', e.target.value)}
+        className="w-full border rounded p-2" placeholder="e.g. F1234-56789-01234" />
+    </div>
+    <div>
+      <label className="text-xs text-gray-500">Province</label>
+      <input value={formData?.licence_province || 'Ontario'} disabled={!isEditing}
+        onChange={(e) => updateField('licence_province', e.target.value)}
+        className="w-full border rounded p-2" />
+    </div>
+    <div>
+      <label className="text-xs text-gray-500">Issue Date</label>
+      <input type="date" value={formData?.licence_issue_date || ''} disabled={!isEditing}
+        onChange={(e) => updateField('licence_issue_date', e.target.value)}
+        className="w-full border rounded p-2" />
+    </div>
+    <div>
+      <label className="text-xs text-gray-500">Expiry Date</label>
+      <input type="date" value={formData?.licence_expiry || ''} disabled={!isEditing}
+        onChange={(e) => updateField('licence_expiry', e.target.value)}
+        className="w-full border rounded p-2" />
+    </div>
+    <div className="col-span-2">
+      <label className="text-xs text-gray-500">Occupation <span className="text-red-500">*</span> <span className="text-gray-400">(required for FINTRAC)</span></label>
+      <input value={formData?.occupation || ''} disabled={!isEditing}
+        onChange={(e) => updateField('occupation', e.target.value)}
+        className="w-full border rounded p-2" placeholder="e.g. Teacher, Engineer, Business Owner" />
+    </div>
+  </div>
 </div>
 
 {/* PERSONAL DETAILS */}
