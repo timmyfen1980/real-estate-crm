@@ -156,16 +156,6 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             bethNote: 'If the buyer waives a condition instead of fulfilling it, this form records the waiver. (No blank copy in the repo yet.)',
           },
           {
-            document: 'REALM report',
-            required: 'recommended',
-            bethNote: 'Property data report — ownership history, lot details, comparable sales. Good backup for the file.',
-          },
-          {
-            document: 'Final closing documents',
-            required: 'required',
-            bethNote: 'The lawyer\'s closing package — statement of adjustments, title documents, etc. Confirm the file is complete once the deal closes.',
-          },
-          {
             document: 'Trade Record Sheet (TRS) — Agent Signed',
             required: 'required',
             bethNote: 'BROKERAGE REQUIREMENT: RE/MAX Hallmark trade record sheet, signed by the agent. Required for commission release. The brokerage will not release commission without this.',
@@ -321,16 +311,6 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             required: 'conditional',
             viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Offer%20Documents/33_123%20Waiver%20-%20Agreement%20of%20Purchase%20and%20Sale%20(Seller)%20A%20-%20PropTx-OREA.pdf',
             bethNote: 'If the buyer waives a condition, this form records it.',
-          },
-          {
-            document: 'REALM report',
-            required: 'recommended',
-            bethNote: 'Property data report — ownership history, lot details, comparables. Good backup for the file.',
-          },
-          {
-            document: 'Final closing documents',
-            required: 'required',
-            bethNote: 'The lawyer\'s closing package — statement of adjustments, title documents, etc.',
           },
           {
             document: 'Trade Record Sheet (TRS) — Agent Signed',
@@ -496,11 +476,6 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
         title: 'Stage 3 — Moved In / Complete',
         description: 'Collect these to round out the file once the tenant is in.',
         items: [
-          {
-            document: 'REALM report',
-            required: 'recommended',
-            bethNote: 'Property data report for the file.',
-          },
           {
             document: 'Final documents',
             required: 'required',
@@ -672,11 +647,6 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             required: 'conditional',
             viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Leasing%20Documents/13_403%20Waiver%20-%20Agreement%20to%20Lease%20-%20Residential%20(Landlord)%20-%20%20PropTx-OREA.pdf',
             bethNote: 'If the tenant waives a lease condition, this records it.',
-          },
-          {
-            document: 'REALM report',
-            required: 'recommended',
-            bethNote: 'Property data report for the file.',
           },
           {
             document: 'Final documents',
