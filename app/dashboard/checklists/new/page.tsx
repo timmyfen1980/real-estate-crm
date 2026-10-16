@@ -37,6 +37,10 @@ export default function NewClientFilePage() {
   const [contactMatches, setContactMatches] = useState<any[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedContactName, setSelectedContactName] = useState('');
+  const [contactDeals, setContactDeals] = useState<any[]>([]);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const [selectedDealAddress, setSelectedDealAddress] = useState('');
+  const [loadingDeals, setLoadingDeals] = useState(false);
 
 
 
@@ -110,6 +114,52 @@ export default function NewClientFilePage() {
     }
   };
 
+  // Fetch deals for linked contact and auto-pull address
+  const fetchContactDeals = async (contactId: string) => {
+    setLoadingDeals(true);
+    setContactDeals([]);
+    setSelectedDealId(null);
+    setSelectedDealAddress('');
+    try {
+      const { data: deals } = await supabase
+        .from('deals')
+        .select('id, deal_type, status, property_id')
+        .eq('contact_id', contactId)
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: false });
+
+      if (deals && deals.length > 0) {
+        const propIds = [...new Set(deals.map((d: any) => d.property_id).filter(Boolean))];
+        let propMap: Record<string, any> = {};
+        if (propIds.length > 0) {
+          const { data: props } = await supabase
+            .from('properties')
+            .select('id, address, city, province')
+            .in('id', propIds);
+          (props || []).forEach((p: any) => { propMap[p.id] = p; });
+        }
+        const dealsWithProps = deals.map((d: any) => ({
+          ...d,
+          property: propMap[d.property_id] || null,
+        }));
+        setContactDeals(dealsWithProps);
+
+        // Auto-select if only one deal, or pick the most recent
+        if (dealsWithProps.length >= 1) {
+          const first = dealsWithProps[0];
+          setSelectedDealId(first.id);
+          if (first.property?.address) {
+            const addr = [first.property.address, first.property.city, first.property.province]
+              .filter(Boolean).join(', ');
+            setSelectedDealAddress(addr);
+          }
+        }
+      }
+    } finally {
+      setLoadingDeals(false);
+    }
+  };
+
   // Debounced search on name/phone/email change
   useEffect(() => {
     const t = setTimeout(() => {
@@ -170,6 +220,8 @@ export default function NewClientFilePage() {
         phone: phone.trim(),
         email: email.trim(),
         crm_contact_id: contactId || undefined,
+        crm_deal_id: selectedDealId || undefined,
+        property_address: selectedDealAddress.trim() || undefined,
       });
       router.push(`/dashboard/checklists/${file.id}`);
     } catch (err: any) {
@@ -252,10 +304,11 @@ export default function NewClientFilePage() {
 
         {/* Contact matching */}
         {selectedContactId ? (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
-            <p className="text-sm text-green-800">
-              Linked to contact: <strong>{selectedContactName}</strong>
-            </p>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-green-800">
+                Linked to contact: <strong>{selectedContactName}</strong>
+              </p>
             <button
               type="button"
               onClick={() => {
@@ -266,6 +319,48 @@ export default function NewClientFilePage() {
             >
               Unlink
             </button>
+          </div>
+            {loadingDeals && (
+              <p className="text-xs text-gray-500 mt-2">Checking for existing deals…</p>
+            )}
+            {!loadingDeals && contactDeals.length > 0 && (
+              <div className="mt-2 bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <p className="text-xs font-medium text-purple-900 mb-2">
+                  Found {contactDeals.length} deal{contactDeals.length > 1 ? 's' : ''} — select one to pull the address:
+                </p>
+                <div className="space-y-1.5">
+                  {contactDeals.map((d: any) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDealId(d.id);
+                        if (d.property?.address) {
+                          const addr = [d.property.address, d.property.city, d.property.province]
+                            .filter(Boolean).join(', ');
+                          setSelectedDealAddress(addr);
+                        } else {
+                          setSelectedDealAddress('');
+                        }
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
+                        selectedDealId === d.id
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-gray-700 border-purple-200 hover:border-purple-400'
+                      }`}
+                    >
+                      <span className="font-medium">{d.property?.address || 'No address'}</span>
+                      {d.deal_type && <span className="ml-2 text-xs opacity-75">({d.deal_type})</span>}
+                    </button>
+                  ))}
+                </div>
+                {selectedDealAddress && (
+                  <p className="text-xs text-purple-700 mt-2">
+                    Will use address: {selectedDealAddress}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <>
