@@ -326,7 +326,6 @@ export default function NewClientFilePage() {
           </>
         )}
 
-        <div>
         {/* Deal details are filled in on the checklist detail page */}
         <p className="text-sm text-gray-500">
           Property details, lawyer info, and dates get added on the next screen — either pulled from uploaded documents or entered manually.
