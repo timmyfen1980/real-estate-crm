@@ -816,11 +816,11 @@ const handleSave = async () => {
             setExtractingId(true);
             setIdExtractError('');
             try {
-              const formData = new FormData();
-              formData.append('file', files[0]);
+              const uploadData = new FormData();
+              uploadData.append('file', files[0]);
               const res = await fetch('/api/extract-id', {
                 method: 'POST',
-                body: formData,
+                body: uploadData,
               });
               const data = await res.json();
               if (!res.ok) {
