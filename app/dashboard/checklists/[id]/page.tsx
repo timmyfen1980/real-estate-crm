@@ -227,18 +227,17 @@ export default function ClientFileDetailPage() {
     }
   };
 
-  const handleFileUpload = async (docId: string, uploadFile: File) => {
-    if (!uploadFile) return;
-    const contactIdForExtract = (file as any)?.crm_contact_id;
+  const handleFileUpload = async (docId: string, file: File) => {
+    if (!file) return;
     setUploadingDocId(docId);
     try {
       // Upload to Supabase storage
-      const fileExt = uploadFile.name.split('.').pop();
+      const fileExt = file.name.split('.').pop();
       const fileName = `${fileId}/${docId}_${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('client-documents')
-        .upload(fileName, uploadFile);
+        .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
@@ -269,41 +268,7 @@ export default function ClientFileDetailPage() {
           : d
       ));
 
-      // If this is a Government ID upload, auto-extract and fill contact
-      const uploadedDoc = docs.find((d) => d.id === docId);
-      if (uploadedDoc && /government|photo id|licence/i.test(uploadedDoc.document_name || '') && contactIdForExtract) {
-        try {
-          const extractData = new FormData();
-          extractData.append('file', uploadFile);
-          const extractRes = await fetch('/api/extract-id', {
-            method: 'POST',
-            body: extractData,
-          });
-          if (extractRes.ok) {
-            const extractJson = await extractRes.json();
-            const ext = extractJson.extracted;
-            if (ext) {
-              const updates: any = {};
-              if (ext.first_name) updates.first_name = ext.first_name;
-              if (ext.last_name) updates.last_name = ext.last_name;
-              if (ext.date_of_birth) updates.birthday = ext.date_of_birth;
-              if (ext.address) updates.address = ext.address;
-              if (ext.city) updates.city = ext.city;
-              if (ext.province) updates.province = ext.province;
-              if (ext.postal_code) updates.postal_code = ext.postal_code;
-              if (ext.licence_number) updates.licence_number = ext.licence_number;
-              if (ext.expiry_date) updates.licence_expiry = ext.expiry_date;
-              if (ext.issue_date) updates.licence_issue_date = ext.issue_date;
-              if (Object.keys(updates).length > 0) {
-                await supabase.from('contacts').update(updates).eq('id', contactIdForExtract);
-              }
-            }
-          }
-        } catch (extractErr) {
-          console.log('ID auto-extract failed:', extractErr);
-          // Non-blocking - upload already succeeded
-        }
-      }
+
     } catch (err) {
       console.error('Upload failed:', err);
       alert('Upload failed. Please try again.');
