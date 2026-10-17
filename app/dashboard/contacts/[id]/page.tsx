@@ -984,27 +984,58 @@ const handleSave = async () => {
 <div className="bg-white rounded-xl shadow p-6 space-y-4">
   <div className="flex items-center justify-between">
     <h3 className="font-semibold">Driver's Licence <span className="text-xs font-normal text-gray-500">(for FINTRAC)</span></h3>
-    <button
-      onClick={async () => {
-        if (!confirm('Generate FINTRAC Form 630 from licence info?')) return;
-        try {
-          const res = await fetch('/api/generate-fintrac-630', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contact_id: contactId }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Generation failed');
-          alert('FINTRAC Form 630 generated and saved to documents.');
-          loadData();
-        } catch (err: any) {
-          alert(err.message || 'Failed to generate form.');
-        }
-      }}
-      className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium border border-green-200"
-    >
-      Generate FINTRAC 630
-    </button>
+    <div className="flex gap-2">
+      <button
+        onClick={async () => {
+          if (!confirm('Generate FINTRAC Form 630 from licence info?')) return;
+          try {
+            const res = await fetch('/api/generate-fintrac-630', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contact_id: contactId }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Generation failed');
+            alert('FINTRAC Form 630 generated and saved to documents.');
+            loadData();
+          } catch (err: any) {
+            alert(err.message || 'Failed to generate form.');
+          }
+        }}
+        className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium border border-green-200"
+      >
+        Generate 630
+      </button>
+      <button
+        onClick={async () => {
+          const amount = prompt('Funds amount (e.g. 25000):');
+          if (!amount) return;
+          const method = prompt('Method (electronic, in_person, or mail):', 'electronic');
+          if (!method) return;
+          try {
+            const res = await fetch('/api/generate-fintrac-635', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contact_id: contactId,
+                funds_amount: amount,
+                funds_method: method,
+                funds_date: new Date().toISOString().split('T')[0],
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Generation failed');
+            alert('FINTRAC Form 635 generated and saved to documents.');
+            loadData();
+          } catch (err: any) {
+            alert(err.message || 'Failed to generate form.');
+          }
+        }}
+        className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium border border-green-200"
+      >
+        Generate 635
+      </button>
+    </div>
   </div>
   <p className="text-xs text-gray-500">Fill manually or use Upload ID above to auto-fill from a licence photo.</p>
   <div className="grid grid-cols-2 gap-4">

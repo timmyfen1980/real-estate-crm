@@ -353,27 +353,59 @@ export default function ClientFileDetailPage() {
               Delete file
             </button>
             {file.crm_contact_id && (
-              <button
-                onClick={async () => {
-                  if (!confirm('Generate FINTRAC Form 630 for the linked contact?')) return;
-                  try {
-                    const res = await fetch('/api/generate-fintrac-630', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ contact_id: file.crm_contact_id, client_file_id: file.id }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Generation failed');
-                    alert('FINTRAC Form 630 generated and saved.');
-                    window.location.reload();
-                  } catch (err: any) {
-                    alert(err.message || 'Failed to generate form.');
-                  }
-                }}
-                className="mb-2 ml-2 px-3 py-1.5 text-xs text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg border border-green-200"
-              >
-                Generate FINTRAC 630
-              </button>
+              <>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Generate FINTRAC Form 630 for the linked contact?')) return;
+                    try {
+                      const res = await fetch('/api/generate-fintrac-630', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contact_id: file.crm_contact_id, client_file_id: file.id }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || 'Generation failed');
+                      alert('FINTRAC Form 630 generated and saved.');
+                      window.location.reload();
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to generate form.');
+                    }
+                  }}
+                  className="mb-2 ml-2 px-3 py-1.5 text-xs text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg border border-green-200"
+                >
+                  630
+                </button>
+                <button
+                  onClick={async () => {
+                    const amount = prompt('Funds amount (e.g. 25000):');
+                    if (!amount) return;
+                    const method = prompt('Method (electronic, in_person, or mail):', 'electronic');
+                    if (!method) return;
+                    try {
+                      const res = await fetch('/api/generate-fintrac-635', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          contact_id: file.crm_contact_id,
+                          client_file_id: file.id,
+                          funds_amount: amount,
+                          funds_method: method,
+                          funds_date: new Date().toISOString().split('T')[0],
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || 'Generation failed');
+                      alert('FINTRAC Form 635 generated and saved.');
+                      window.location.reload();
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to generate form.');
+                    }
+                  }}
+                  className="mb-2 ml-1 px-3 py-1.5 text-xs text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg border border-green-200"
+                >
+                  635
+                </button>
+              </>
             )}
             {!file.portal_enabled ? (
               <button
