@@ -65,6 +65,16 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
         description: 'Collect these before the home search begins.',
         items: [
           {
+            document: 'Government photo ID (driver\'s licence)',
+            required: 'required',
+            bethNote: 'The buyer\'s driver\'s licence or passport — a clear copy (emailed or texted is fine). Needed to complete the FINTRAC identity verification above.',
+          },
+          {
+            document: 'Power of Attorney documents (if applicable)',
+            required: 'conditional',
+            bethNote: 'Only if someone is signing on behalf of the client under a power of attorney — we need a copy of the POA document.',
+          },
+          {
             document: 'Buyer Representation Agreement',
             form: 'OREA Form 371',
             required: 'required',
@@ -77,11 +87,6 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             required: 'required',
             viewForm: FINTRAC_630,
             bethNote: 'Federal anti-money-laundering form. We must verify the buyer\'s identity with photo ID when the offer goes in or a deposit is made. For corporate buyers, use the Corporation/Entity ID form instead.',
-          },
-          {
-            document: 'Government photo ID (driver\'s licence)',
-            required: 'required',
-            bethNote: 'The buyer\'s driver\'s licence or passport — a clear copy (emailed or texted is fine). Needed to complete the FINTRAC identity verification above.',
           },
         ],
       },
@@ -231,6 +236,16 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             bethNote: 'Federal anti-money-laundering form. Verify the seller\'s identity with photo ID. Usually filed with the seller\'s name as a prefix.',
           },
           {
+            document: 'Copy of most recent property tax bill',
+            required: 'required',
+            bethNote: 'The seller\'s latest municipal property tax bill — confirms tax amount and roll number for the listing.',
+          },
+          {
+            document: 'Power of Attorney documents (if applicable)',
+            required: 'conditional',
+            bethNote: 'Only if someone is signing on behalf of the client under a power of attorney — we need a copy of the POA document.',
+          },
+          {
             document: 'BrokerBay listing info sheet',
             required: 'required',
             bethNote: 'Showing instructions for other agents — booking, lockbox codes, access notes, alarm codes. Lives in Dropbox at Team Files/Seller File/brokerbay-new-listing-info-sheet.pdf.',
@@ -366,6 +381,11 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
         description: 'Get everything BEFORE the search starts — once the right property is found, things move fast.',
         items: [
           {
+            document: 'Clear copy of government-issued photo ID',
+            required: 'required',
+            bethNote: 'Driver\'s licence or passport. A clear photo emailed or texted is fine.',
+          },
+          {
             document: 'Tenant Representation Agreement',
             form: 'OREA Form 372',
             required: 'required',
@@ -378,11 +398,6 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             required: 'required',
             viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Leasing%20Documents/21_410%20Rental%20Application%20-%20Residential%20(BLANK)%20-%20PropTx-OREA.pdf',
             bethNote: 'The tenant fills this out with personal, employment, and rental history details. Must be signed.',
-          },
-          {
-            document: 'Clear copy of government-issued photo ID',
-            required: 'required',
-            bethNote: 'Driver\'s licence or passport. A clear photo emailed or texted is fine.',
           },
           {
             document: 'Full Equifax credit report, including credit score',

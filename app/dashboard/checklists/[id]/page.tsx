@@ -267,6 +267,42 @@ export default function ClientFileDetailPage() {
           ? { ...d, file_url: fileUrl, status: 'received' as const }
           : d
       ));
+
+      // If this is a Government ID upload, auto-extract and fill contact
+      const uploadedDoc = docs.find((d) => d.id === docId);
+      if (uploadedDoc && /government|photo id|licence/i.test(uploadedDoc.document_name || '') && file.crm_contact_id) {
+        try {
+          const extractData = new FormData();
+          extractData.append('file', file);
+          const extractRes = await fetch('/api/extract-id', {
+            method: 'POST',
+            body: extractData,
+          });
+          if (extractRes.ok) {
+            const extractJson = await extractRes.json();
+            const ext = extractJson.extracted;
+            if (ext) {
+              const updates: any = {};
+              if (ext.first_name) updates.first_name = ext.first_name;
+              if (ext.last_name) updates.last_name = ext.last_name;
+              if (ext.date_of_birth) updates.birthday = ext.date_of_birth;
+              if (ext.address) updates.address = ext.address;
+              if (ext.city) updates.city = ext.city;
+              if (ext.province) updates.province = ext.province;
+              if (ext.postal_code) updates.postal_code = ext.postal_code;
+              if (ext.licence_number) updates.licence_number = ext.licence_number;
+              if (ext.expiry_date) updates.licence_expiry = ext.expiry_date;
+              if (ext.issue_date) updates.licence_issue_date = ext.issue_date;
+              if (Object.keys(updates).length > 0) {
+                await supabase.from('contacts').update(updates).eq('id', file.crm_contact_id);
+              }
+            }
+          }
+        } catch (extractErr) {
+          console.log('ID auto-extract failed:', extractErr);
+          // Non-blocking - upload already succeeded
+        }
+      }
     } catch (err) {
       console.error('Upload failed:', err);
       alert('Upload failed. Please try again.');
@@ -356,6 +392,16 @@ export default function ClientFileDetailPage() {
               <>
                 <button
                   onClick={async () => {
+                    // Check if contact has licence info
+                    const { data: contact } = await supabase
+                      .from('contacts')
+                      .select('licence_number')
+                      .eq('id', file.crm_contact_id)
+                      .single();
+                    if (!contact?.licence_number) {
+                      alert('Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.');
+                      return;
+                    }
                     if (!confirm('Generate FINTRAC Form 630 for the linked contact?')) return;
                     try {
                       const res = await fetch('/api/generate-fintrac-630', {
@@ -377,6 +423,15 @@ export default function ClientFileDetailPage() {
                 </button>
                 <button
                   onClick={async () => {
+                    const { data: contact } = await supabase
+                      .from('contacts')
+                      .select('licence_number')
+                      .eq('id', file.crm_contact_id)
+                      .single();
+                    if (!contact?.licence_number) {
+                      alert('Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.');
+                      return;
+                    }
                     const amount = prompt('Funds amount (e.g. 25000):');
                     if (!amount) return;
                     const method = prompt('Method (electronic, in_person, or mail):', 'electronic');
@@ -423,6 +478,18 @@ export default function ClientFileDetailPage() {
                   className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200"
                 >
                   {copied ? 'Copied!' : 'Copy Client Link'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!file?.portal_token) return;
+                    const link = portalLink(file.portal_token);
+                    const msg = `Hi! Could you please upload a photo of your driver's licence here: ${link} — click on "Government photo ID" and upload a clear photo. Thanks!`;
+                    await navigator.clipboard.writeText(msg);
+                    alert('ID request message copied — paste it into a text or email.');
+                  }}
+                  className="mt-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium hover:bg-blue-200"
+                >
+                  Copy ID Request
                 </button>
                 <p className="text-xs text-gray-500 mt-2 max-w-[220px]">
                   Send this link to the client — they can view their checklist and upload documents.
