@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -24,6 +24,7 @@ export default function NewClientFilePage() {
   const [licenceExpiry, setLicenceExpiry] = useState('');
   const [licenceIssueDate, setLicenceIssueDate] = useState('');
   const [licenceProvince, setLicenceProvince] = useState('Ontario');
+  const [licenceMsg, setLicenceMsg] = useState('');
   const [occupation, setOccupation] = useState('');
 
 
@@ -179,6 +180,37 @@ export default function NewClientFilePage() {
     );
   };
 
+  const handleLicencePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setLicenceMsg('Reading licence...');
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const res = await fetch('/api/extract-id', { method: 'POST', body: fd });
+      const data = await res.json();
+      const ext = data.extracted;
+      if (ext) {
+        if (ext.first_name || ext.last_name) setClientNames(`${ext.first_name || ''} ${ext.last_name || ''}`.trim());
+        if (ext.licence_number) setLicenceNumber(ext.licence_number);
+        if (ext.expiry_date) setLicenceExpiry(ext.expiry_date);
+        if (ext.issue_date) setLicenceIssueDate(ext.issue_date);
+        if (ext.province) setLicenceProvince(ext.province);
+        setLicenceMsg('Licence details filled in below.');
+      } else {
+        setLicenceMsg('Could not read licence. Please enter manually.');
+      }
+    } catch {
+      setLicenceMsg('Could not read licence. Please enter manually.');
+    }
+  };
+
+  const handleLicenceLink = () => {
+    const msg = "Hi! Please upload a clear photo of your driver's licence here: " + window.location.origin + "/client/upload";
+    navigator.clipboard.writeText(msg);
+    setLicenceMsg('Link copied - paste it into a text or email.');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountId) {
@@ -329,6 +361,16 @@ export default function NewClientFilePage() {
         {/* Driver's Licence - for FINTRAC */}
         <div className="border-t pt-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Driver's Licence <span className="font-normal text-gray-500">(for FINTRAC — optional)</span></h3>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <label className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 cursor-pointer">
+              Upload Licence Photo
+              <input type="file" accept="image/*" className="hidden" onChange={handleLicencePhoto} />
+            </label>
+            <button type="button" onClick={handleLicenceLink} className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+              Send Link to Client
+            </button>
+          </div>
+          {licenceMsg && <p className="text-sm text-gray-600 mb-3">{licenceMsg}</p>}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Licence Number</label>

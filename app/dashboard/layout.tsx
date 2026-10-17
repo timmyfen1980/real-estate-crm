@@ -232,9 +232,6 @@ const handleLogout = async () => {
 <Link href="/dashboard/checklists" className={navItemClass('/dashboard/checklists')}>
   Checklists
 </Link>
-<Link href="/dashboard/documents" className={navItemClass('/dashboard/documents')}>
-  Documents
-</Link>
 
 <Link href="/dashboard/properties" className={navItemClass('/dashboard/properties')}>
   Properties
@@ -246,6 +243,9 @@ const handleLogout = async () => {
 
 <Link href="/dashboard/campaigns" className={navItemClass('/dashboard/campaigns')}>
   Emails
+</Link>
+<Link href="/dashboard/documents" className={navItemClass('/dashboard/documents')}>
+  Documents
 </Link>
         </nav>
       </aside>
