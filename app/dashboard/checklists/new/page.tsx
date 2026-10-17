@@ -20,6 +20,11 @@ export default function NewClientFilePage() {
   const [clientNames, setClientNames] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [licenceNumber, setLicenceNumber] = useState('');
+  const [licenceExpiry, setLicenceExpiry] = useState('');
+  const [licenceIssueDate, setLicenceIssueDate] = useState('');
+  const [licenceProvince, setLicenceProvince] = useState('Ontario');
+  const [occupation, setOccupation] = useState('');
 
 
 
@@ -193,6 +198,20 @@ export default function NewClientFilePage() {
     try {
       let contactId = selectedContactId;
 
+      // If linking an existing contact and licence info was entered, update it
+      if (contactId && (licenceNumber.trim() || occupation.trim())) {
+        await supabase
+          .from('contacts')
+          .update({
+            ...(licenceNumber.trim() && { licence_number: licenceNumber.trim() }),
+            ...(licenceExpiry && { licence_expiry: licenceExpiry }),
+            ...(licenceIssueDate && { licence_issue_date: licenceIssueDate }),
+            ...(licenceProvince.trim() && { licence_province: licenceProvince.trim() }),
+            ...(occupation.trim() && { occupation: occupation.trim() }),
+          })
+          .eq('id', contactId);
+      }
+
       // If no contact linked, create one from the form data
       if (!contactId) {
         const nameParts = clientNames.trim().split(' ');
@@ -206,6 +225,11 @@ export default function NewClientFilePage() {
             last_name: lastName,
             phone: phone.trim() || null,
             email: email.trim() || null,
+            licence_number: licenceNumber.trim() || null,
+            licence_expiry: licenceExpiry || null,
+            licence_issue_date: licenceIssueDate || null,
+            licence_province: licenceProvince.trim() || null,
+            occupation: occupation.trim() || null,
           })
           .select('id')
           .single();
@@ -299,6 +323,57 @@ export default function NewClientFilePage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="e.g. client@email.com"
             />
+          </div>
+        </div>
+
+        {/* Driver's Licence - for FINTRAC */}
+        <div className="border-t pt-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Driver's Licence <span className="font-normal text-gray-500">(for FINTRAC — optional)</span></h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Licence Number</label>
+              <input
+                className={inputClass}
+                value={licenceNumber}
+                onChange={(e) => setLicenceNumber(e.target.value)}
+                placeholder="e.g. F1234-56789-01234"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Province</label>
+              <input
+                className={inputClass}
+                value={licenceProvince}
+                onChange={(e) => setLicenceProvince(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Issue Date</label>
+              <input
+                type="date"
+                className={inputClass}
+                value={licenceIssueDate}
+                onChange={(e) => setLicenceIssueDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Expiry Date</label>
+              <input
+                type="date"
+                className={inputClass}
+                value={licenceExpiry}
+                onChange={(e) => setLicenceExpiry(e.target.value)}
+              />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Occupation</label>
+              <input
+                className={inputClass}
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value)}
+                placeholder="e.g. Teacher, Engineer"
+              />
+            </div>
           </div>
         </div>
 
