@@ -18,12 +18,15 @@ const FIELD_MAP: Record<string, string> = {
 
 // Risk questionnaire — all "No" (no issues) by default
 // Field names from field-mapping-fintrac.json
-const RISK_NO_CHECKBOXES = [
-  'Check Box4',   // risk_q1_no
+// Risk questionnaire — zero-score answers
+// Q1 and Q5 are INVERTED: Yes = 0 points (No = 2 points)
+// All others: No = 0 points
+const RISK_ZERO_CHECKBOXES = [
+  'Check Box3',   // risk_q1_yes — "Prior relationship?" Yes=0
   'Check Box8',   // risk_q2_no
   'Check Box11',  // risk_q3_no
   'Check Box18',  // risk_q4_no
-  'Check Box17',  // risk_q5_no
+  'Check Box13',  // risk_q5_yes — "Canadian citizen/PR?" Yes=0
   'Check Box22',  // risk_q6_no
   'Check Box23',  // risk_q7_no
   'Check Box24',  // risk_q8_no
@@ -122,9 +125,9 @@ export async function POST(request: NextRequest) {
       console.log('Drivers licence checkbox not found');
     }
 
-    // Auto-fill risk questionnaire — all "No" (no issues identified)
+    // Auto-fill risk questionnaire — zero-score answers (Q1+Q5=Yes, rest=No)
     // Beth can manually change any answer on the generated PDF if needed
-    for (const boxName of RISK_NO_CHECKBOXES) {
+    for (const boxName of RISK_ZERO_CHECKBOXES) {
       try {
         form.getCheckBox(boxName).check();
       } catch (e) {
