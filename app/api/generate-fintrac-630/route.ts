@@ -18,7 +18,7 @@ const FIELD_MAP: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { contact_id } = await request.json();
+    const { contact_id, client_file_id } = await request.json();
     if (!contact_id) {
       return NextResponse.json({ error: 'contact_id required' }, { status: 400 });
     }
@@ -117,14 +117,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Create document record
-    const { error: docErr } = await supabase
-      .from('client_documents')
-      .insert({
+    const docRecord: any = {
         contact_id: contact_id,
         document_name: `FINTRAC Form 630 - ${fullName}`,
         file_path: storagePath,
         document_type: 'fintrac_630',
-      });
+      };
+    if (client_file_id) {
+      docRecord.client_file_id = client_file_id;
+    }
+    const { error: docErr } = await supabase
+      .from('client_documents')
+      .insert(docRecord);
 
     if (docErr) {
       console.log('Document record creation failed:', docErr.message);
