@@ -441,6 +441,7 @@ export default function NewClientFilePage() {
                 onChange={(e) => setOccupation(e.target.value)}
                 placeholder="e.g. Teacher, Engineer"
               />
+          </div>
             </>)}
             </div>
           </div>
