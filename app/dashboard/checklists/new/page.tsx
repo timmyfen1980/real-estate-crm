@@ -22,6 +22,8 @@ export default function NewClientFilePage() {
   const [email, setEmail] = useState('');
   const [licenceNumber, setLicenceNumber] = useState('');
   const [licenceExpiry, setLicenceExpiry] = useState('');
+  const [showManualLicence, setShowManualLicence] = useState(false);
+  const [licenceUploadStatus, setLicenceUploadStatus] = useState('');
   const [licenceIssueDate, setLicenceIssueDate] = useState('');
   const [licenceProvince, setLicenceProvince] = useState('Ontario');
   const [occupation, setOccupation] = useState('');
@@ -179,6 +181,43 @@ export default function NewClientFilePage() {
     );
   };
 
+  const handleLicenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLicenceUploadStatus('Reading licence...');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/extract-id', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Extraction failed');
+      const data = await res.json();
+      const ext = data.extracted;
+      if (ext) {
+        if (ext.first_name || ext.last_name) {
+          setClientNames(`${ext.first_name || ''} ${ext.last_name || ''}`.trim());
+        }
+        if (ext.licence_number) setLicenceNumber(ext.licence_number);
+        if (ext.expiry_date) setLicenceExpiry(ext.expiry_date);
+        if (ext.issue_date) setLicenceIssueDate(ext.issue_date);
+        if (ext.province) setLicenceProvince(ext.province);
+        setShowManualLicence(true);
+        setLicenceUploadStatus('✓ Licence details extracted!');
+      }
+    } catch (err) {
+      setLicenceUploadStatus('Could not read licence. Please use Manual Entry.');
+    }
+  };
+
+  const handleCopyLicenceLink = () => {
+    const msg = `Hi! Could you please upload a clear photo of your driver's licence using this secure link: ${window.location.origin}/client/upload`;
+    navigator.clipboard.writeText(msg).then(() => {
+      setLicenceUploadStatus('✓ Link copied! Paste it into a text or email to your client.');
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountId) {
@@ -329,6 +368,35 @@ export default function NewClientFilePage() {
         {/* Driver's Licence - for FINTRAC */}
         <div className="border-t pt-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Driver's Licence <span className="font-normal text-gray-500">(for FINTRAC — optional)</span></h3>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <label className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 cursor-pointer">
+              📷 Upload Driver's Licence
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLicenceUpload}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleCopyLicenceLink}
+              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700"
+            >
+              🔗 Send Link to Client
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowManualLicence(!showManualLicence)}
+              className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300"
+            >
+              ✏️ {showManualLicence ? 'Hide Manual Entry' : 'Manual Entry'}
+            </button>
+          </div>
+          {licenceUploadStatus && (
+            <p className="text-sm text-gray-600 mb-3">{licenceUploadStatus}</p>
+          )}
+          {showManualLicence && (<>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Licence Number</label>
@@ -373,6 +441,7 @@ export default function NewClientFilePage() {
                 onChange={(e) => setOccupation(e.target.value)}
                 placeholder="e.g. Teacher, Engineer"
               />
+            </>)}
             </div>
           </div>
         </div>

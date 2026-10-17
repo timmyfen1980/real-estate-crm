@@ -222,6 +222,11 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
         description: 'Collect these before the property hits the market.',
         items: [
           {
+            document: 'Government photo ID (driver\'s licence)',
+            required: 'required',
+            bethNote: 'The seller\'s driver\'s licence or passport — a clear copy. Needed to complete the FINTRAC identity verification.',
+          },
+          {
             document: 'Listing Agreement — Seller Designated Representation Agreement',
             form: 'OREA Form 271',
             required: 'required',
@@ -551,6 +556,11 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
         title: 'Stage 1 — Listing (before the lease listing goes live)',
         description: 'Collect these before the property is marketed for lease.',
         items: [
+          {
+            document: 'Government photo ID (driver\'s licence)',
+            required: 'required',
+            bethNote: 'The landlord\'s driver\'s licence or passport — a clear copy. Needed to complete the FINTRAC identity verification.',
+          },
           {
             document: 'Landlord Representation Agreement',
             form: 'OREA Form 210 (or Form 272 for designated)',

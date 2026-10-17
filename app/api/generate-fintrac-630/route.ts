@@ -16,6 +16,29 @@ const FIELD_MAP: Record<string, string> = {
   a1_document_expiry_date: 'a1_document_expiry_date',
 };
 
+// Risk questionnaire — all "No" (no issues) by default
+// Field names from field-mapping-fintrac.json
+const RISK_NO_CHECKBOXES = [
+  'Check Box4',   // risk_q1_no
+  'Check Box8',   // risk_q2_no
+  'Check Box11',  // risk_q3_no
+  'Check Box18',  // risk_q4_no
+  'Check Box17',  // risk_q5_no
+  'Check Box22',  // risk_q6_no
+  'Check Box23',  // risk_q7_no
+  'Check Box24',  // risk_q8_no
+  'Check Box28',  // risk_q9_no
+  'Check Box35',  // risk_q10_no
+  'Check Box34',  // risk_q11_no
+  'Check Box33',  // risk_q12_no
+  'Check Box41',  // risk_q13_no
+  'Check Box42',  // risk_q14_no
+  'Check Box49',  // risk_q15_no
+  'Check Box48',  // risk_q16_no
+  'Check Box47',  // risk_q17_no
+  'Check Box1.4.0', // b1_third_party_no
+];
+
 export async function POST(request: NextRequest) {
   try {
     const { contact_id, client_file_id } = await request.json();
@@ -97,6 +120,16 @@ export async function POST(request: NextRequest) {
       checkbox.check();
     } catch (e) {
       console.log('Drivers licence checkbox not found');
+    }
+
+    // Auto-fill risk questionnaire — all "No" (no issues identified)
+    // Beth can manually change any answer on the generated PDF if needed
+    for (const boxName of RISK_NO_CHECKBOXES) {
+      try {
+        form.getCheckBox(boxName).check();
+      } catch (e) {
+        console.log(`Risk checkbox ${boxName} not found, skipping`);
+      }
     }
 
     const pdfBytes = await pdfDoc.save();
