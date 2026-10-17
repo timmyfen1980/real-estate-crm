@@ -227,17 +227,18 @@ export default function ClientFileDetailPage() {
     }
   };
 
-  const handleFileUpload = async (docId: string, file: File) => {
-    if (!file) return;
+  const handleFileUpload = async (docId: string, uploadFile: File) => {
+    if (!uploadFile) return;
+    const contactIdForExtract = (file as any)?.crm_contact_id;
     setUploadingDocId(docId);
     try {
       // Upload to Supabase storage
-      const fileExt = file.name.split('.').pop();
+      const fileExt = uploadFile.name.split('.').pop();
       const fileName = `${fileId}/${docId}_${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('client-documents')
-        .upload(fileName, file);
+        .upload(fileName, uploadFile);
 
       if (uploadError) throw uploadError;
 
@@ -270,10 +271,10 @@ export default function ClientFileDetailPage() {
 
       // If this is a Government ID upload, auto-extract and fill contact
       const uploadedDoc = docs.find((d) => d.id === docId);
-      if (uploadedDoc && /government|photo id|licence/i.test(uploadedDoc.document_name || '') && file.crm_contact_id) {
+      if (uploadedDoc && /government|photo id|licence/i.test(uploadedDoc.document_name || '') && contactIdForExtract) {
         try {
           const extractData = new FormData();
-          extractData.append('file', file);
+          extractData.append('file', uploadFile);
           const extractRes = await fetch('/api/extract-id', {
             method: 'POST',
             body: extractData,
@@ -294,7 +295,7 @@ export default function ClientFileDetailPage() {
               if (ext.expiry_date) updates.licence_expiry = ext.expiry_date;
               if (ext.issue_date) updates.licence_issue_date = ext.issue_date;
               if (Object.keys(updates).length > 0) {
-                await supabase.from('contacts').update(updates).eq('id', file.crm_contact_id);
+                await supabase.from('contacts').update(updates).eq('id', contactIdForExtract);
               }
             }
           }
