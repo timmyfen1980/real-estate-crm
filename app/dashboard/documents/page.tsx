@@ -44,6 +44,16 @@ const FOLDERS = [
   { id: 'renter', title: 'Renter File', description: 'Tenant documents — folder not yet in Dropbox', docs: [] as TeamDoc[] },
 ];
 
+function getPreviewUrl(doc: TeamDoc): string {
+  // PDFs: open Dropbox preview directly in new tab
+  // Office docs: use Google Docs Viewer
+  if (doc.name.endsWith('.pdf')) {
+    return doc.previewUrl;
+  }
+  const directUrl = doc.downloadUrl;
+  return `https://docs.google.com/viewer?url=${encodeURIComponent(directUrl)}&embedded=true`;
+}
+
 function fileIcon(name: string): string {
   if (name.endsWith('.pdf')) return '📄';
   if (name.endsWith('.docx')) return '📝';
@@ -54,7 +64,6 @@ function fileIcon(name: string): string {
 
 export default function DocumentsPage() {
   const [activeFolder, setActiveFolder] = useState('buyer');
-  const [previewDoc, setPreviewDoc] = useState<TeamDoc | null>(null);
   const folder = FOLDERS.find((f) => f.id === activeFolder)!;
 
   return (
@@ -101,12 +110,14 @@ export default function DocumentsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setPreviewDoc(doc)}
+                  <a
+                    href={getPreviewUrl(doc)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="px-4 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
                   >
                     Preview 👁️
-                  </button>
+                  </a>
                   <a
                     href={doc.downloadUrl}
                     target="_blank"
@@ -122,43 +133,7 @@ export default function DocumentsPage() {
         )}
       </div>
 
-      {/* Preview modal */}
-      {previewDoc && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setPreviewDoc(null)}
-        >
-          <div
-            className="bg-white rounded-xl w-full max-w-5xl h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="font-semibold truncate">{previewDoc.name}</h3>
-              <div className="flex gap-2">
-                <a
-                  href={previewDoc.downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
-                >
-                  Download ↓
-                </a>
-                <button
-                  onClick={() => setPreviewDoc(null)}
-                  className="px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
-                >
-                  Close ✕
-                </button>
-              </div>
-            </div>
-            <iframe
-              src={previewDoc.previewUrl}
-              className="flex-1 w-full rounded-b-xl"
-              title={previewDoc.name}
-            />
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
