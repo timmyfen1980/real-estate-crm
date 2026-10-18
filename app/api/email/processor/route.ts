@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
-import { buildEmailTemplate } from '@/lib/emailTemplates'
+import { buildEmailTemplate, buildNewsletterEmail } from '@/lib/emailTemplates'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -173,7 +175,7 @@ console.log(`Contact email: ${contact.email}`)
       const { data: account } = await supabase
         .from('accounts')
         .select(
-          'team_logo_url, brokerage_logo_url, brokerage_name'
+          'team_logo_url, brokerage_logo_url, brokerage_name, team_name'
         )
         .eq('id', contact.account_id)
         .single()
@@ -189,7 +191,8 @@ console.log(`Contact email: ${contact.email}`)
       // UNSUBSCRIBE LINK
       // =====================================
 
-      const unsubscribeLink = `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=${c.contact_id}`
+      const siteOrigin = new URL(req.url).origin
+      const unsubscribeLink = `${siteOrigin}/api/unsubscribe?contact_id=${c.contact_id}`
 
       // =====================================
       // CONTENT
@@ -200,21 +203,47 @@ console.log(`Contact email: ${contact.email}`)
         contact.first_name || ''
       )
 
-      const body = buildEmailTemplate({
-        content: rawContent,
-        firstName: contact.first_name,
-        agentName: agent?.full_name,
-        agentEmail: agent?.email,
-        agentPhone: agent?.phone,
-        agentPhoto: agent?.agent_photo_url,
-        teamLogo: account?.team_logo_url,
-        brokerageLogo: account?.brokerage_logo_url,
-        brokerageName: account?.brokerage_name,
-        unsubscribeLink,
-        ctaLink,
-        ctaText,
-        emailHeaderImage: `${process.env.NEXT_PUBLIC_SITE_URL}/api/email-hero`,
-      })
+      const isNewsletter = c.campaign_id === NEWSLETTER_CAMPAIGN_ID
+      let body: string
+      let attachments: any[] = []
+      if (isNewsletter) {
+        // Team-branded newsletter: hero + team photo embedded via CID so they
+        // always render (no dependency on NEXT_PUBLIC_SITE_URL).
+        const heroB64 = readFileSync(join(process.cwd(), 'public', 'email-hero.b64'), 'utf8').trim()
+        const teamPhotoB64 = readFileSync(join(process.cwd(), 'public', 'team-photo.b64'), 'utf8').trim()
+        attachments = [
+          { filename: 'hero.png', content: heroB64, contentType: 'image/png', contentId: 'newsletter-hero' },
+          { filename: 'team-photo.jpg', content: teamPhotoB64, contentType: 'image/jpeg', contentId: 'team-photo' },
+        ]
+        body = buildNewsletterEmail({
+          content: rawContent,
+          firstName: contact.first_name,
+          teamName: account?.team_name || 'Fennessey & Comeau Real Estate Group',
+          teamEmail: 'info@thefcgroup.ca',
+          teamPhone: '905 493-7355',
+          brokerageName: account?.brokerage_name,
+          brokerageLogoUrl: account?.brokerage_logo_url,
+          unsubscribeLink,
+          ctaLink,
+          ctaText,
+        })
+      } else {
+        body = buildEmailTemplate({
+          content: rawContent,
+          firstName: contact.first_name,
+          agentName: agent?.full_name,
+          agentEmail: agent?.email,
+          agentPhone: agent?.phone,
+          agentPhoto: agent?.agent_photo_url,
+          teamLogo: account?.team_logo_url,
+          brokerageLogo: account?.brokerage_logo_url,
+          brokerageName: account?.brokerage_name,
+          unsubscribeLink,
+          ctaLink,
+          ctaText,
+          emailHeaderImage: `${siteOrigin}/api/email-hero`,
+        })
+      }
 console.log('Email template built successfully')
       const accountId = contact.account_id
 
@@ -244,6 +273,7 @@ console.log('Email template built successfully')
         to: contact.email,
         subject: sequence.subject,
         html: body,
+        ...(attachments.length ? { attachments } : {}),
       })
 console.log('Resend response:', send)
       // =====================================

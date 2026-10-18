@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
-import { buildEmailTemplate } from '@/lib/emailTemplates';
+import { buildNewsletterEmail } from '@/lib/emailTemplates';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 // GET /api/agent/send-newsletter-test?step=<n> — renders one Monthly Homeowner
-// Newsletter step through the EXACT production template (same buildEmailTemplate
+// Newsletter step through the EXACT production template (same buildNewsletterEmail
 // call, same hero, same agent/account blocks, same from-address logic as
 // app/api/email/processor) and sends it to tim@thefcgroup.ca so Tim can review
 // precisely what subscribers will see. Bearer-gated with REA_AGENT_SECRET.
@@ -84,7 +86,7 @@ export async function GET(request: NextRequest) {
     agent = data;
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
+  const siteOrigin = new URL(request.url).origin;
   // Same merge-tag handling as the processor (template also replaces
   // {{first_name}} / {{agent_name}} internally).
   const rawContent = (sequence.body_html || '').replace(
@@ -92,20 +94,20 @@ export async function GET(request: NextRequest) {
     'Tim'
   );
 
-  const html = buildEmailTemplate({
+  const heroB64 = readFileSync(join(process.cwd(), 'public', 'email-hero.b64'), 'utf8').trim();
+  const teamPhotoB64 = readFileSync(join(process.cwd(), 'public', 'team-photo.b64'), 'utf8').trim();
+
+  const html = buildNewsletterEmail({
     content: rawContent,
     firstName: 'Tim',
-    agentName: agent?.full_name,
-    agentEmail: agent?.email,
-    agentPhone: agent?.phone,
-    agentPhoto: agent?.agent_photo_url,
-    teamLogo: account?.team_logo_url,
-    brokerageLogo: account?.brokerage_logo_url,
+    teamName: account?.team_name || 'Fennessey & Comeau Real Estate Group',
+    teamEmail: 'info@thefcgroup.ca',
+    teamPhone: '905 493-7355',
     brokerageName: account?.brokerage_name,
-    unsubscribeLink: `${siteUrl}/api/unsubscribe?contact_id=test`,
+    brokerageLogoUrl: account?.brokerage_logo_url,
+    unsubscribeLink: `${siteOrigin}/api/unsubscribe?contact_id=test`,
     ctaLink: sequence.cta_link || null,
     ctaText: sequence.cta_text || null,
-    emailHeaderImage: `${siteUrl}/api/email-hero`,
   });
 
   let fromEmail = 'The FC Group <info@thefcgroup.ca>';
@@ -124,6 +126,10 @@ export async function GET(request: NextRequest) {
     to: TEST_RECIPIENT,
     subject: sequence.subject,
     html,
+    attachments: [
+      { filename: 'hero.png', content: heroB64, contentType: 'image/png', contentId: 'newsletter-hero' },
+      { filename: 'team-photo.jpg', content: teamPhotoB64, contentType: 'image/jpeg', contentId: 'team-photo' },
+    ],
   });
 
   return NextResponse.json({
