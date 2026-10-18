@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   const { data: campaign, error: campaignError } = await supabase
     .from('email_campaigns')
-    .select('id, name, description')
+    .select('id, name')
     .eq('id', NEWSLETTER_CAMPAIGN_ID)
     .single();
 
