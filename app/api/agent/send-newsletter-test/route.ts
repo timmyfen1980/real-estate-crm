@@ -97,9 +97,12 @@ export async function GET(request: NextRequest) {
   const heroB64 = readFileSync(join(process.cwd(), 'public', 'email-hero.b64'), 'utf8').trim();
   const teamPhotoB64 = readFileSync(join(process.cwd(), 'public', 'team-photo.b64'), 'utf8').trim();
 
+  const issueDate = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Toronto' });
   const html = buildNewsletterEmail({
     content: rawContent,
     firstName: 'Tim',
+    headline: sequence.subject,
+    issueDate,
     teamName: account?.team_name || 'Fennessey & Comeau Real Estate Group',
     teamEmail: 'info@thefcgroup.ca',
     teamPhone: '905 493-7355',

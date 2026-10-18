@@ -215,9 +215,12 @@ console.log(`Contact email: ${contact.email}`)
           { filename: 'hero.png', content: heroB64, contentType: 'image/png', contentId: 'newsletter-hero' },
           { filename: 'team-photo.jpg', content: teamPhotoB64, contentType: 'image/jpeg', contentId: 'team-photo' },
         ]
+        const issueDate = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Toronto' })
         body = buildNewsletterEmail({
           content: rawContent,
           firstName: contact.first_name,
+          headline: sequence.subject,
+          issueDate,
           teamName: account?.team_name || 'Fennessey & Comeau Real Estate Group',
           teamEmail: 'info@thefcgroup.ca',
           teamPhone: '905 493-7355',
