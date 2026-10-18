@@ -168,11 +168,8 @@ export function buildNewsletterEmail({
       <!-- RED ACCENT BAR -->
       <div style="height:6px; background:#d22630; font-size:0; line-height:0;">&nbsp;</div>
 
-      <!-- COVER STORY HEADER -->
+      <!-- HEADLINE -->
       <div style="padding:34px 44px 6px;">
-        <div style="font-size:11px; letter-spacing:3px; color:#d22630; font-weight:700; margin-bottom:10px;">
-          COVER STORY
-        </div>
         <div style="font-family: Georgia, 'Times New Roman', serif; font-size:32px; font-weight:700; color:#0f2a44; line-height:1.2;">
           ${headline || ''}
         </div>
