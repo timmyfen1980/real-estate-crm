@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 // Newsletter steps, for Rea (Tim's agent) to review and improve the newsletter
 // month by month. Bearer-gated with REA_AGENT_SECRET; returns subjects, bodies,
 // CTAs and delays only — no contact data, no send capabilities.
+// v2: redeploy to pick up REA_AGENT_SECRET env var
 const NEWSLETTER_CAMPAIGN_ID = 'bb0b2174-639b-43fc-9f03-2bb289210de2';
 
 export async function GET(request: NextRequest) {
