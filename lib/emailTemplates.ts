@@ -174,7 +174,7 @@ export function buildNewsletterEmail({
           ${headline || ''}
         </div>
         <div style="font-size:13px; color:#888; margin-top:10px; letter-spacing:1px;">
-          BY THE FENNESSEY COMEAU GROUP TEAM
+          BY THE FENNESSEY COMEAU GROUP
         </div>
         <div style="width:60px; height:3px; background:#d22630; margin-top:14px; font-size:0; line-height:0;">&nbsp;</div>
       </div>
