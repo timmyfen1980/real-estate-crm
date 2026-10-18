@@ -97,16 +97,14 @@ export async function GET(request: NextRequest) {
   const heroB64 = readFileSync(join(process.cwd(), 'public', 'email-hero.b64'), 'utf8').trim();
   const teamPhotoB64 = readFileSync(join(process.cwd(), 'public', 'team-photo.b64'), 'utf8').trim();
 
-  const issueDate = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Toronto' });
   const html = buildNewsletterEmail({
     content: rawContent,
     firstName: 'Tim',
     headline: sequence.subject,
-    issueDate,
-    teamName: account?.team_name || 'Fennessey & Comeau Real Estate Group',
+    teamName: 'Fennessey Comeau Group',
     teamEmail: 'info@thefcgroup.ca',
     teamPhone: '905 493-7355',
-    brokerageName: account?.brokerage_name,
+    brokerageName: 'RE/MAX HALLMARK FIRST GROUP REALTY LTD.',
     brokerageLogoUrl: account?.brokerage_logo_url,
     unsubscribeLink: `${siteOrigin}/api/unsubscribe?contact_id=test`,
     ctaLink: sequence.cta_link || null,
@@ -127,7 +125,7 @@ export async function GET(request: NextRequest) {
   const send = await resend.emails.send({
     from: fromEmail,
     to: TEST_RECIPIENT,
-    subject: sequence.subject,
+    subject: "Test Newsletter",
     html,
     attachments: [
       { filename: 'hero.png', content: heroB64, contentType: 'image/png', contentId: 'newsletter-hero' },
@@ -138,7 +136,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     resend_id: (send as any)?.data?.id || null,
-    subject: sequence.subject,
+    subject: "Test Newsletter",
     step: stepNumber,
   });
 }

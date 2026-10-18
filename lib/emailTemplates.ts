@@ -135,11 +135,11 @@ li {
   `
 }
 
+
 export function buildNewsletterEmail({
   content,
   firstName,
   headline,
-  issueDate,
   teamName,
   teamEmail,
   teamPhone,
@@ -157,49 +157,36 @@ export function buildNewsletterEmail({
   );
 
   return `
-  <div style="background:#ece8e1; padding:0; font-family: Arial, Helvetica, sans-serif;">
-
-    <!-- GOLD ACCENT BAR -->
-    <div style="height:6px; background:#c9a86a; font-size:0; line-height:0;">&nbsp;</div>
+  <div style="background:#e8e8e8; padding:0; font-family: Arial, Helvetica, sans-serif;">
 
     <!-- NEWSLETTER BODY -->
     <div style="max-width:640px; margin:0 auto; background:#ffffff;">
 
-      <!-- MASTHEAD -->
-      <div style="text-align:center; padding:30px 30px 22px; border-bottom:4px solid #0f2a44;">
-        <div style="font-size:11px; letter-spacing:4px; color:#c9a86a; font-weight:700;">
-          THE FC GROUP &nbsp;•&nbsp; MONTHLY MARKET BRIEF
-        </div>
-        <div style="font-family: Georgia, 'Times New Roman', serif; font-size:40px; font-weight:700; color:#0f2a44; margin:10px 0 6px; line-height:1.1;">
-          Fennessey &amp; Comeau
-        </div>
-        <div style="font-size:12px; color:#777; letter-spacing:2px;">
-          ${(issueDate || '').toUpperCase()}
-        </div>
-      </div>
-
       <!-- HERO (team banner, CID-embedded so it always renders) -->
-      <img src="cid:newsletter-hero" width="640" alt="${teamName || 'Fennessey & Comeau Real Estate Group'}" style="width:100%; max-width:640px; height:auto; display:block; border:0;" />
+      <img src="cid:newsletter-hero" width="640" alt="Fennessey Comeau Group" style="width:100%; max-width:640px; height:auto; display:block; border:0;" />
+
+      <!-- RED ACCENT BAR -->
+      <div style="height:6px; background:#d22630; font-size:0; line-height:0;">&nbsp;</div>
 
       <!-- COVER STORY HEADER -->
       <div style="padding:34px 44px 6px;">
-        <div style="font-size:11px; letter-spacing:3px; color:#c9a86a; font-weight:700; margin-bottom:10px;">
+        <div style="font-size:11px; letter-spacing:3px; color:#d22630; font-weight:700; margin-bottom:10px;">
           COVER STORY
         </div>
         <div style="font-family: Georgia, 'Times New Roman', serif; font-size:32px; font-weight:700; color:#0f2a44; line-height:1.2;">
           ${headline || ''}
         </div>
         <div style="font-size:13px; color:#888; margin-top:10px; letter-spacing:1px;">
-          BY THE ${String(teamName || '').toUpperCase()} TEAM
+          BY THE FENNESSEY COMEAU GROUP TEAM
         </div>
-        <div style="width:60px; height:3px; background:#c9a86a; margin-top:14px; font-size:0; line-height:0;">&nbsp;</div>
+        <div style="width:60px; height:3px; background:#d22630; margin-top:14px; font-size:0; line-height:0;">&nbsp;</div>
       </div>
 
       <!-- ARTICLE BODY -->
       <div style="padding:20px 44px 30px; font-size:16px; line-height:1.75; color:#222;">
         ${safeContent
           .replaceAll('{{first_name}}', firstName || '')
-          .replaceAll('{{agent_name}}', teamName || '')}
+          .replaceAll('{{agent_name}}', 'Fennessey Comeau Group')}
         <style>
           p { margin: 0 0 18px 0; }
           ul { margin: 0 0 22px 20px; padding-left: 20px; list-style-type: disc; }
@@ -211,7 +198,7 @@ export function buildNewsletterEmail({
           ctaLink && ctaText
             ? `<div style="margin:30px 0 10px; text-align:center;">
                  <a href="${ctaLink}" style="
-                   background:#0f2a44;
+                   background:#d22630;
                    color:#ffffff;
                    padding:16px 38px;
                    text-decoration:none;
@@ -229,35 +216,32 @@ export function buildNewsletterEmail({
       </div>
 
       <!-- TEAM BOX -->
-      <div style="margin:0 44px 34px; border:1px solid #e2ddd2; border-top:4px solid #c9a86a; padding:26px; text-align:center; background:#faf8f4;">
-        <div style="font-size:11px; letter-spacing:3px; color:#c9a86a; font-weight:700; margin-bottom:14px;">
+      <div style="margin:0 44px 34px; border:1px solid #e0dede; border-top:4px solid #d22630; padding:26px; text-align:center; background:#fafafa;">
+        <div style="font-size:11px; letter-spacing:3px; color:#d22630; font-weight:700; margin-bottom:14px;">
           YOUR TEAM
         </div>
-        <img src="cid:team-photo" width="150" alt="The FC Group team" style="width:150px; max-width:150px; height:auto; display:block; margin:0 auto; border:0; border-radius:10px;" />
-        <div style="font-family: Georgia, 'Times New Roman', serif; font-weight:700; font-size:19px; margin-top:14px; color:#0f2a44;">${teamName}</div>
+        <img src="cid:team-photo" width="150" alt="The Fennessey Comeau Group team" style="width:150px; max-width:150px; height:auto; display:block; margin:0 auto; border:0; border-radius:10px;" />
+        <div style="font-family: Georgia, 'Times New Roman', serif; font-weight:700; font-size:19px; margin-top:14px; color:#0f2a44;">Fennessey Comeau Group</div>
         <div style="font-size:14px; color:#444; margin-top:6px;">${teamEmail}${
     teamPhone ? ` &nbsp;•&nbsp; ${teamPhone}` : ''
   }</div>
-        <div style="font-size:13px; color:#777; margin-top:4px;">${brokerageName || ''}</div>
+        <div style="font-size:13px; color:#777; margin-top:4px;">RE/MAX HALLMARK FIRST GROUP REALTY LTD.</div>
       </div>
 
       <!-- FOOTER -->
       <div style="background:#0f2a44; text-align:center; padding:26px 30px; font-size:12px; color:#a9b6c4; line-height:1.7;">
         <div style="color:#ffffff; font-weight:700; letter-spacing:2px; font-size:13px; margin-bottom:8px;">
-          FENNESSEY &amp; COMEAU REAL ESTATE GROUP
+          FENNESSEY COMEAU GROUP
         </div>
-        <div>${brokerageName || ''}</div>
+        <div>RE/MAX HALLMARK FIRST GROUP REALTY LTD.</div>
         <div style="margin-top:10px;">
-          <a href="${unsubscribeLink}" style="color:#c9a86a; text-decoration:underline;">
+          <a href="${unsubscribeLink}" style="color:#d22630; text-decoration:underline;">
             Unsubscribe
           </a>
         </div>
       </div>
 
     </div>
-
-    <!-- GOLD ACCENT BAR -->
-    <div style="height:6px; background:#c9a86a; font-size:0; line-height:0;">&nbsp;</div>
 
   </div>
   `
