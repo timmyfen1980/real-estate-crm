@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Obvious junk patterns - auto-delete these contacts
 const JUNK_PATTERNS = [
   /^rtest@/i,
   /^test@/i,
@@ -19,11 +19,34 @@ function isJunkEmail(email: string): boolean {
   return JUNK_PATTERNS.some(p => p.test(email));
 }
 
+function verifySignature(payload: string, signature: string | null): boolean {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) return true; // Skip verification if no secret configured
+  if (!signature) return false;
+  
+  // Resend uses Svix-style signatures: "v1,<signature>"
+  const parts = signature.split(',');
+  const sig = parts.find(p => p.startsWith('v1='))?.slice(3) || parts[0];
+  
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  
+  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
     
-    // Resend webhook format: { type: 'email.bounced', data: { email_id, to, ... } }
+    // Verify webhook signature
+    const signature = request.headers.get('svix-signature') || request.headers.get('webhook-signature');
+    if (process.env.RESEND_WEBHOOK_SECRET && !verifySignature(rawBody, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    
+    const body = JSON.parse(rawBody);
     const { type, data } = body;
     
     if (!type || !data) {
@@ -35,7 +58,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, skipped: 'no email' });
     }
 
-    // Find the contact
     const { data: contacts } = await supabase
       .from('contacts')
       .select('id, email')
@@ -48,27 +70,24 @@ export async function POST(request: NextRequest) {
     const ids = contacts.map((c: any) => c.id);
     let action = '';
 
-    if (type === 'email.complained') {
-      // Spam complaint - must suppress. Flag as invalid.
+    if (type === 'email.complained' || type === 'email.suppressed') {
       await supabase.from('contacts').update({ 
         email_invalid: true,
-        email_invalid_reason: 'spam_complaint',
+        email_invalid_reason: type === 'email.complained' ? 'spam_complaint' : 'suppressed',
         email_invalid_at: new Date().toISOString(),
       }).in('id', ids);
-      action = 'flagged_spam_complaint';
+      action = type === 'email.complained' ? 'flagged_spam_complaint' : 'flagged_suppressed';
       
-    } else if (type === 'email.bounced') {
+    } else if (type === 'email.bounced' || type === 'email.failed') {
       if (isJunkEmail(email)) {
-        // Obvious junk - delete the contact entirely
         await supabase.from('contact_campaigns').delete().in('contact_id', ids);
         await supabase.from('email_logs').delete().in('contact_id', ids);
         await supabase.from('contacts').delete().in('id', ids);
         action = 'deleted_junk';
       } else {
-        // Real email that bounced - flag for review
         await supabase.from('contacts').update({ 
           email_invalid: true,
-          email_invalid_reason: 'bounced',
+          email_invalid_reason: type === 'email.bounced' ? 'bounced' : 'failed',
           email_invalid_at: new Date().toISOString(),
         }).in('id', ids);
         action = 'flagged_bounced';
@@ -85,7 +104,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Resend requires a GET for webhook verification
 export async function GET() {
   return NextResponse.json({ ok: true, message: 'Resend webhook endpoint' });
 }
