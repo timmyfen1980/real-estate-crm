@@ -147,17 +147,26 @@ return matchesSearch && matchesTag && matchesAgent
 
   const handleSendTest = async () => {
     setSendingTest(true)
-    await fetch('/api/email/send-test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subject,
-        body_html: bodyHtml,
-        cta_text: ctaText,
-        cta_link: ctaLink,
-      }),
-    })
-    alert('Test email sent')
+    try {
+      const res = await fetch('/api/email/send-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject,
+          body_html: bodyHtml,
+          cta_text: ctaText,
+          cta_link: ctaLink,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert('Failed: ' + (data.error || 'Unknown error'))
+      } else {
+        alert('Test email sent')
+      }
+    } catch (err: any) {
+      alert('Failed: ' + (err.message || 'Network error'))
+    }
     setSendingTest(false)
   }
 
