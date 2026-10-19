@@ -8,6 +8,8 @@ interface EmailIssue {
   subject: string;
   created_at: string;
   last_event: string;
+  contact_id: string | null;
+  contact_name: string | null;
 }
 
 export default function EmailHealthPage() {
@@ -116,15 +118,14 @@ export default function EmailHealthPage() {
                       {suggestion.action}
                     </span>
                     <p className="text-xs text-gray-500 mt-1">{suggestion.reason}</p>
-                    <div className="mt-2 flex gap-2">
-                      {(suggestion.action === 'Delete' || suggestion.action === 'Remove') && (
-                        <button
-                          onClick={() => handleAction(email, 'delete', issue.id)}
-                          disabled={acting === issue.id}
-                          className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
+                    <div className="mt-2 flex gap-2 flex-wrap">
+                      {issue.contact_id && (
+                        <a
+                          href={`/dashboard/contacts/${issue.contact_id}`}
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 inline-block"
                         >
-                          {acting === issue.id ? '...' : 'Delete Contact'}
-                        </button>
+                          View Contact{issue.contact_name ? ` (${issue.contact_name})` : ''}
+                        </a>
                       )}
                       {suggestion.action === 'Fix typo' && (
                         <button
@@ -138,6 +139,13 @@ export default function EmailHealthPage() {
                           {acting === issue.id ? '...' : 'Fix Email'}
                         </button>
                       )}
+                      <button
+                        onClick={() => handleAction(email, 'delete', issue.id)}
+                        disabled={acting === issue.id}
+                        className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {acting === issue.id ? '...' : 'Delete'}
+                      </button>
                     </div>
                   </td>
                 </tr>
