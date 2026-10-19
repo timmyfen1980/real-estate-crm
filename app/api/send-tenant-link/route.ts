@@ -47,7 +47,7 @@ Fennessey Comeau Group, RE/MAX Hallmark First Group Realty Ltd.
 export async function POST(req: NextRequest) {
   try {
     // Verify the user is logged in
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
