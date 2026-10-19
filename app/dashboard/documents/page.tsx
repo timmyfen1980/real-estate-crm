@@ -1,7 +1,7 @@
 // /dashboard/documents — Team document library, served from Supabase storage
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface TeamDoc {
   name: string;
@@ -84,6 +84,46 @@ export default function DocumentsPage() {
     }
   };
 
+  const [uploading, setUploading] = useState<string | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceTarget, setReplaceTarget] = useState<TeamDoc | null>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
+
+  const handleReplace = async (doc: TeamDoc, file: File) => {
+    setUploading(doc.path);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('path', doc.path);
+      const res = await fetch('/api/team-docs/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      alert(`"${doc.name}" has been replaced.`);
+    } catch (e: any) {
+      alert('Replace failed: ' + e.message);
+    }
+    setUploading(null);
+    setReplaceTarget(null);
+  };
+
+  const handleAddNew = async (file: File) => {
+    const folderId = activeFolder; // buyer, seller, or renter
+    const storagePath = `team-docs/${folderId}/${file.name}`;
+    setUploading('new');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('path', storagePath);
+      const res = await fetch('/api/team-docs/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      alert(`"${file.name}" uploaded. Refresh to see it.`);
+    } catch (e: any) {
+      alert('Upload failed: ' + e.message);
+    }
+    setUploading(null);
+  };
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-2">Documents</h1>
@@ -107,8 +147,39 @@ export default function DocumentsPage() {
         ))}
       </div>
 
+      {/* Hidden file inputs */}
+      <input
+        type="file"
+        ref={replaceInputRef}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && replaceTarget) handleReplace(replaceTarget, file);
+          e.target.value = '';
+        }}
+      />
+      <input
+        type="file"
+        ref={addInputRef}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleAddNew(file);
+          e.target.value = '';
+        }}
+      />
+
       <div className="bg-white border border-gray-200 rounded-xl p-6">
-        <h2 className="text-lg font-semibold mb-1">{folder.title}</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-semibold">{folder.title}</h2>
+          <button
+            onClick={() => addInputRef.current?.click()}
+            disabled={uploading !== null}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+          >
+            {uploading === 'new' ? 'Uploading…' : '+ Add New File'}
+          </button>
+        </div>
         <p className="text-sm text-gray-500 mb-4">{folder.description}</p>
 
         {folder.docs.length === 0 ? (
@@ -141,6 +212,13 @@ export default function DocumentsPage() {
                     className="px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50"
                   >
                     {busyKey === `download:${doc.path}` ? 'Opening…' : 'Download ↓'}
+                  </button>
+                  <button
+                    onClick={() => { setReplaceTarget(doc); replaceInputRef.current?.click(); }}
+                    disabled={uploading !== null}
+                    className="px-4 py-1.5 text-sm font-medium text-orange-600 hover:bg-orange-50 rounded-lg disabled:opacity-50"
+                  >
+                    {uploading === doc.path ? 'Replacing…' : 'Replace 🔄'}
                   </button>
                 </div>
               </div>
