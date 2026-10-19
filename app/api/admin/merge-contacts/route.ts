@@ -2,8 +2,9 @@
 // POST /api/admin/merge-contacts — merge duplicate contacts.
 // Body: { keep_id, merge_id, new_first_name?, new_last_name? }
 // Auth: Bearer REA_AGENT_SECRET header.
-// Moves all contact_campaigns and email_logs from merge_id to keep_id,
-// optionally updates the keeper's name, then deletes merge_id.
+// Moves all related records (contact_campaigns, email_logs, deals)
+// from merge_id to keep_id, optionally updates keeper's name,
+// then deletes merge_id.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -31,7 +32,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Valid keep_id and merge_id required.' }, { status: 400 });
     }
 
-    // Verify both contacts exist
     const { data: keepContact } = await supabase
       .from('contacts').select('id').eq('id', keep_id).single();
     const { data: mergeContact } = await supabase
@@ -44,14 +44,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Merge contact not found.' }, { status: 404 });
     }
 
-    // Move related records
-    const { error: campError } = await supabase
-      .from('contact_campaigns').update({ contact_id: keep_id }).eq('contact_id', merge_id);
-    if (campError) throw campError;
-
-    const { error: logError } = await supabase
-      .from('email_logs').update({ contact_id: keep_id }).eq('contact_id', merge_id);
-    if (logError) throw logError;
+    // Move all related records to the keeper
+    const tables = ['contact_campaigns', 'email_logs', 'deals'];
+    for (const table of tables) {
+      try {
+        const { error } = await supabase
+          .from(table).update({ contact_id: keep_id }).eq('contact_id', merge_id);
+        if (error && !error.message.includes('does not exist')) throw error;
+      } catch (e: any) {
+        if (!e.message?.includes('does not exist')) throw e;
+      }
+    }
 
     // Update keeper's name if provided
     if (new_first_name || new_last_name) {
