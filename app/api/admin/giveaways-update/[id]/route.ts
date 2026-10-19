@@ -3,19 +3,20 @@
 // DELETE /api/admin/giveaways-update/[id] — delete a giveaway (session auth).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 
 const FC_ACCOUNT_ID = 'a540905b-7cd7-4dd6-bba0-162c07978bd6';
 
-async function getAdmin() {
+async function getAuthedClient() {
   const cookieStore = await cookies();
-  const supabase = createClient(
+  const supabaseAuth = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { cookie: cookieStore.toString() } } }
+    { cookies: { get(name: string) { return cookieStore.get(name)?.value; } } }
   );
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabaseAuth.auth.getUser();
   if (!user) return null;
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,14 +29,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdmin();
-    if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await getAuthedClient();
+    if (!supabase) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
 
     const { id } = await params;
     const body = await req.json();
 
     if (body.is_active === true) {
-      await admin
+      await supabase
         .from('giveaways')
         .update({ is_active: false })
         .eq('account_id', FC_ACCOUNT_ID)
@@ -47,7 +48,7 @@ export async function PUT(
       if (body[k] !== undefined) updates[k] = body[k];
     }
 
-    const { data, error } = await admin
+    const { data, error } = await supabase
       .from('giveaways')
       .update(updates)
       .eq('id', id)
@@ -67,11 +68,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdmin();
-    if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await getAuthedClient();
+    if (!supabase) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
 
     const { id } = await params;
-    const { error } = await admin
+    const { error } = await supabase
       .from('giveaways')
       .delete()
       .eq('id', id)

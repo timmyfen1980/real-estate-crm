@@ -1,23 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// POST /api/admin/upload-giveaway-image — upload prize image to Supabase storage.
-// Session auth. Stores in account-assets bucket under giveaways/.
+// POST /api/admin/upload-giveaway-image — upload prize image (session auth).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
   try {
     const cookieStore = await cookies();
-    const supabase = createClient(
+    const supabaseAuth = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { cookie: cookieStore.toString() } } }
+      { cookies: { get(name: string) { return cookieStore.get(name)?.value; } } }
     );
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    }
 
-    const admin = createClient(
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
     const filename = `giveaways/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await admin.storage
+    const { error: uploadError } = await supabase.storage
       .from('account-assets')
       .upload(filename, buffer, {
         contentType: file.type,
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) throw uploadError;
 
-    const { data: urlData } = admin.storage
+    const { data: urlData } = supabase.storage
       .from('account-assets')
       .getPublicUrl(filename);
 

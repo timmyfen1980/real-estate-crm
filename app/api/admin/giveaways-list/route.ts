@@ -1,35 +1,32 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Session-authenticated proxy routes for giveaway management from dashboard.
-// These verify the Supabase session, then use service role for DB access.
+// GET /api/admin/giveaways-list — list all giveaways with entry counts (session auth).
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 
 const FC_ACCOUNT_ID = 'a540905b-7cd7-4dd6-bba0-162c07978bd6';
 
-async function getServiceClient() {
-  const cookieStore = await cookies();
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { cookie: cookieStore.toString() } } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
-// GET /api/admin/giveaways-list — list all giveaways with entry counts
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const admin = await getServiceClient();
-    if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const cookieStore = await cookies();
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { get(name: string) { return cookieStore.get(name)?.value; } } }
+    );
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    }
 
-    const { data, error } = await admin
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data, error } = await supabase
       .from('giveaways')
       .select('*')
       .eq('account_id', FC_ACCOUNT_ID)
@@ -38,7 +35,7 @@ export async function GET(req: NextRequest) {
 
     const withCounts = await Promise.all(
       (data || []).map(async (g: any) => {
-        const { count } = await admin
+        const { count } = await supabase
           .from('giveaway_entries')
           .select('id', { count: 'exact', head: true })
           .eq('giveaway_id', g.id);
