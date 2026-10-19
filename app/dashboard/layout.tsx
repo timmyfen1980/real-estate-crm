@@ -253,6 +253,9 @@ const handleLogout = async () => {
 <Link href="/dashboard/send-tenant-link" className={navItemClass('/dashboard/send-tenant-link')}>
   Tenant Link
 </Link>
+<Link href="/dashboard/email-cleanup" className={navItemClass('/dashboard/email-cleanup')}>
+  Email Cleanup
+</Link>
         </nav>
       </aside>
 
