@@ -86,6 +86,7 @@ type Property = {
   address: string | null
   city: string | null
   province: string | null
+  role: string | null
 }
 type ContactCampaign = {
   id: string
@@ -134,6 +135,10 @@ export default function ContactDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [properties, setProperties] = useState<Property[]>([])
+  const [showPropertyModal, setShowPropertyModal] = useState(false)
+  const [propertySearch, setPropertySearch] = useState('')
+  const [propertyResults, setPropertyResults] = useState<any[]>([])
+  const [selectedPropertyRole, setSelectedPropertyRole] = useState('buyer')
   
   const [deals, setDeals] = useState<any[]>([])
   const [extractingId, setExtractingId] = useState(false)
@@ -225,6 +230,7 @@ setActivities(activityData || [])
 const { data: propertyData } = await supabase
   .from('property_contacts')
   .select(`
+    role,
     properties (
       id,
       address,
@@ -241,11 +247,8 @@ const parsedProperties =
 
       if (!prop) return null
 
-      if (Array.isArray(prop)) {
-        return prop[0]
-      }
-
-      return prop
+      const p = Array.isArray(prop) ? prop[0] : prop
+      return { ...p, role: row.role || null }
     })
     .filter(Boolean) || []
 
@@ -344,6 +347,54 @@ setContactCampaigns(assignedCampaigns || [])
   useEffect(() => {
     if (contactId) loadData()
   }, [contactId])
+
+  const searchProperties = async (query: string) => {
+    setPropertySearch(query)
+    if (!query || query.length < 2) {
+      setPropertyResults([])
+      return
+    }
+    const { data } = await supabase
+      .from('properties')
+      .select('id, address, city, province')
+      .or(`address.ilike.%${query}%,city.ilike.%${query}%`)
+      .limit(10)
+    // Filter out already-linked properties
+    const linkedIds = new Set(properties.map(p => p.id))
+    setPropertyResults((data || []).filter((p: any) => !linkedIds.has(p.id)))
+  }
+
+  const linkProperty = async (property: any) => {
+    const { error } = await supabase
+      .from('property_contacts')
+      .insert({
+        property_id: property.id,
+        contact_id: contactId,
+        role: selectedPropertyRole,
+      })
+    if (error) {
+      alert('Failed to link property')
+      return
+    }
+    setProperties(prev => [...prev, { ...property, role: selectedPropertyRole }])
+    setShowPropertyModal(false)
+    setPropertySearch('')
+    setPropertyResults([])
+  }
+
+  const unlinkProperty = async (propertyId: string) => {
+    if (!confirm('Remove this property link?')) return
+    const { error } = await supabase
+      .from('property_contacts')
+      .delete()
+      .eq('contact_id', contactId)
+      .eq('property_id', propertyId)
+    if (error) {
+      alert('Failed to remove link')
+      return
+    }
+    setProperties(prev => prev.filter(p => p.id !== propertyId))
+  }
 const enrollContactInCampaign = async () => {
 
   if (!selectedCampaign) return
@@ -1505,7 +1556,15 @@ const handleSave = async () => {
 
 <div className="bg-white rounded-xl shadow p-6">
 
-  <h3 className="font-semibold mb-4">Properties</h3>
+  <div className="flex items-center justify-between mb-4">
+    <h3 className="font-semibold">Properties</h3>
+    <button
+      onClick={() => setShowPropertyModal(true)}
+      className="bg-black text-white px-4 py-2 rounded-lg text-sm hover:opacity-90"
+    >
+      Link Property
+    </button>
+  </div>
 
   {properties.length === 0 && (
     <p className="text-sm text-gray-500">
@@ -1526,6 +1585,11 @@ const handleSave = async () => {
 
           <p className="text-sm font-medium">
             {property.address || 'Property'}
+            {property.role && (
+              <span className="ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 capitalize">
+                {property.role}
+              </span>
+            )}
           </p>
 
           <p className="text-xs text-gray-500">
@@ -1534,14 +1598,22 @@ const handleSave = async () => {
 
         </div>
 
-        <button
-          onClick={() =>
-            router.push(`/dashboard/properties/${property.id}`)
-          }
-          className="text-sm text-blue-600 hover:underline"
-        >
-          View
-        </button>
+        <div className="flex gap-3 items-center">
+          <button
+            onClick={() =>
+              router.push(`/dashboard/properties/${property.id}`)
+            }
+            className="text-sm text-blue-600 hover:underline"
+          >
+            View
+          </button>
+          <button
+            onClick={() => unlinkProperty(property.id)}
+            className="text-sm text-red-600 hover:underline"
+          >
+            Remove
+          </button>
+        </div>
 
       </div>
 
@@ -1550,6 +1622,64 @@ const handleSave = async () => {
   </div>
 
 </div>
+
+{/* LINK PROPERTY MODAL */}
+{showPropertyModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-xl p-6 max-w-md w-full">
+      <h3 className="font-semibold text-lg mb-4">Link Property</h3>
+
+      <label className="text-xs text-gray-500 block mb-1">Role</label>
+      <select
+        value={selectedPropertyRole}
+        onChange={(e) => setSelectedPropertyRole(e.target.value)}
+        className="w-full border rounded p-2 mb-4"
+      >
+        <option value="buyer">Buyer</option>
+        <option value="seller">Seller</option>
+        <option value="owner">Owner</option>
+        <option value="tenant">Tenant</option>
+        <option value="landlord">Landlord</option>
+      </select>
+
+      <label className="text-xs text-gray-500 block mb-1">Search properties</label>
+      <input
+        value={propertySearch}
+        onChange={(e) => searchProperties(e.target.value)}
+        placeholder="Type address or city..."
+        className="w-full border rounded p-2 mb-4"
+        autoFocus
+      />
+
+      <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+        {propertyResults.map((p: any) => (
+          <button
+            key={p.id}
+            onClick={() => linkProperty(p)}
+            className="w-full text-left border rounded p-3 hover:bg-gray-50"
+          >
+            <p className="text-sm font-medium">{p.address || 'Property'}</p>
+            <p className="text-xs text-gray-500">{p.city} {p.province}</p>
+          </button>
+        ))}
+        {propertySearch.length >= 2 && propertyResults.length === 0 && (
+          <p className="text-sm text-gray-500 text-center py-4">No properties found</p>
+        )}
+      </div>
+
+      <button
+        onClick={() => {
+          setShowPropertyModal(false)
+          setPropertySearch('')
+          setPropertyResults([])
+        }}
+        className="w-full border rounded p-2 text-gray-600 hover:bg-gray-50"
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+)}
 {/* EMAIL AUTOMATIONS */}
 
 <div className="bg-white rounded-2xl shadow p-6">
