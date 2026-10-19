@@ -14,6 +14,7 @@ export default function EmailHealthPage() {
   const [issues, setIssues] = useState<EmailIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [acting, setActing] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/email-health')
@@ -46,6 +47,25 @@ export default function EmailHealthPage() {
       return { action: 'Remove', reason: 'Marked as spam — must remove', color: 'red' };
     }
     return { action: 'Verify', reason: 'Check if email is still valid', color: 'blue' };
+  };
+
+  const handleAction = async (email: string, action: string, issueId: string) => {
+    if (!confirm(`Are you sure you want to ${action.toLowerCase()} ${email}?`)) return;
+    setActing(issueId);
+    try {
+      const res = await fetch('/api/email-health/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      // Remove from list
+      setIssues(prev => prev.filter(i => i.id !== issueId));
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+    setActing(null);
   };
 
   if (loading) return <div className="p-8">Loading email health data...</div>;
@@ -96,6 +116,29 @@ export default function EmailHealthPage() {
                       {suggestion.action}
                     </span>
                     <p className="text-xs text-gray-500 mt-1">{suggestion.reason}</p>
+                    <div className="mt-2 flex gap-2">
+                      {(suggestion.action === 'Delete' || suggestion.action === 'Remove') && (
+                        <button
+                          onClick={() => handleAction(email, 'delete', issue.id)}
+                          disabled={acting === issue.id}
+                          className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {acting === issue.id ? '...' : 'Delete Contact'}
+                        </button>
+                      )}
+                      {suggestion.action === 'Fix typo' && (
+                        <button
+                          onClick={() => {
+                            const fixed = prompt('Enter corrected email:', email);
+                            if (fixed && fixed !== email) handleAction(email, 'fix:' + fixed, issue.id);
+                          }}
+                          disabled={acting === issue.id}
+                          className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 disabled:opacity-50"
+                        >
+                          {acting === issue.id ? '...' : 'Fix Email'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
