@@ -189,14 +189,19 @@ export default function NewClientFilePage() {
       fd.append('file', f);
       const res = await fetch('/api/extract-id', { method: 'POST', body: fd });
       const data = await res.json();
+      if (!res.ok) {
+        setLicenceMsg(data.error || 'Could not read licence. Please enter manually.');
+        return;
+      }
       const ext = data.extracted;
       if (ext) {
-        if (ext.first_name || ext.last_name) setClientNames(`${ext.first_name || ''} ${ext.last_name || ''}`.trim());
-        if (ext.licence_number) setLicenceNumber(ext.licence_number);
-        if (ext.expiry_date) setLicenceExpiry(ext.expiry_date);
-        if (ext.issue_date) setLicenceIssueDate(ext.issue_date);
-        if (ext.province) setLicenceProvince(ext.province);
-        setLicenceMsg('Licence details filled in below.');
+        let filled = false;
+        if (ext.first_name || ext.last_name) { setClientNames(`${ext.first_name || ''} ${ext.last_name || ''}`.trim()); filled = true; }
+        if (ext.licence_number) { setLicenceNumber(ext.licence_number); filled = true; }
+        if (ext.expiry_date) { setLicenceExpiry(ext.expiry_date); filled = true; }
+        if (ext.issue_date) { setLicenceIssueDate(ext.issue_date); filled = true; }
+        if (ext.province) { setLicenceProvince(ext.province); filled = true; }
+        setLicenceMsg(filled ? 'Licence details filled in below.' : 'Could not read licence. Please enter manually.');
       } else {
         setLicenceMsg('Could not read licence. Please enter manually.');
       }
@@ -205,10 +210,15 @@ export default function NewClientFilePage() {
     }
   };
 
-  const handleLicenceLink = () => {
-    const msg = "Hi! Please upload a clear photo of your driver's licence here: " + window.location.origin + "/client/upload";
-    navigator.clipboard.writeText(msg);
-    setLicenceMsg('Link copied - paste it into a text or email.');
+  const handleLicenceLink = async () => {
+    const msg = "Hi! Could you please reply with a clear photo of your driver's licence (front and back)? Thanks!";
+    try {
+      await navigator.clipboard.writeText(msg);
+      setLicenceMsg('Message copied — paste it into a text or email.');
+    } catch {
+      // Clipboard blocked/unavailable: show the text so it can be copied manually
+      setLicenceMsg('Copy this message manually: ' + msg);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
