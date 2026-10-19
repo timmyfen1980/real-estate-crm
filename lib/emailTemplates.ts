@@ -103,7 +103,7 @@ li {
         <div style="display:flex; align-items:center;">
           ${
             agentPhoto
-              ? `<img src="${agentPhoto}" style="width:28px; height:28px; border-radius:50%; margin-right:12px; object-fit:cover;" />`
+              ? `<img src="${agentPhoto}" width="28" height="28" style="width:28px; height:28px; border-radius:50%; margin-right:12px; object-fit:cover; display:block;" />`
               : ''
           }
 
@@ -117,7 +117,7 @@ li {
 
         ${
           brokerageLogo
-            ? `<img src="${brokerageLogo}" style="height:70px;" />`
+            ? `<img src="${brokerageLogo}" width="120" height="70" style="width:120px; height:70px; display:block;" />`
             : ''
         }
 
