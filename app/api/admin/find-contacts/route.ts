@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contacts, error } = await supabase
       .from('contacts')
-      .select('id, first_name, last_name, email, phone, created_at, notes')
+      .select("id, first_name, last_name, email, phone, created_at")
       .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
       .order('created_at', { ascending: true })
       .limit(20);
