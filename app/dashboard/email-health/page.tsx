@@ -146,6 +146,14 @@ export default function EmailHealthPage() {
                       >
                         {acting === issue.id ? '...' : 'Delete'}
                       </button>
+                      <button
+                        onClick={() => handleAction(email, 'dismiss', issue.id)}
+                        disabled={acting === issue.id}
+                        className="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600 disabled:opacity-50"
+                        title="I've handled this — don't show it again"
+                      >
+                        {acting === issue.id ? '...' : 'Dismiss'}
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -163,7 +171,7 @@ export default function EmailHealthPage() {
 
       <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-sm text-blue-800">
-          <strong>How to use this:</strong> "Delete" = safe to remove (test emails). "Fix typo" = obvious domain typos you can correct. "Verify" = real contacts — check if they have a new email before removing. "Remove" (spam complaints) = must delete to protect your sender reputation.
+          <strong>How to use this:</strong> "Delete" = safe to remove (test emails). "Fix typo" = obvious domain typos you can correct. "Verify" = real contacts — check if they have a new email before removing. "Remove" (spam complaints) = must delete to protect your sender reputation. "Dismiss" = you've handled it — hides it permanently so it doesn't come back.
         </p>
       </div>
     </div>
