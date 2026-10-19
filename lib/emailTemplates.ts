@@ -103,7 +103,7 @@ li {
         <div style="display:flex; align-items:center;">
           ${
             agentPhoto
-              ? `<img src="${agentPhoto}" style="width:70px; height:70px; border-radius:50%; margin-right:16px; object-fit:cover;" />`
+              ? `<img src="${agentPhoto}" style="width:28px; height:28px; border-radius:50%; margin-right:12px; object-fit:cover;" />`
               : ''
           }
 
