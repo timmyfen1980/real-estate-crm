@@ -5,6 +5,7 @@
 // Deletes the contact and all dependent rows in FK-safe order (children first).
 // Deals are NOT deleted — their contact_id is set to null instead.
 // Returns per-table deletion counts.
+// v2: retrigger deployment
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
