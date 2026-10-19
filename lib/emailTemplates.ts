@@ -14,124 +14,72 @@ export function buildEmailTemplate({
   emailHeaderImage,
 }: any) {
   return `
-  <div style="background:#e5e7eb; padding:40px 0; font-family: Arial, sans-serif;">
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0; padding:0; background-color:#e5e7eb; font-family: Arial, sans-serif;">
+<center>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#e5e7eb;">
+<tr><td align="center" style="padding:40px 0;">
 
-    <!-- EMAIL CARD -->
-    <div style="max-width:600px; margin:0 auto; background:#ffffff; overflow:hidden;">
-
-      <!-- TOP BLUE BAR -->
-<div style="height:10px; background:#0f2a44;"></div>
-
-<!-- HERO IMAGE -->
-${
-  emailHeaderImage
-    ? `<img 
-          src="${emailHeaderImage}" 
-          style="
-            width:100%;
-            height:auto;
-            display:block;
-          "
-        />`
-    : ''
-}
-
-<!-- BOTTOM BLUE BAR -->
-<div style="height:10px; background:#0f2a44;"></div>
-
-      <!-- BODY -->
-      <div style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111;">
-        
-        <p style="font-size:20px; margin-bottom:20px; font-weight:600;">Hi ${firstName},</p>
-
-        <div style="
-  font-size:16px;
-  line-height:1.8;
-  color:#111;
-">
-
-  ${content
-    .replaceAll('{{first_name}}', firstName || '')
-    .replaceAll('{{agent_name}}', agentName || '')}
-
-</div>
-
-<style>
-  p {
-    margin: 0 0 18px 0;
-  }
-
- ul {
-  margin: 0 0 22px 20px;
-  padding-left: 20px;
-  list-style-type: disc;
-}
-
-li {
-  margin-bottom: 10px;
-  display: list-item;
-}
-
-  li {
-    margin-bottom: 10px;
-  }
-</style>
-
-        ${
-          ctaLink && ctaText
-            ? `<div style="margin-top:30px;">
-                 <a href="${ctaLink}" style="
-                   background:#000;
-                   color:#fff;
-                   padding:14px 24px;
-                   text-decoration:none;
-                   border-radius:6px;
-                   display:inline-block;
-                   font-weight:600;
-                 ">
-                   ${ctaText}
-                 </a>
-               </div>`
-            : ''
-        }
-
+  <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff; max-width:600px;">
+    <tr><td height="10" style="background-color:#0f2a44; font-size:0; line-height:0;">&nbsp;</td></tr>
+    ${emailHeaderImage ? `
+    <tr><td>
+      <img src="${emailHeaderImage}" width="600" alt="" style="width:100%; max-width:600px; height:auto; display:block; border:0;" />
+    </td></tr>` : ''}
+    <tr><td height="10" style="background-color:#0f2a44; font-size:0; line-height:0;">&nbsp;</td></tr>
+    <tr><td style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111111;">
+      <p style="font-size:20px; margin:0 0 20px 0; font-weight:600;">Hi ${firstName},</p>
+      <div style="font-size:16px; line-height:1.8; color:#111111;">
+        ${content
+          .replaceAll('{{first_name}}', firstName || '')
+          .replaceAll('{{agent_name}}', agentName || '')}
       </div>
+      ${ctaLink && ctaText ? `
+      <table cellpadding="0" cellspacing="0" border="0" style="margin-top:30px;">
+        <tr><td style="background-color:#000000; border-radius:6px; padding:14px 24px;">
+          <a href="${ctaLink}" style="color:#ffffff; text-decoration:none; font-weight:600; font-size:16px;">${ctaText}</a>
+        </td></tr>
+      </table>` : ''}
+    </td></tr>
+    <tr><td style="border-top:1px solid #eeeeee; padding:28px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td valign="middle">
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                ${agentPhoto ? `<td valign="middle" style="padding-right:12px;">
+                  <img src="${agentPhoto}" width="28" height="28" alt="" style="width:28px; height:28px; display:block; border:0;" />
+                </td>` : ''}
+                <td valign="middle" style="font-size:15px; line-height:1.5; color:#111111;">
+                  <div style="font-weight:700; font-size:16px;">${agentName}</div>
+                  <div>${agentEmail}</div>
+                  <div>${agentPhone}</div>
+                  <div style="margin-top:4px; color:#555555;">${brokerageName}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+          ${brokerageLogo ? `<td valign="middle" align="right" style="padding-left:20px;">
+            <img src="${brokerageLogo}" width="120" height="40" alt="RE/MAX" style="width:120px; height:40px; display:block; border:0;" />
+          </td>` : ''}
+        </tr>
+      </table>
+    </td></tr>
+    <tr><td style="background-color:#f5f5f5; text-align:center; padding:20px; font-size:12px; color:#666666;">
+      <a href="${unsubscribeLink}" style="color:#666666; text-decoration:none;">Unsubscribe</a>
+    </td></tr>
+  </table>
 
-      <!-- AGENT SECTION -->
-      <div style="border-top:1px solid #eee; padding:28px; display:flex; justify-content:space-between; align-items:center;">
-        
-        <div style="display:flex; align-items:center;">
-          ${
-            agentPhoto
-              ? `<img src="${agentPhoto}" width="28" height="28" style="width:28px; height:28px; border-radius:50%; margin-right:12px; object-fit:cover; display:block;" />`
-              : ''
-          }
-
-          <div style="font-size:15px; line-height:1.5;">
-            <div style="font-weight:700; font-size:16px;">${agentName}</div>
-            <div>${agentEmail}</div>
-            <div>${agentPhone}</div>
-            <div style="margin-top:4px; color:#555;">${brokerageName}</div>
-          </div>
-        </div>
-
-        ${
-          brokerageLogo
-            ? `<img src="${brokerageLogo}" width="120" height="70" style="width:120px; height:70px; display:block;" />`
-            : ''
-        }
-
-      </div>
-
-      <!-- FOOTER -->
-      <div style="background:#f5f5f5; text-align:center; padding:20px; font-size:12px; color:#666;">
-        <a href="${unsubscribeLink}" style="color:#666; text-decoration:none;">
-          Unsubscribe
-        </a>
-      </div>
-
-    </div>
-  </div>
+</td></tr>
+</table>
+</center>
+</body>
+</html>
   `
 }
 
@@ -149,97 +97,77 @@ export function buildNewsletterEmail({
   ctaLink,
   ctaText,
 }: any) {
-  // Constrain oversized content images (Outlook renders width:100% at natural
-  // size, so an explicit width attribute keeps them inside the column).
   const safeContent = String(content || '').replace(
     /<img(?![^>]*\bwidth=)/gi,
     '<img width="560"'
   );
 
   return `
-  <div style="background:#e8e8e8; padding:0; font-family: Arial, Helvetica, sans-serif;">
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0; padding:0; background-color:#e8e8e8; font-family: Arial, Helvetica, sans-serif;">
+<center>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#e8e8e8;">
+<tr><td align="center" style="padding:0;">
 
-    <!-- NEWSLETTER BODY -->
-    <div style="max-width:640px; margin:0 auto; background:#ffffff;">
-
-      <!-- HERO (team banner, CID-embedded so it always renders) -->
+  <table width="640" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff; max-width:640px;">
+    <tr><td>
       <img src="cid:newsletter-hero" width="640" alt="Fennessey Comeau Group" style="width:100%; max-width:640px; height:auto; display:block; border:0;" />
-
-      <!-- RED ACCENT BAR -->
-      <div style="height:6px; background:#d22630; font-size:0; line-height:0;">&nbsp;</div>
-
-      <!-- HEADLINE -->
-      <div style="padding:34px 44px 6px;">
-        <div style="font-family: Georgia, 'Times New Roman', serif; font-size:32px; font-weight:700; color:#0f2a44; line-height:1.2;">
-          ${headline || ''}
-        </div>
-        <div style="font-size:13px; color:#888; margin-top:10px; letter-spacing:1px;">
-          BY THE FENNESSEY COMEAU GROUP
-        </div>
-        <div style="width:60px; height:3px; background:#d22630; margin-top:14px; font-size:0; line-height:0;">&nbsp;</div>
+    </td></tr>
+    <tr><td height="6" style="background-color:#d22630; font-size:0; line-height:0;">&nbsp;</td></tr>
+    <tr><td style="padding:34px 44px 6px;">
+      <div style="font-family: Georgia, 'Times New Roman', serif; font-size:32px; font-weight:700; color:#0f2a44; line-height:1.2;">
+        ${headline || ''}
       </div>
-
-      <!-- ARTICLE BODY -->
-      <div style="padding:20px 44px 30px; font-size:16px; line-height:1.75; color:#222;">
-        ${safeContent
-          .replaceAll('{{first_name}}', firstName || '')
-          .replaceAll('{{agent_name}}', 'Fennessey Comeau Group')}
-        <style>
-          p { margin: 0 0 18px 0; }
-          ul { margin: 0 0 22px 20px; padding-left: 20px; list-style-type: disc; }
-          li { margin-bottom: 10px; display: list-item; }
-          img { max-width: 100%; height: auto; display:block; margin: 22px auto; border-radius:4px; }
-          h2, h3 { font-family: Georgia, 'Times New Roman', serif; color:#0f2a44; }
-        </style>
-        ${
-          ctaLink && ctaText
-            ? `<div style="margin:30px 0 10px; text-align:center;">
-                 <a href="${ctaLink}" style="
-                   background:#d22630;
-                   color:#ffffff;
-                   padding:16px 38px;
-                   text-decoration:none;
-                   border-radius:4px;
-                   display:inline-block;
-                   font-weight:700;
-                   font-size:15px;
-                   letter-spacing:1px;
-                 ">
-                   ${ctaText.toUpperCase()}
-                 </a>
-               </div>`
-            : ''
-        }
+      <div style="font-size:13px; color:#888888; margin-top:10px; letter-spacing:1px;">
+        BY THE FENNESSEY COMEAU GROUP
       </div>
-
-      <!-- TEAM BOX -->
-      <div style="margin:0 44px 34px; border:1px solid #e0dede; border-top:4px solid #d22630; padding:26px; text-align:center; background:#fafafa;">
-        <div style="font-size:11px; letter-spacing:3px; color:#d22630; font-weight:700; margin-bottom:14px;">
-          YOUR TEAM
-        </div>
-        <img src="cid:team-photo" width="150" alt="The Fennessey Comeau Group team" style="width:150px; max-width:150px; height:auto; display:block; margin:0 auto; border:0; border-radius:10px;" />
-        <div style="font-family: Georgia, 'Times New Roman', serif; font-weight:700; font-size:19px; margin-top:14px; color:#0f2a44;">Fennessey Comeau Group</div>
-        <div style="font-size:14px; color:#444; margin-top:6px;">${teamEmail}${
-    teamPhone ? ` &nbsp;•&nbsp; ${teamPhone}` : ''
-  }</div>
-        <div style="font-size:13px; color:#777; margin-top:4px;">RE/MAX HALLMARK FIRST GROUP REALTY LTD.</div>
+      <table cellpadding="0" cellspacing="0" border="0" style="margin-top:14px;">
+        <tr><td width="60" height="3" style="background-color:#d22630; font-size:0; line-height:0;">&nbsp;</td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="padding:20px 44px 30px; font-size:16px; line-height:1.75; color:#222222;">
+      ${safeContent
+        .replaceAll('{{first_name}}', firstName || '')
+        .replaceAll('{{agent_name}}', 'Fennessey Comeau Group')}
+      ${ctaLink && ctaText ? `
+      <center>
+      <table cellpadding="0" cellspacing="0" border="0" style="margin:30px auto 10px;">
+        <tr><td style="background-color:#d22630; border-radius:4px; padding:16px 38px;">
+          <a href="${ctaLink}" style="color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; letter-spacing:1px;">${ctaText.toUpperCase()}</a>
+        </td></tr>
+      </table>
+      </center>` : ''}
+    </td></tr>
+    <tr><td style="padding:0 44px 34px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e0dede; background-color:#fafafa;">
+        <tr><td height="4" style="background-color:#d22630; font-size:0; line-height:0;">&nbsp;</td></tr>
+        <tr><td align="center" style="padding:26px;">
+          <div style="font-size:11px; letter-spacing:3px; color:#d22630; font-weight:700; margin-bottom:14px;">YOUR TEAM</div>
+          <img src="cid:team-photo" width="150" alt="The Fennessey Comeau Group team" style="width:150px; height:auto; display:block; margin:0 auto; border:0;" />
+          <div style="font-family: Georgia, 'Times New Roman', serif; font-weight:700; font-size:19px; margin-top:14px; color:#0f2a44;">Fennessey Comeau Group</div>
+          <div style="font-size:14px; color:#444444; margin-top:6px;">${teamEmail}${teamPhone ? ` &nbsp;•&nbsp; ${teamPhone}` : ''}</div>
+          <div style="font-size:13px; color:#777777; margin-top:4px;">RE/MAX HALLMARK FIRST GROUP REALTY LTD.</div>
+        </td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="background-color:#0f2a44; text-align:center; padding:26px 30px; font-size:12px; color:#a9b6c4; line-height:1.7;">
+      <div style="color:#ffffff; font-weight:700; letter-spacing:2px; font-size:13px; margin-bottom:8px;">FENNESSEY COMEAU GROUP</div>
+      <div>RE/MAX HALLMARK FIRST GROUP REALTY LTD.</div>
+      <div style="margin-top:10px;">
+        <a href="${unsubscribeLink}" style="color:#d22630; text-decoration:underline;">Unsubscribe</a>
       </div>
+    </td></tr>
+  </table>
 
-      <!-- FOOTER -->
-      <div style="background:#0f2a44; text-align:center; padding:26px 30px; font-size:12px; color:#a9b6c4; line-height:1.7;">
-        <div style="color:#ffffff; font-weight:700; letter-spacing:2px; font-size:13px; margin-bottom:8px;">
-          FENNESSEY COMEAU GROUP
-        </div>
-        <div>RE/MAX HALLMARK FIRST GROUP REALTY LTD.</div>
-        <div style="margin-top:10px;">
-          <a href="${unsubscribeLink}" style="color:#d22630; text-decoration:underline;">
-            Unsubscribe
-          </a>
-        </div>
-      </div>
-
-    </div>
-
-  </div>
+</td></tr>
+</table>
+</center>
+</body>
+</html>
   `
 }
