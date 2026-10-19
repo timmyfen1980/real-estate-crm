@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     // Build OR conditions: match against first_name, last_name, email
     // Also handle "First Last" by splitting into parts
-    const parts = search.split(/\s+/).filter(p => p.length > 0);
+    const parts = search.split(/\s+/).filter((p: string) => p.length > 0);
     let orConditions = `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`;
     
     // If multiple words, also try first word as first_name + last word as last_name
