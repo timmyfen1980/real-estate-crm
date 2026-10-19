@@ -302,12 +302,36 @@ export default function GiveawayManagerPage() {
             <label style={labelStyle}>Description</label>
             <textarea style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Details about the prize..." value={description} onChange={(e) => setDescription(e.target.value)} />
             
-            <label style={labelStyle}>Prize Image</label>
+            <label style={labelStyle}>Prize Image (optional)</label>
             {imageUrl && (
               <img src={imageUrl} alt="Prize" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '12px' }} />
             )}
-            <input type="file" accept="image/*" onChange={handleImageUpload} style={{ marginBottom: '12px' }} />
-            {uploading && <p style={{ fontSize: '13px', color: '#6b7280' }}>Uploading...</p>}
+            <label
+              style={{
+                display: 'inline-block',
+                padding: '10px 20px',
+                background: '#f3f4f6',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#374151',
+                cursor: 'pointer',
+                marginBottom: '12px',
+              }}
+            >
+              {uploading ? 'Uploading...' : imageUrl ? 'Change Image' : 'Upload Prize Image'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: 'none' }}
+                disabled={uploading}
+              />
+            </label>
+            <p style={{ fontSize: '12px', color: '#9ca3af', margin: '0 0 12px' }}>
+              The team hero image always shows at the top. This is for the specific prize (e.g. Leafs tickets photo).
+            </p>
             
             <label style={labelStyle}>Draw Date</label>
             <input style={inputStyle} type="date" value={drawDate} onChange={(e) => setDrawDate(e.target.value)} />
