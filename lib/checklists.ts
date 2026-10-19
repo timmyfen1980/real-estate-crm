@@ -382,27 +382,20 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
     ],
     stages: [
       {
-        title: 'Stage 1 — Pre-Search (collect before looking)',
-        description: 'Get everything BEFORE the search starts — once the right property is found, things move fast.',
+        title: 'Stage 1 — Pre-Search (tenant provides)',
+        description: 'The tenant provides ALL of these BEFORE the search starts — once the right property is found, things move fast.',
         items: [
           {
-            document: 'Clear copy of government-issued photo ID',
-            required: 'required',
-            bethNote: 'Driver\'s licence or passport. A clear photo emailed or texted is fine.',
-          },
-          {
-            document: 'Tenant Representation Agreement',
-            form: 'OREA Form 372',
-            required: 'required',
-            viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Buyer%20Documents/21_372%20Tenant%20Designated%20Representation%20Agreement%20-%20PropTx-OREA_copy1.pdf',
-            bethNote: 'Our contract with the tenant — like the buyer rep agreement but for leases. Sign before the search starts.',
-          },
-          {
-            document: 'Completed and signed Rental Application',
+            document: 'Completed Rental Application',
             form: 'OREA Form 410',
             required: 'required',
             viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Leasing%20Documents/21_410%20Rental%20Application%20-%20Residential%20(BLANK)%20-%20PropTx-OREA.pdf',
-            bethNote: 'The tenant fills this out with personal, employment, and rental history details. Must be signed.',
+            bethNote: 'The tenant fills this out online in the portal with personal, employment, and rental history details. Must be signed.',
+          },
+          {
+            document: 'Clear copy of government-issued photo ID',
+            required: 'required',
+            bethNote: 'Driver\'s licence or passport. The tenant uploads a clear photo.',
           },
           {
             document: 'Full Equifax credit report, including credit score',
@@ -412,32 +405,39 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
           {
             document: 'Current employment letter',
             required: 'required',
-            bethNote: 'On company letterhead. Must include: job title/position, income, start date, and employer contact info.',
+            bethNote: 'The tenant provides this on company letterhead. Must include: job title/position, income, start date, and employer contact info.',
           },
           {
             document: 'Two most recent pay stubs',
             required: 'required',
-            bethNote: 'Proves the income claimed in the employment letter. Must be the two latest.',
+            bethNote: 'The tenant uploads these. Proves the income claimed in the employment letter. Must be the two latest.',
           },
           {
-            document: 'Employment offer letter',
+            document: 'Employment offer letter (if no pay stubs yet)',
             required: 'if-applicable',
-            bethNote: 'Only if the tenant was recently hired and doesn\'t have pay stubs yet.',
+            bethNote: 'Only if the tenant was recently hired and doesn\'t have pay stubs yet. Replaces pay stubs.',
           },
           {
-            document: 'Proof of additional income',
+            document: 'Proof of additional income (if applicable)',
             required: 'if-applicable',
             bethNote: 'If the tenant is using other income to qualify (side business, rental income, etc.).',
           },
           {
-            document: 'Self-employment income documents',
+            document: 'Self-employment income documents (if applicable)',
             required: 'if-applicable',
-            bethNote: 'For self-employed tenants: Notices of Assessment (NOAs) or recent business financial records.',
+            bethNote: 'For self-employed tenants: Notices of Assessment (NOAs) or recent business financial records. Replaces employment letter + pay stubs.',
           },
           {
-            document: 'Pension, retirement, or benefit income documentation',
+            document: 'Pension, retirement, or benefit income documentation (if applicable)',
             required: 'if-applicable',
-            bethNote: 'For tenants whose income is pension, retirement savings, or government benefits.',
+            bethNote: 'For tenants whose income is pension, retirement savings, or government benefits. Replaces employment letter + pay stubs.',
+          },
+          {
+            document: 'Signed Tenant Representation Agreement',
+            form: 'OREA Form 372',
+            required: 'required',
+            viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Buyer%20Documents/21_372%20Tenant%20Designated%20Representation%20Agreement%20-%20PropTx-OREA_copy1.pdf',
+            bethNote: 'We prepare this, both sides sign, then upload the executed copy. Our contract with the tenant — sign before the search starts.',
           },
         ],
       },
