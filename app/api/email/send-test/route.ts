@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { Resend } from 'resend'
@@ -11,27 +12,31 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { subject, body_html, cta_text, cta_link } = body
 
-    // Get user from Supabase session cookie
     const cookieStore = await cookies()
-    const supabase = createClient(
+    
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
-        global: {
-          headers: {
-            Cookie: cookieStore.toString(),
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
           },
         },
       }
     )
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-    if (!user || !user.email) {
+    if (userError || !user || !user.email) {
       return NextResponse.json({ error: 'Unauthorized - please log in again' }, { status: 401 })
     }
 
-    // Use service role for DB queries
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
