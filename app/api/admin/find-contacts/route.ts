@@ -26,10 +26,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Search term required.' }, { status: 400 });
     }
 
+    // Build OR conditions: match against first_name, last_name, email
+    // Also handle "First Last" by splitting into parts
+    const parts = search.split(/\s+/).filter(p => p.length > 0);
+    let orConditions = `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`;
+    
+    // If multiple words, also try first word as first_name + last word as last_name
+    if (parts.length >= 2) {
+      const firstPart = parts[0];
+      const lastPart = parts[parts.length - 1];
+      orConditions += `,and(first_name.ilike.%${firstPart}%,last_name.ilike.%${lastPart}%)`;
+    }
+
     const { data: contacts, error } = await supabase
       .from('contacts')
       .select("id, first_name, last_name, email, phone, created_at")
-      .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
+      .or(orConditions)
       .order('created_at', { ascending: true })
       .limit(20);
 
