@@ -244,6 +244,9 @@ const handleLogout = async () => {
 <Link href="/dashboard/campaigns" className={navItemClass('/dashboard/campaigns')}>
   Emails
 </Link>
+<Link href="/dashboard/email-health" className={navItemClass('/dashboard/email-health') + ' pl-8 text-sm'}>
+  Email Health
+</Link>
 <Link href="/dashboard/documents" className={navItemClass('/dashboard/documents')}>
   Documents
 </Link>
