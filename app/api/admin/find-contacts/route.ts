@@ -1,25 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // POST /api/admin/find-contacts — one-time admin lookup.
 // Body: { search }
+// Auth: Bearer REA_AGENT_SECRET header.
 // Returns matching contacts with id, names, email, phone, created_at.
-// Protected: requires a valid Supabase session (any logged-in CRM user).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get(name: string) { return cookieStore.get(name)?.value; } } }
-    );
-    const { data: { user } } = await supabaseAuth.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    const authHeader = req.headers.get('authorization') || '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token || token !== process.env.REA_AGENT_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
 
     const supabase = createClient(
@@ -42,7 +35,6 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
 
-    // For each contact, count related records
     const results = [];
     for (const c of contacts || []) {
       const [campaigns, logs] = await Promise.all([
