@@ -442,6 +442,48 @@ buyer_stage: buyer_stage || null,
     }
 
     // =========================
+    // AGENT NOTIFICATION - New visitor check-in
+    // =========================
+    try {
+      const { data: agentProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', event.user_id)
+        .single()
+
+      if (agentProfile?.email) {
+        const hasAgent = working_with_realtor === true ? 'Yes' : 'No'
+        const agentInfo = working_with_realtor === true && realtor_name ? ` (${realtor_name})` : ''
+        
+        await resend.emails.send({
+          from: 'The FC Group <info@thefcgroup.ca>',
+          to: agentProfile.email,
+          subject: `New Open House Visitor: ${first_name} ${last_name} - ${property.address}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #0f2a44;">New Open House Check-In</h2>
+              <p><strong>Property:</strong> ${property.address}</p>
+              <hr style="border: 1px solid #eee; margin: 20px 0;" />
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 8px; font-weight: bold; width: 40%;">Name:</td><td style="padding: 8px;">${first_name} ${last_name}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${normalizedEmail}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${phone || 'Not provided'}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Has Agent:</td><td style="padding: 8px;">${hasAgent}${agentInfo}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Under Contract:</td><td style="padding: 8px;">${under_contract === true ? 'Yes' : 'No'}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Buyer Stage:</td><td style="padding: 8px;">${buyer_stage || 'Not specified'}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Heard About:</td><td style="padding: 8px;">${hear_about || 'Not specified'}${hear_about_other ? ' - ' + hear_about_other : ''}</td></tr>
+              </table>
+              <hr style="border: 1px solid #eee; margin: 20px 0;" />
+              <p style="color: #666; font-size: 12px;">This is an automated notification from your CRM open house check-in system.</p>
+            </div>
+          `,
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Agent notification failed:', notifyErr)
+    }
+
+    // =========================
 // REPRESENTED BUYER ANALYTICS
 // =========================
 
