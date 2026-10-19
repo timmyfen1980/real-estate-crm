@@ -413,6 +413,13 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             bethNote: 'The tenant uploads these. Proves the income claimed in the employment letter. Must be the two latest.',
           },
           {
+            document: 'Signed Tenant Representation Agreement',
+            form: 'OREA Form 372',
+            required: 'required',
+            viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Buyer%20Documents/21_372%20Tenant%20Designated%20Representation%20Agreement%20-%20PropTx-OREA_copy1.pdf',
+            bethNote: 'We prepare this, both sides sign, then upload the executed copy. Our contract with the tenant — sign before the search starts.',
+          },
+          {
             document: 'Employment offer letter (if no pay stubs yet)',
             required: 'if-applicable',
             bethNote: 'Only if the tenant was recently hired and doesn\'t have pay stubs yet. Replaces pay stubs.',
@@ -432,13 +439,7 @@ export const CHECKLISTS: Record<ChecklistType, Checklist> = {
             required: 'if-applicable',
             bethNote: 'For tenants whose income is pension, retirement savings, or government benefits. Replaces employment letter + pay stubs.',
           },
-          {
-            document: 'Signed Tenant Representation Agreement',
-            form: 'OREA Form 372',
-            required: 'required',
-            viewForm: 'https://github.com/timmyfen1980/REA/blob/main/Buyer%20Documents/21_372%20Tenant%20Designated%20Representation%20Agreement%20-%20PropTx-OREA_copy1.pdf',
-            bethNote: 'We prepare this, both sides sign, then upload the executed copy. Our contract with the tenant — sign before the search starts.',
-          },
+
         ],
       },
       {
