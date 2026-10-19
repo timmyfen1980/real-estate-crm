@@ -1,11 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// POST /api/admin/enrich-from-google — match CRM contacts to Google CSV.
-// Auth: Bearer REA_AGENT_SECRET header.
-// Body: { google_contacts: [{ first_name, last_name, emails: [], phones: [] }], dry_run?: boolean }
-// For each CRM contact, find matching Google contact by normalized name.
-// Fill missing email/phone/secondary_email/secondary_phone. Never creates contacts.
-// Returns enrichment statistics.
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -30,7 +23,6 @@ export async function POST(req: NextRequest) {
     const googleContacts = body.google_contacts || [];
     const dryRun = body.dry_run !== false;
 
-    // Build Google name -> contact map
     const googleMap = new Map<string, any>();
     for (const g of googleContacts) {
       const key = normalizeName(`${g.first_name || ''} ${g.last_name || ''}`.trim());
@@ -39,7 +31,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Load CRM contacts
     let crmContacts: any[] = [];
     let page = 0;
     while (true) {
@@ -57,8 +48,10 @@ export async function POST(req: NextRequest) {
 
     let matched = 0;
     let enriched = 0;
+    let skipped = 0;
     let noMatch = 0;
     const enrichments: any[] = [];
+    const skipReasons: any[] = [];
 
     for (const c of crmContacts) {
       const key = normalizeName(`${c.first_name || ''} ${c.last_name || ''}`.trim());
@@ -72,7 +65,6 @@ export async function POST(req: NextRequest) {
       const updates: any = {};
       const added: string[] = [];
 
-      // Fill missing emails
       const googleEmails = (g.emails || []).filter((e: string) => e && e.includes('@'));
       if (!c.email && googleEmails.length > 0) {
         updates.email = googleEmails[0];
@@ -83,7 +75,6 @@ export async function POST(req: NextRequest) {
         added.push(`secondary_email: ${googleEmails[1]}`);
       }
 
-      // Fill missing phones
       const googlePhones = (g.phones || []).filter((p: string) => p && p.replace(/\D/g, '').length >= 7);
       if (!c.phone && googlePhones.length > 0) {
         updates.phone = googlePhones[0];
@@ -95,20 +86,30 @@ export async function POST(req: NextRequest) {
       }
 
       if (Object.keys(updates).length > 0) {
+        if (!dryRun) {
+          const { error } = await supabase
+            .from('contacts')
+            .update(updates)
+            .eq('id', c.id);
+          if (error) {
+            // Skip constraint violations (email already on another contact)
+            if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
+              skipped++;
+              skipReasons.push({
+                name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+                reason: 'Email already exists on another contact',
+              });
+              continue;
+            }
+            throw error;
+          }
+        }
         enriched++;
         enrichments.push({
           contact_id: c.id,
           name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
           added,
         });
-
-        if (!dryRun) {
-          const { error } = await supabase
-            .from('contacts')
-            .update(updates)
-            .eq('id', c.id);
-          if (error) throw error;
-        }
       }
     }
 
@@ -119,7 +120,8 @@ export async function POST(req: NextRequest) {
       total_google: googleContacts.length,
       name_matched: matched,
       no_google_match: noMatch,
-      would_enrich: enriched,
+      enriched,
+      skipped_duplicates: skipped,
       sample: enrichments.slice(0, 20),
     });
   } catch (err: any) {
