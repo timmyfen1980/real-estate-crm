@@ -37,44 +37,60 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized - please log in again' }, { status: 401 })
     }
 
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    let html: string;
 
-    const { data: membership } = await admin
-      .from('account_users')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .single()
+    // Check if body_html is already a fully-rendered email (from preview)
+    // If so, send it directly without re-wrapping
+    const isAlreadyRendered = body_html && (
+      body_html.includes('max-width:600px') ||
+      body_html.includes('background:#e5e7eb') ||
+      body_html.includes('<!-- EMAIL CARD -->')
+    );
 
-    const { data: account } = await admin
-      .from('accounts')
-      .select('*')
-      .eq('id', membership?.account_id)
-      .single()
+    if (isAlreadyRendered) {
+      // Already a full email - send as-is
+      html = body_html;
+    } else {
+      // Raw content - build the template
+      const admin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
 
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+      const { data: membership } = await admin
+        .from('account_users')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .single()
 
-    const html = buildEmailTemplate({
-      content: body_html,
-      firstName: 'John',
-      agentName: profile?.full_name || '',
-      agentEmail: user.email,
-      agentPhone: profile?.phone || '',
-      agentPhoto: profile?.agent_photo_url || '',
-      teamLogo: account?.team_logo_url || '',
-      brokerageLogo: account?.brokerage_logo_url || '',
-      brokerageName: account?.brokerage_name || '',
-      unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
-      ctaLink: cta_link,
-      ctaText: cta_text,
-      emailHeaderImage: `${process.env.NEXT_PUBLIC_SITE_URL}/api/email-hero`,
-    })
+      const { data: account } = await admin
+        .from('accounts')
+        .select('*')
+        .eq('id', membership?.account_id)
+        .single()
+
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      html = buildEmailTemplate({
+        content: body_html,
+        firstName: 'John',
+        agentName: profile?.full_name || '',
+        agentEmail: user.email,
+        agentPhone: profile?.phone || '',
+        agentPhoto: profile?.agent_photo_url || '',
+        teamLogo: account?.team_logo_url || '',
+        brokerageLogo: account?.brokerage_logo_url || '',
+        brokerageName: account?.brokerage_name || '',
+        unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
+        ctaLink: cta_link,
+        ctaText: cta_text,
+        emailHeaderImage: `${process.env.NEXT_PUBLIC_SITE_URL}/api/email-hero`,
+      })
+    }
 
     const response = await resend.emails.send({
       from: 'The FC Group <info@thefcgroup.ca>',
