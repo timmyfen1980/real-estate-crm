@@ -247,14 +247,14 @@ const handleLogout = async () => {
 <Link href="/dashboard/email-health" className={navItemClass('/dashboard/email-health') + ' pl-8 text-sm'}>
   Email Health
 </Link>
+<Link href="/dashboard/email-cleanup" className={navItemClass('/dashboard/email-cleanup') + ' pl-8 text-sm'}>
+  Email Cleanup
+</Link>
 <Link href="/dashboard/documents" className={navItemClass('/dashboard/documents')}>
   Documents
 </Link>
 <Link href="/dashboard/send-tenant-link" className={navItemClass('/dashboard/send-tenant-link')}>
   Tenant Link
-</Link>
-<Link href="/dashboard/email-cleanup" className={navItemClass('/dashboard/email-cleanup')}>
-  Email Cleanup
 </Link>
 <Link href="/dashboard/giveaway" className={navItemClass('/dashboard/giveaway')}>
   Giveaway
