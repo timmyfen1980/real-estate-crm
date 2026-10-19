@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
 
@@ -52,14 +52,19 @@ export async function GET() {
           if (seenEmails.has(normalizedEmail)) continue;
           seenEmails.add(normalizedEmail);
 
-          // Look up the contact
+          // Look up the contact FIRST
           const { data: contacts } = await supabase
             .from('contacts')
-            .select('id, first_name, last_name')
+            .select('id, first_name, last_name, email')
             .ilike('email', toEmail)
             .limit(1);
 
           const contact = contacts?.[0] || null;
+
+          // No matching contact = deleted or never existed — skip it.
+          // This handles: deleted contacts, and fixed emails (old address
+          // no longer matches any contact after the fix).
+          if (!contact) continue;
 
           issues.push({
             id: email.id,
@@ -67,8 +72,8 @@ export async function GET() {
             subject: email.subject,
             created_at: email.created_at,
             last_event: lastEvent,
-            contact_id: contact?.id || null,
-            contact_name: contact ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim() : null,
+            contact_id: contact.id,
+            contact_name: `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || null,
           });
         }
       } catch (e) {}
