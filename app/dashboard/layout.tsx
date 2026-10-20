@@ -34,6 +34,9 @@ export default function DashboardLayout({
 
 const [userEmail, setUserEmail] = useState<string | null>(null)
 const [userInitials, setUserInitials] = useState<string>('')
+const [userName, setUserName] = useState<string>('')
+const [userPhotoUrl, setUserPhotoUrl] = useState<string | null>(null)
+const [userPhotoError, setUserPhotoError] = useState(false)
 
 const [accountId, setAccountId] = useState<string | null>(null)
 const [userRole, setUserRole] = useState<string | null>(null)
@@ -70,14 +73,19 @@ const [emailsOpen, setEmailsOpen] = useState(false)
       setUserEmail(user.email || null)
       const { data: profile } = await supabase
   .from('profiles')
-  .select('full_name')
+  .select('full_name, agent_photo_url')
   .eq('id', user.id)
   .single()
 
 if (profile?.full_name) {
+  setUserName(profile.full_name)
   const parts = profile.full_name.split(' ')
   const initials = parts.map((p: string) => p[0]).join('').toUpperCase()
   setUserInitials(initials)
+}
+
+if (profile?.agent_photo_url) {
+  setUserPhotoUrl(profile.agent_photo_url)
 }
 
       const { data: membership } = await supabase
@@ -218,6 +226,13 @@ const handleLogout = async () => {
   const iconClass = 'h-[18px] w-[18px] shrink-0 text-[#0f2a44]'
 
   const sectionLabelClass = 'px-4 pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400'
+
+  const handleUserPhotoError = () => {
+    setUserPhotoError(true)
+  }
+
+  const showUserPhoto = Boolean(userPhotoUrl) && !userPhotoError
+  const rowOneLabel = userName || 'My Production'
 
   if (checking) {
     return (
@@ -381,12 +396,27 @@ const handleLogout = async () => {
         <header className="bg-white border-b px-8 py-4 flex justify-between items-center">
 
           {/* LEFT — Production Control Header */}
-<div className="grid grid-cols-[10rem_6rem_6rem_6rem_7.5rem] items-center gap-x-12 gap-y-2 text-sm">
+<div className="grid grid-cols-[12rem_6rem_6rem_6rem_7.5rem] items-center gap-x-12 gap-y-2 text-sm">
   <div
-    className="font-semibold tracking-wide uppercase text-gray-500"
+    className="flex items-center gap-2 min-w-0"
     title="My Year to Date Closed Production"
   >
-    My Production
+    {showUserPhoto ? (
+      <>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={userPhotoUrl || ''}
+          alt={rowOneLabel}
+          onError={handleUserPhotoError}
+          className="h-7 w-7 rounded-full object-cover shrink-0"
+        />
+      </>
+    ) : (
+      <span className="h-7 w-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
+        {userInitials || 'U'}
+      </span>
+    )}
+    <span className="font-semibold text-[#0f2a44] truncate">{rowOneLabel}</span>
   </div>
 
 {/* BUYERS */}
@@ -464,10 +494,16 @@ const handleLogout = async () => {
   <div className="col-span-5 border-t border-gray-200" aria-hidden="true" />
 
   <div
-    className="font-semibold tracking-wide uppercase text-gray-500"
+    className="flex items-center gap-2 min-w-0"
     title="Team Year to Date Closed Production"
   >
-    Team Production
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      src="https://www.thefcgroup.ca/images/team-logo.png"
+      alt="Fennessey Comeau Group"
+      className="h-7 w-auto shrink-0"
+    />
+    <span className="font-semibold tracking-wide uppercase text-gray-500">Team Production</span>
   </div>
 
   <div className="flex items-baseline gap-2">
@@ -494,19 +530,15 @@ const handleLogout = async () => {
 </div>
 
           {/* RIGHT — User Controls */}
-        <div className="flex items-center gap-4 pl-10">
+        <div className="flex flex-col items-end gap-2 pl-10">
 
-  {/* USER INITIALS */}
-  <div className="h-9 w-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold">
-    {userInitials || 'U'}
-  </div>
-
-  {/* ACCOUNT BUTTON */}
+  {/* USER AVATAR — links to Account */}
   <Link
     href="/dashboard/account"
-    className="text-sm px-4 py-2 rounded-md border border-blue-500 text-blue-600 hover:bg-blue-50 transition font-medium"
+    className="h-9 w-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold transition hover:scale-[1.05]"
+    title="Account"
   >
-    Account
+    {userInitials || 'U'}
   </Link>
 
   {/* LOGOUT */}
