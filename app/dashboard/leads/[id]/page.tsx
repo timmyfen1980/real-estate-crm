@@ -95,6 +95,7 @@ const [noteError, setNoteError] = useState<string | null>(null)
 const [savingStatus, setSavingStatus] = useState(false)
 const [savingAssignment, setSavingAssignment] = useState(false)
 const [statusSaved, setStatusSaved] = useState(false)
+const [statusError, setStatusError] = useState<string | null>(null)
 const [assignmentSaved, setAssignmentSaved] = useState(false)
 const [taskModalOpen, setTaskModalOpen] = useState(false)
 const [convertModalOpen, setConvertModalOpen] = useState(false)
@@ -219,12 +220,30 @@ setActivities(activityData || [])
   }, [leadId])
 const updateStatus = async (status: string) => {
   if (!lead) return
+  if (status === lead.status) return
   setSavingStatus(true)
 setStatusSaved(false)
-  if (status === lead.status) return
+setStatusError(null)
 
   const { data: userData } = await supabase.auth.getUser()
-  if (!userData.user) return
+  if (!userData.user) {
+    setSavingStatus(false)
+    setStatusError('Could not save status — please try again.')
+    return
+  }
+
+  // Update the lead FIRST — only log activity and show "Saved" if it worked.
+  // The select is controlled by lead.status, so on failure it reverts on its own.
+  const { error: updateError } = await supabase
+    .from('leads')
+    .update({ status })
+    .eq('id', lead.id)
+
+  if (updateError) {
+    setSavingStatus(false)
+    setStatusError('Could not save status — please try again.')
+    return
+  }
 
   const { data: insertedActivity } = await supabase
     .from('lead_activity')
@@ -248,11 +267,6 @@ setStatusSaved(false)
       )
     `)
     .single()
-
-  await supabase
-    .from('leads')
-    .update({ status })
-    .eq('id', lead.id)
 
   setLead({ ...lead, status })
   setSavingStatus(false)
@@ -505,6 +519,12 @@ const { data: propertyData, error: propertyError } = await supabase
   {statusSaved && !savingStatus && (
     <span className="text-xs text-green-600 mt-1">
       Saved ✓
+    </span>
+  )}
+
+  {statusError && !savingStatus && (
+    <span className="text-xs text-red-600 mt-1">
+      {statusError}
     </span>
   )}
 </div>
