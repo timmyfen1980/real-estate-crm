@@ -29,6 +29,7 @@ export default function TasksPage() {
   const [taskMode, setTaskMode] = useState<'create' | 'edit'>('create')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [newsletterTask, setNewsletterTask] = useState<string | null>(null)
+  const [showAllCompleted, setShowAllCompleted] = useState(false)
 
   const loadTasks = async () => {
     const {
@@ -165,12 +166,33 @@ export default function TasksPage() {
     )
   }
 
-  const pendingTasks = tasks.filter(function (t) {
-    return t.status === 'pending'
-  })
-  const completedTasks = tasks.filter(function (t) {
-    return t.status === 'completed'
-  })
+  // Pending: due date ascending — overdue first, then today, then upcoming.
+  const pendingTasks = tasks
+    .filter(function (t) {
+      return t.status === 'pending'
+    })
+    .slice()
+    .sort(function (a, b) {
+      return (a.due_date || '').localeCompare(b.due_date || '')
+    })
+  // Completed: most recently completed first; the list is capped at 5
+  // until "Show all" expands it.
+  const completedTasks = tasks
+    .filter(function (t) {
+      return t.status === 'completed'
+    })
+    .slice()
+    .sort(function (a, b) {
+      return (b.completed_at || '').localeCompare(a.completed_at || '')
+    })
+  const visibleCompletedTasks = showAllCompleted
+    ? completedTasks
+    : completedTasks.slice(0, 5)
+  const toggleShowAllCompleted = function () {
+    setShowAllCompleted(function (prev) {
+      return !prev
+    })
+  }
   const pendingTasksCount = pendingTasks.length
   const tasksDisplayCount = pendingTasksCount + (newsletterTask ? 1 : 0)
   const overdueTasksCount = pendingTasks.filter(function (t) {
@@ -347,16 +369,29 @@ export default function TasksPage() {
 
         {completedTasks.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-200">
-            <div className="text-lg font-semibold mb-6">
-              Completed
-              <span className="text-sm text-gray-500 font-normal">
-                {' '}
-                ({completedTasks.length})
-              </span>
+            <div className="flex justify-between items-center mb-6">
+              <div className="text-lg font-semibold">
+                Completed
+                <span className="text-sm text-gray-500 font-normal">
+                  {' '}
+                  ({completedTasks.length})
+                </span>
+              </div>
+
+              {completedTasks.length > 5 && (
+                <button
+                  onClick={toggleShowAllCompleted}
+                  className="text-sm px-3 py-1 rounded-lg border border-gray-300 hover:bg-gray-100 transition"
+                >
+                  {showAllCompleted
+                    ? 'Show less'
+                    : 'Show all (' + completedTasks.length + ')'}
+                </button>
+              )}
             </div>
 
             <div className="divide-y divide-gray-100">
-              {completedTasks.map(renderCompletedTask)}
+              {visibleCompletedTasks.map(renderCompletedTask)}
             </div>
           </div>
         )}
