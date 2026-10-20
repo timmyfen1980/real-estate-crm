@@ -3,9 +3,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import TaskModal from '@/app/components/TaskModal'
-import { MailWarning } from 'lucide-react'
 type Lead = {
   id: string
   first_name: string
@@ -57,6 +54,15 @@ type Activity = {
     full_name: string
   }[]
 }
+type EmailFollowup = {
+  id: string
+  sender_name: string | null
+  sender_email: string | null
+  subject: string | null
+  snippet: string | null
+  received_at: string | null
+}
+
 export default function Dashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -66,17 +72,14 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
 const [isOwner, setIsOwner] = useState(false)
-const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 const [collapsed, setCollapsed] = useState({
-  tasks: true,
   attention: false, // default open (safe fallback)
   activity: true,
 })
 
-const [taskModalOpen, setTaskModalOpen] = useState(false)
-const [taskMode, setTaskMode] = useState<'create' | 'edit'>('create')
-const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-const [newsletterTask, setNewsletterTask] = useState<string | null>(null)
+// Email follow-ups: null = card hidden (not the owner, still loading, or
+// the email_followups table is unreachable) — the card fails quiet.
+const [emailFollowups, setEmailFollowups] = useState<EmailFollowup[] | null>(null)
   const loadDashboard = async () => {
     const {
       data: { user },
@@ -98,45 +101,24 @@ const [newsletterTask, setNewsletterTask] = useState<string | null>(null)
     const accountId = membership.account_id
     const owner = membership.role === 'owner'
 setIsOwner(owner)
-setCurrentUserId(user.id)
 
-    // Smart task: an unapproved newsletter issue pins a task for the owner.
-    // Driven purely by the live approval state — no task row is stored,
-    // and any failure here must never break the dashboard.
+    // Email follow-ups (owner only): unreplied inbox mail flagged by the
+    // hourly scanner. Fail-quiet — if the email_followups table does not
+    // exist yet or the query errors, the dashboard renders without the card.
     if (owner) {
       try {
-        const res = await fetch('/api/admin/newsletter-issue')
-        if (res.ok) {
-          const issueData = await res.json()
-          const cur = issueData?.current_issue
-          const nxt = issueData?.next_issue
-          const sent = issueData?.sent_this_month
-          if (
-            cur &&
-            nxt &&
-            typeof cur.approved === 'boolean' &&
-            typeof nxt.approved === 'boolean' &&
-            typeof cur.month_name === 'string' &&
-            typeof nxt.month_name === 'string' &&
-            typeof sent === 'number' &&
-            !cur.approval_error &&
-            !nxt.approval_error
-          ) {
-            const torontoDay = Number(
-              new Intl.DateTimeFormat('en-CA', {
-                timeZone: 'America/Toronto',
-                day: 'numeric',
-              }).format(new Date())
-            )
-            if (!cur.approved && sent === 0) {
-              setNewsletterTask(cur.month_name)
-            } else if (!nxt.approved && torontoDay >= 18) {
-              setNewsletterTask(nxt.month_name)
-            }
-          }
+        const { data: followupData, error: followupError } = await supabase
+          .from('email_followups')
+          .select('id, sender_name, sender_email, subject, snippet, received_at')
+          .eq('account_id', accountId)
+          .eq('status', 'open')
+          .order('received_at', { ascending: true })
+          .limit(10)
+        if (!followupError) {
+          setEmailFollowups(followupData || [])
         }
       } catch {
-        // Fail quiet: the dashboard renders exactly as before.
+        // Fail quiet: no follow-ups card.
       }
     }
 
@@ -212,6 +194,16 @@ setActivities(activityData || [])
 setLoading(false)
   }
 
+  const dismissFollowup = async (id: string) => {
+    setEmailFollowups(function (prev) {
+      return prev ? prev.filter(function (item) { return item.id !== id }) : prev
+    })
+    await supabase
+      .from('email_followups')
+      .update({ status: 'dismissed' })
+      .eq('id', id)
+  }
+
   useEffect(() => {
     loadDashboard()
   }, [])
@@ -280,7 +272,6 @@ const attentionLeads = leads
     sourceCounts[src] = (sourceCounts[src] || 0) + 1
   })
 const pendingTasksCount = tasks.filter(t => t.status === 'pending').length
-const tasksDisplayCount = pendingTasksCount + (newsletterTask ? 1 : 0)
 const newLeadsCount = leads.filter(l => l.status === 'New').length
 const overdueTasksCount = tasks.filter(
   t => t.status === 'pending' && new Date(t.due_date) < new Date()
@@ -288,6 +279,68 @@ const overdueTasksCount = tasks.filter(
 const overdueTasks = tasks.filter(
   t => t.status === 'pending' && new Date(t.due_date) < new Date()
 )
+
+  // Pre-rendered Email Follow-ups rows (handlers precomputed — no inline
+  // arrow functions inside the JSX below).
+  const followupRows = (emailFollowups || []).map(function (item) {
+    const sender = item.sender_name || item.sender_email || 'Unknown sender'
+    const subject = item.subject || '(no subject)'
+    const receivedMs = item.received_at ? new Date(item.received_at).getTime() : NaN
+    const receivedValid = !Number.isNaN(receivedMs)
+    let waiting = ''
+    if (receivedValid) {
+      const diffMs = Date.now() - receivedMs
+      const days = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+      const hours = Math.floor(diffMs / (60 * 60 * 1000))
+      if (days >= 1) {
+        waiting = days === 1 ? '1 day' : days + ' days'
+      } else if (hours >= 1) {
+        waiting = hours === 1 ? '1 hour' : hours + ' hours'
+      } else {
+        waiting = 'Under an hour'
+      }
+    }
+    const receivedLabel = receivedValid
+      ? new Date(receivedMs).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : ''
+    const handleDismiss = function () {
+      dismissFollowup(item.id)
+    }
+    return (
+      <div
+        key={item.id}
+        className="py-4 flex justify-between items-start gap-4 hover:bg-gray-50 transition"
+      >
+        <div className="space-y-1 min-w-0">
+          <div className="flex items-center gap-3">
+            <span className="font-medium text-gray-900">{sender}</span>
+            {waiting && (
+              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
+                {waiting}
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-gray-900">{subject}</div>
+          {item.snippet && (
+            <div className="text-sm text-gray-500">{item.snippet}</div>
+          )}
+          {receivedLabel && (
+            <div className="text-xs text-gray-400">Received {receivedLabel}</div>
+          )}
+        </div>
+        <button
+          onClick={handleDismiss}
+          className="text-sm px-3 py-1 rounded-lg border border-gray-300 hover:bg-gray-100 transition whitespace-nowrap"
+        >
+          Dismiss
+        </button>
+      </div>
+    )
+  })
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md p-6">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -327,166 +380,28 @@ const overdueTasks = tasks.filter(
   </div>
 
 </div>
-        {/* TASKS SECTION — EXECUTIVE MODE */}
-<div
-  className={`bg-white rounded-xl shadow-sm p-6 border-l-4 ${
-    overdueTasksCount > 0
-      ? 'border-red-500'
-      : pendingTasksCount > 0
-      ? 'border-amber-400'
-      : 'border-green-500'
-  }`}
->
-  <div className="flex justify-between items-center mb-6">
-    <button
-      onClick={() =>
-        setCollapsed(prev => ({ ...prev, tasks: !prev.tasks }))
-      }
-      className="text-lg font-semibold flex items-center gap-2"
-    >
-      Tasks
-      <span className="text-sm text-gray-500 font-normal">
-        ({tasksDisplayCount})
+        {/* EMAIL FOLLOW-UPS — owner only, fed by the hourly inbox scanner.
+            Hidden entirely until the email_followups table exists. */}
+{isOwner && emailFollowups !== null && (
+<div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+  <div className="mb-4 border-b border-gray-100 pb-2">
+    <h2 className="text-xs font-semibold tracking-wider uppercase text-gray-500">
+      Email Follow-ups
+      <span className="text-sm text-gray-500 font-normal normal-case tracking-normal">
+        {' '}({emailFollowups.length})
       </span>
-      <span
-        className={`transition-transform ${
-          collapsed.tasks ? 'rotate-0' : 'rotate-90'
-        }`}
-      >
-        ▶
-      </span>
-    </button>
-
-    <button
-      onClick={() => {
-        setTaskMode('create')
-        setSelectedTask(null)
-        setTaskModalOpen(true)
-      }}
-      className="px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-900 transition"
-    >
-      + New Task
-    </button>
+    </h2>
   </div>
 
-  {!collapsed.tasks && (
-    tasksDisplayCount === 0 ? (
-      <EmptyState text="You're clear for now." />
-    ) : (
-      <div className="divide-y divide-gray-100">
-        {newsletterTask && (
-          <Link
-            href="/dashboard/campaigns/bb0b2174-639b-43fc-9f03-2bb289210de2"
-            className="py-4 flex justify-between items-center gap-4 hover:bg-amber-50 transition"
-          >
-            <div className="flex items-start gap-3">
-              <MailWarning size={20} className="text-amber-500 mt-0.5 shrink-0" />
-              <div className="space-y-1">
-                <div className="font-medium text-gray-900">
-                  Approve the {newsletterTask} newsletter issue
-                </div>
-                <div className="text-sm text-gray-500">
-                  Nothing sends until you approve it.
-                </div>
-              </div>
-            </div>
-            <span className="text-sm font-medium text-[#0f2a44] whitespace-nowrap">
-              Review &amp; approve {'→'}
-            </span>
-          </Link>
-        )}
-        {tasks
-          .filter(t => t.status === 'pending')
-          .map(task => {
-            const due = new Date(task.due_date)
-            const isOverdue = due < new Date()
-            const formattedDate = due.toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
-            })
-
-            const priorityColor =
-              task.priority === 'high'
-                ? 'bg-red-100 text-red-700'
-                : task.priority === 'medium'
-                ? 'bg-amber-100 text-amber-700'
-                : 'bg-gray-100 text-gray-600'
-
-            return (
-              <div
-                key={task.id}
-                className="py-4 flex justify-between items-center hover:bg-gray-50 transition"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium text-gray-900">
-                      {task.title}
-                    </span>
-
-                    <span className={`text-xs px-2 py-1 rounded-full ${priorityColor}`}>
-                      {task.priority}
-                    </span>
-
-                    {isOverdue && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-red-600 text-white">
-                        OVERDUE
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="text-sm text-gray-500">
-                    Due {formattedDate}
-                  </div>
-                </div>
-
-                <div className="flex gap-2 items-center">
-                  <button
-                    onClick={() => {
-                      setTaskMode('edit')
-                      setSelectedTask(task)
-                      setTaskModalOpen(true)
-                    }}
-                    className="text-sm px-3 py-1 rounded-lg border border-gray-300 hover:bg-gray-100 transition"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={async () => {
-  await supabase
-    .from('tasks')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-    })
-    .eq('id', task.id)
-
-  if (task.lead_id) {
-    await supabase.from('lead_activity').insert({
-      lead_id: task.lead_id,
-      user_id: currentUserId,
-      type: 'task_completed',
-      metadata: {
-        title: task.title,
-      },
-    })
-  }
-
-  loadDashboard()
-}}
-                    className="text-sm px-3 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 transition"
-                  >
-                    Complete
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-      </div>
-    )
+  {emailFollowups.length === 0 ? (
+    <EmptyState text="Nothing waiting on you." />
+  ) : (
+    <div className="divide-y divide-gray-100">
+      {followupRows}
+    </div>
   )}
 </div>
+)}
 
         {/* TOP ROW */}
 <div className="grid md:grid-cols-2 gap-6">
@@ -754,17 +669,6 @@ const overdueTasks = tasks.filter(
     })}
   </div>
 </SectionCard>
-{taskModalOpen && (
-  <TaskModal
-    mode={taskMode}
-    task={selectedTask}
-    onClose={() => setTaskModalOpen(false)}
-    onSaved={loadDashboard}
-    currentUserId={currentUserId}
-    isOwner={isOwner}
-    leadId={null}
-  />
-)}
       </div>
     </div>
   )
