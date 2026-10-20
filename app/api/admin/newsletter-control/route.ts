@@ -8,11 +8,18 @@
 // 'paused'. Reversible: resume flips them back. No other campaign is touched.
 // GET  -> audit: sends in the last 30 days by step (+ out-of-season count),
 //         enrollment distribution, and next-30-days exposure if unpaused.
+// GET ?view=issue -> Monthly Issue status: current/next issue keys and
+//         approval state, enrollment counts, sent-this-month count.
 // POST { action: 'pause' | 'resume' | 'status' }
+// POST { action: 'approve', issue: 'YYYY-MM' } -> record the issue approval
+//         in newsletter_approvals AND resume paused enrollments (one arming
+//         action). Approving a future month is safe: the processor only
+//         ever sends the CURRENT month's issue, inside its own month.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getIssueStatus, approveIssue } from '@/lib/newsletterIssue';
 
 const NEWSLETTER_CAMPAIGN_ID = 'bb0b2174-639b-43fc-9f03-2bb289210de2';
 
@@ -72,6 +79,9 @@ export async function GET(req: NextRequest) {
   }
   try {
     const supabase = db();
+    if (req.nextUrl.searchParams.get('view') === 'issue') {
+      return NextResponse.json(await getIssueStatus(supabase));
+    }
     const now = new Date();
     const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const until30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -221,6 +231,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === 'approve') {
+      const issue = typeof body.issue === 'string' ? body.issue : '';
+      const result = await approveIssue(supabase, issue, 'rea-agent');
+      return NextResponse.json({
+        action: 'approve',
+        issue,
+        approved: true,
+        enrollments_resumed: result.resumed,
+        issue_status: await getIssueStatus(supabase),
+      });
+    }
+
     if (action === 'status') {
       const rows = await fetchAllRows(supabase, 'contact_campaigns', 'status', (q: any) =>
         q.eq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
@@ -237,7 +259,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Body must be { action: 'pause' | 'resume' | 'status' }." },
+      {
+        error:
+          "Body must be { action: 'pause' | 'resume' | 'status' } or { action: 'approve', issue: 'YYYY-MM' }.",
+      },
       { status: 400 }
     );
   } catch (err: any) {

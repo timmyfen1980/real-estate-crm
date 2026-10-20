@@ -1,7 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { buildEmailTemplate, buildNewsletterEmail } from '@/lib/emailTemplates'
+import {
+  torontoYearMonth,
+  issueKeyFor,
+  stepForMonth,
+  torontoMonthWindow,
+  isIssueApproved,
+} from '@/lib/newsletterIssue'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
@@ -52,7 +60,217 @@ export async function GET(req: Request) {
     }
 
     // =====================================
+    // NEWSLETTER - MONTHLY ISSUE MODEL
+    // Only the current month's step may send, only when that issue
+    // (YYYY-MM) is approved, and only to active enrollments that have
+    // not already received it this month (email_logs check). The
+    // newsletter's current_step / next_send_at are never used or
+    // advanced here.
+    // =====================================
+
+    let newsletterSent = 0
+
+    {
+      const now = new Date()
+      const { year, month } = torontoYearMonth(now)
+      const issueKey = issueKeyFor(year, month)
+      const issueStep = stepForMonth(month)
+      const approved = await isIssueApproved(supabase, issueKey)
+
+      if (!approved) {
+        console.log(
+          `Newsletter issue ${issueKey} is not approved - skipping`
+        )
+      } else {
+        const { data: issueSequence } = await supabase
+          .from('email_sequences')
+          .select('*')
+          .eq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
+          .eq('step_number', issueStep)
+          .single()
+
+        if (!issueSequence) {
+          console.log(
+            `Newsletter: no sequence found for step ${issueStep}`
+          )
+        } else {
+          // Contacts who already received this issue this month
+          const window = torontoMonthWindow(now)
+          const { data: sentLogs } = await supabase
+            .from('email_logs')
+            .select('contact_id')
+            .eq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
+            .eq('sequence_id', issueSequence.id)
+            .eq('status', 'sent')
+            .gte('sent_at', window.startIso)
+            .lt('sent_at', window.endIso)
+            .limit(10000)
+
+          const received = new Set(
+            (sentLogs || []).map((l: any) => l.contact_id)
+          )
+
+          // Active enrollments, oldest first (stable order)
+          let enrollments: any[] = []
+          const ordered = await supabase
+            .from('contact_campaigns')
+            .select('id, contact_id, created_at')
+            .eq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
+            .eq('status', 'active')
+            .order('created_at', { ascending: true })
+            .limit(10000)
+          if (ordered.error) {
+            const fallback = await supabase
+              .from('contact_campaigns')
+              .select('id, contact_id')
+              .eq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
+              .eq('status', 'active')
+              .limit(10000)
+            enrollments = fallback.data || []
+          } else {
+            enrollments = ordered.data || []
+          }
+
+          // Newsletter artwork (CID attachments, same as before)
+          const heroB64 = readFileSync(
+            join(process.cwd(), 'public', 'email-hero.b64'),
+            'utf8'
+          ).trim()
+          const teamPhotoB64 = readFileSync(
+            join(process.cwd(), 'public', 'team-photo.b64'),
+            'utf8'
+          ).trim()
+          const nlAttachments = [
+            {
+              filename: 'hero.png',
+              content: heroB64,
+              contentType: 'image/png',
+              contentId: 'newsletter-hero',
+            },
+            {
+              filename: 'team-photo.jpg',
+              content: teamPhotoB64,
+              contentType: 'image/jpeg',
+              contentId: 'team-photo',
+            },
+          ]
+
+          for (const enr of enrollments) {
+            if (newsletterSent >= remainingQuota) break
+            if (received.has(enr.contact_id)) continue
+
+            const { data: contact } = await supabase
+              .from('contacts')
+              .select(
+                'email, first_name, assigned_user_id, account_id'
+              )
+              .eq('id', enr.contact_id)
+              .single()
+
+            if (!contact || !contact.email) continue
+
+            // Consent flags (newsletter path): never send to
+            // do-not-contact or opted-out contacts.
+            const { data: flags } = await supabase
+              .from('contacts')
+              .select('do_not_contact, email_opt_in')
+              .eq('id', enr.contact_id)
+              .single()
+
+            if (flags?.do_not_contact || flags?.email_opt_in === false) {
+              console.log(
+                `Newsletter: skipping ${contact.email} (do not contact / opted out)`
+              )
+              continue
+            }
+
+            const { data: sub } = await supabase
+              .from('contact_subscriptions')
+              .select('unsubscribed')
+              .eq('contact_id', enr.contact_id)
+              .single()
+
+            if (sub?.unsubscribed) continue
+
+            const { data: account } = await supabase
+              .from('accounts')
+              .select(
+                'team_logo_url, brokerage_logo_url, brokerage_name, team_name'
+              )
+              .eq('id', contact.account_id)
+              .single()
+
+            const siteOrigin = new URL(req.url).origin
+            const unsubscribeLink = `${siteOrigin}/api/unsubscribe?contact_id=${enr.contact_id}`
+
+            const rawContent = issueSequence.body_html.replace(
+              '{{first_name}}',
+              contact.first_name || ''
+            )
+
+            const body = buildNewsletterEmail({
+              content: rawContent,
+              firstName: contact.first_name,
+              headline: issueSequence.subject,
+              teamName: 'Fennessey Comeau Group',
+              teamEmail: 'info@thefcgroup.ca',
+              teamPhone: '905 493-7355',
+              brokerageName:
+                'RE/MAX HALLMARK FIRST GROUP REALTY LTD.',
+              brokerageLogoUrl: account?.brokerage_logo_url,
+              unsubscribeLink,
+              ctaLink: issueSequence.cta_link || null,
+              ctaText: issueSequence.cta_text || null,
+            })
+
+            const { data: sender } = await supabase
+              .from('email_addresses')
+              .select('*')
+              .eq('account_id', contact.account_id)
+              .eq('is_default', true)
+              .single()
+
+            const fromEmail = sender
+              ? `${sender.name} <${sender.email}>`
+              : 'The FC Group <info@thefcgroup.ca>'
+
+            console.log(
+              `Sending newsletter "${issueSequence.subject}" to ${contact.email}`
+            )
+            const send = await resend.emails.send({
+              from: fromEmail,
+              to: contact.email,
+              subject: issueSequence.subject,
+              html: body,
+              attachments: nlAttachments,
+            })
+
+            await supabase.from('email_logs').insert({
+              account_id: contact.account_id,
+              contact_id: enr.contact_id,
+              campaign_id: NEWSLETTER_CAMPAIGN_ID,
+              sequence_id: issueSequence.id,
+              subject: issueSequence.subject,
+              body_html: body,
+              sent_at: new Date().toISOString(),
+              status: send?.error ? 'failed' : 'sent',
+              resend_id: send?.data?.id,
+            })
+
+            received.add(enr.contact_id)
+            newsletterSent++
+          }
+
+          console.log(
+            `Newsletter issue ${issueKey}: sent ${newsletterSent}`
+          )
+        }
+      }
+    }
+
+    // =====================================
     // FETCH DUE CAMPAIGNS
+    // (Newsletter excluded - handled by the Monthly Issue model above)
     // =====================================
 
     const { data: campaigns, error } = await supabase
@@ -65,6 +283,7 @@ export async function GET(req: Request) {
         next_send_at
       `)
       .eq('status', 'active')
+      .neq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
       .lte('next_send_at', new Date().toISOString())
       .order('next_send_at', { ascending: true })
 
@@ -81,7 +300,7 @@ export async function GET(req: Request) {
       // STOP AT DAILY CAP
       // =====================================
 
-      if (index >= remainingQuota) {
+      if (index >= remainingQuota - newsletterSent) {
         break
       }
 

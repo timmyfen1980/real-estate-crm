@@ -51,6 +51,26 @@ type Contact = {
   assigned_user_id: string | null
 }
 
+type NewsletterIssueInfo = {
+  key: string
+  month_name: string
+  year: number
+  step: number
+  subject: string | null
+  approved: boolean
+  approved_at: string | null
+  approved_by: string | null
+}
+
+type NewsletterIssueStatus = {
+  current_issue: NewsletterIssueInfo
+  next_issue: NewsletterIssueInfo
+  enrollments: { total: number; active: number; paused: number }
+  sent_this_month: number
+}
+
+const NEWSLETTER_CAMPAIGN_ID = 'bb0b2174-639b-43fc-9f03-2bb289210de2'
+
 export default function CampaignDetailPage() {
   const params = useParams()
 
@@ -85,6 +105,41 @@ const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
 const [contactSearch, setContactSearch] = useState('')
 
 const [enrolling, setEnrolling] = useState(false)
+
+  const isNewsletterCampaign = campaignId === NEWSLETTER_CAMPAIGN_ID
+
+  const [issueStatus, setIssueStatus] =
+    useState<NewsletterIssueStatus | null>(null)
+
+  const [approvingIssue, setApprovingIssue] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isNewsletterCampaign) return
+
+    fetch('/api/admin/newsletter-issue')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setIssueStatus(d))
+      .catch(() => setIssueStatus(null))
+  }, [isNewsletterCampaign])
+
+  const handleApproveIssue = async (issue: string) => {
+    setApprovingIssue(issue)
+
+    try {
+      const res = await fetch('/api/admin/newsletter-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issue }),
+      })
+
+      const data = await res.json()
+
+      if (data.issue_status) setIssueStatus(data.issue_status)
+    } finally {
+      setApprovingIssue(null)
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -422,6 +477,104 @@ const handlePreview = (sequence: Sequence) => {
 </div>
 
       </div>
+
+      {/* NEWSLETTER ISSUE PANEL */}
+      {isNewsletterCampaign && (
+        <div className="mb-10 bg-white border rounded-2xl shadow-sm px-8 py-6">
+          <div className="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-3">
+            Monthly Issue — Approval Gate
+          </div>
+
+          {issueStatus ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    {issueStatus.current_issue.month_name}{' '}
+                    {issueStatus.current_issue.year} issue
+                  </div>
+
+                  <div className="text-sm text-gray-500">
+                    {issueStatus.current_issue.subject || 'No content yet'}
+                    {' • Sent this month: '}
+                    {issueStatus.sent_this_month}
+                    {' • Enrolled: '}
+                    {issueStatus.enrollments.total} (
+                    {issueStatus.enrollments.active} active,{' '}
+                    {issueStatus.enrollments.paused} paused)
+                  </div>
+                </div>
+
+                {issueStatus.current_issue.approved ? (
+                  <span className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
+                    Approved
+                    {issueStatus.current_issue.approved_by
+                      ? ` by ${issueStatus.current_issue.approved_by}`
+                      : ''}
+                  </span>
+                ) : (
+                  <button
+                    onClick={function () {
+                      handleApproveIssue(issueStatus.current_issue.key)
+                    }}
+                    disabled={approvingIssue !== null}
+                    className="bg-black text-white px-4 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50"
+                  >
+                    {approvingIssue === issueStatus.current_issue.key
+                      ? 'Approving…'
+                      : `Approve ${issueStatus.current_issue.month_name} issue — start sending`}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-4 flex-wrap border-t pt-4">
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    Next: {issueStatus.next_issue.month_name}{' '}
+                    {issueStatus.next_issue.year} issue
+                  </div>
+
+                  <div className="text-sm text-gray-500">
+                    {issueStatus.next_issue.subject || 'No content yet'}
+                  </div>
+                </div>
+
+                {issueStatus.next_issue.approved ? (
+                  <span className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
+                    Approved
+                    {issueStatus.next_issue.approved_by
+                      ? ` by ${issueStatus.next_issue.approved_by}`
+                      : ''}
+                  </span>
+                ) : (
+                  <button
+                    onClick={function () {
+                      handleApproveIssue(issueStatus.next_issue.key)
+                    }}
+                    disabled={approvingIssue !== null}
+                    className="border px-4 py-2 rounded-xl text-sm hover:bg-gray-100 transition disabled:opacity-50"
+                  >
+                    {approvingIssue === issueStatus.next_issue.key
+                      ? 'Approving…'
+                      : `Approve ${issueStatus.next_issue.month_name} issue — start sending`}
+                  </button>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-400">
+                An issue can only send during its own month, only after it
+                has been approved, and only to subscribers who have not
+                received it yet this month. Approving also un-pauses all
+                newsletter enrollments.
+              </p>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">
+              Loading issue status…
+            </div>
+          )}
+        </div>
+      )}
 
       {/* EMAILS */}
       <div className="space-y-6">
