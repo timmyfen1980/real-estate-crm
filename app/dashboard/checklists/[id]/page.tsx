@@ -90,7 +90,29 @@ export default function ClientFileDetailPage() {
       .order('stage_index')
       .order('doc_index');
 
-    setDocs((docData || []) as ClientDocument[]);
+    const loadedDocs = (docData || []) as ClientDocument[];
+
+    // Documents uploaded by clients through the website portal store the
+    // raw storage path in file_url instead of a URL (team uploads store a
+    // signed URL). Resolve path-based entries to signed URLs here, at load
+    // time, so View file / Download / Download-all work for them too.
+    const resolvedDocs = await Promise.all(
+      loadedDocs.map(async (d) => {
+        if (!d.file_url || d.file_url.startsWith('http')) return d;
+        try {
+          const res = await fetch(
+            `/api/client-doc-url?path=${encodeURIComponent(d.file_url)}`
+          );
+          if (!res.ok) return d;
+          const body = (await res.json()) as { url?: string };
+          return body.url ? { ...d, file_url: body.url } : d;
+        } catch {
+          return d;
+        }
+      })
+    );
+
+    setDocs(resolvedDocs);
     setLoading(false);
   };
 
