@@ -97,6 +97,8 @@ const [savingAssignment, setSavingAssignment] = useState(false)
 const [statusSaved, setStatusSaved] = useState(false)
 const [statusError, setStatusError] = useState<string | null>(null)
 const [assignmentSaved, setAssignmentSaved] = useState(false)
+const [assignmentError, setAssignmentError] = useState<string | null>(null)
+const [followupError, setFollowupError] = useState<string | null>(null)
 const [taskModalOpen, setTaskModalOpen] = useState(false)
 const [convertModalOpen, setConvertModalOpen] = useState(false)
 const [convertType, setConvertType] = useState<'Buyer' | 'Seller'>('Buyer')
@@ -298,9 +300,6 @@ const updateDealStatus = async (status: string) => {
 }
 const updateAssignment = async (userId: string) => {
   if (!lead || !isOwner) return
-  setSavingAssignment(true)
-setAssignmentSaved(false)
-
   if (userId === lead.assigned_user_id) return
 
   const confirmChange = confirm(
@@ -309,10 +308,31 @@ setAssignmentSaved(false)
 
   if (!confirmChange) return
 
-  const { data: userData } = await supabase.auth.getUser()
-  if (!userData.user) return
+  setSavingAssignment(true)
+  setAssignmentSaved(false)
+  setAssignmentError(null)
 
-  // Log activity first
+  const { data: userData } = await supabase.auth.getUser()
+  if (!userData.user) {
+    setSavingAssignment(false)
+    setAssignmentError('Could not save assignment — please try again.')
+    return
+  }
+
+  // Update the lead FIRST — only log activity and show "Saved" if it worked.
+  // The select is controlled by lead.assigned_user_id, so on failure it reverts on its own.
+  const { error: updateError } = await supabase
+    .from('leads')
+    .update({ assigned_user_id: userId })
+    .eq('id', lead.id)
+
+  if (updateError) {
+    setSavingAssignment(false)
+    setAssignmentError('Could not save assignment — please try again.')
+    return
+  }
+
+  // Log activity only after the update succeeded
   await supabase.from('lead_activity').insert([
     {
       lead_id: lead.id,
@@ -326,19 +346,13 @@ setAssignmentSaved(false)
     },
   ])
 
-  // Then update lead
-  await supabase
-    .from('leads')
-    .update({ assigned_user_id: userId })
-    .eq('id', lead.id)
-
   setLead({ ...lead, assigned_user_id: userId })
   setSavingAssignment(false)
-setAssignmentSaved(true)
+  setAssignmentSaved(true)
 
-setTimeout(() => {
-  setAssignmentSaved(false)
-}, 2000)
+  setTimeout(() => {
+    setAssignmentSaved(false)
+  }, 2000)
 }
 const createDealWithProperty = async (
   dealType: 'Buyer' | 'Seller',
@@ -481,17 +495,31 @@ const { data: propertyData, error: propertyError } = await supabase
     onChange={async (e) => {
       const value = e.target.value
 
-      // update DB
-      await supabase
+      // Update the DB FIRST — only update local state if it worked.
+      // The input is controlled by lead.next_followup_date, so on failure it reverts on its own.
+      const { error: followupUpdateError } = await supabase
         .from('leads')
         .update({ next_followup_date: value || null })
         .eq('id', lead.id)
+
+      if (followupUpdateError) {
+        setFollowupError('Could not save follow-up date — please try again.')
+        return
+      }
+
+      setFollowupError(null)
 
       // update local state
       setLead({ ...lead, next_followup_date: value } as any)
     }}
     className="border rounded-lg px-4 py-2"
   />
+
+  {followupError && (
+    <span className="text-xs text-red-600 mt-1">
+      {followupError}
+    </span>
+  )}
 </div>
   <select
     value={lead.status || 'New'}
@@ -563,6 +591,12 @@ const { data: propertyData, error: propertyError } = await supabase
       {assignmentSaved && !savingAssignment && (
         <span className="text-xs text-green-600 mt-1">
           Saved ✓
+        </span>
+      )}
+
+      {assignmentError && !savingAssignment && (
+        <span className="text-xs text-red-600 mt-1">
+          {assignmentError}
         </span>
       )}
     </div>
