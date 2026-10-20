@@ -146,6 +146,7 @@ export default function ContactDetailPage() {
   const [checklistFiles, setChecklistFiles] = useState<any[]>([]);
 const [newTask, setNewTask] = useState('')
   const [newNote, setNewNote] = useState('')
+const [noteError, setNoteError] = useState<string | null>(null)
 
   const [isOwner, setIsOwner] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -492,11 +493,20 @@ const removeCampaign = async (
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
 
-    const { data } = await supabase
+    const { data: membership } = await supabase
+      .from('account_users')
+      .select('account_id')
+      .eq('user_id', userData.user.id)
+      .single()
+
+    if (!membership) return
+
+    const { data, error } = await supabase
       .from('notes')
       .insert([
         {
           contact_id: contactId,
+          account_id: membership.account_id,
           user_id: userData.user.id,
           content: newNote
         }
@@ -504,7 +514,13 @@ const removeCampaign = async (
       .select()
       .single()
 
+    if (error) {
+      setNoteError('Could not save your note. Please try again.')
+      return
+    }
+
     if (data) {
+      setNoteError(null)
       setNotes(prev => [data, ...prev])
       setNewNote('')
     }
@@ -1833,6 +1849,10 @@ const handleSave = async () => {
           >
             Add Note
           </button>
+
+          {noteError && (
+            <p className="text-sm text-red-600 mt-3">{noteError}</p>
+          )}
 
           <div className="mt-6 space-y-4">
 

@@ -89,6 +89,7 @@ export default function LeadProfilePage() {
 const [notes, setNotes] = useState<Note[]>([])
 const [activities, setActivities] = useState<Activity[]>([])
 const [newNote, setNewNote] = useState('')
+const [noteError, setNoteError] = useState<string | null>(null)
   const [isOwner, setIsOwner] = useState(false)
   const [loading, setLoading] = useState(true)
 const [savingStatus, setSavingStatus] = useState(false)
@@ -401,11 +402,12 @@ const { data: propertyData, error: propertyError } = await supabase
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('notes')
       .insert([
         {
           lead_id: lead.id,
+          account_id: lead.account_id,
           user_id: userData.user.id,
           content: newNote
         }
@@ -413,7 +415,13 @@ const { data: propertyData, error: propertyError } = await supabase
       .select()
       .single()
 
+    if (error) {
+      setNoteError('Could not save your note. Please try again.')
+      return
+    }
+
     if (data) {
+      setNoteError(null)
       setNotes(prev => [data, ...prev])
       setNewNote('')
     }
@@ -634,6 +642,10 @@ const { data: propertyData, error: propertyError } = await supabase
           >
             Add Note
           </button>
+
+          {noteError && (
+            <p className="text-sm text-red-600 mt-3">{noteError}</p>
+          )}
 
           <div className="mt-6 space-y-4">
   {notes.map(note => {
