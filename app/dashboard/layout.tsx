@@ -4,6 +4,23 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import {
+  Activity,
+  Building2,
+  ChevronDown,
+  DoorOpen,
+  Eraser,
+  FolderOpen,
+  Gift,
+  Handshake,
+  Image as ImageIcon,
+  LayoutDashboard,
+  Link2,
+  ListChecks,
+  Mail,
+  UserPlus,
+  Users,
+} from 'lucide-react'
 
 export default function DashboardLayout({
   children,
@@ -33,6 +50,7 @@ const [teamLeases, setTeamLeases] = useState(0)
 const [teamTotal, setTeamTotal] = useState(0)
 
 const [loggingOut, setLoggingOut] = useState(false)
+const [emailsOpen, setEmailsOpen] = useState(false)
   useEffect(() => {
     const init = async () => {
       const {
@@ -178,12 +196,31 @@ const handleLogout = async () => {
     return pathname.startsWith(path)
   }
 
+  const emailPaths = ['/dashboard/campaigns', '/dashboard/email-health', '/dashboard/email-cleanup']
+  const onEmailPage = emailPaths.some(function (p) { return pathname.startsWith(p) })
+
+  useEffect(() => {
+    if (onEmailPage) {
+      setEmailsOpen(true)
+    }
+  }, [onEmailPage])
+
+  const toggleEmails = () => {
+    setEmailsOpen(function (prev) { return !prev })
+  }
+
+  const chevronClass = `h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 ${emailsOpen ? 'rotate-180' : ''}`
+
   const navItemClass = (path: string) =>
-    `flex items-center justify-between px-4 py-2 rounded-md text-sm transition ${
+    `flex items-center justify-between px-4 py-2 rounded-md text-sm transition border-l-[3px] ${
       isActive(path)
-        ? 'bg-black text-white'
-        : 'text-gray-600 hover:bg-gray-200'
+        ? 'bg-[#0f2a44]/10 text-[#0f2a44] font-semibold border-[#d22630]'
+        : 'text-gray-600 hover:bg-[#0f2a44]/5 border-transparent'
     }`
+
+  const iconClass = 'h-[18px] w-[18px] shrink-0 text-[#0f2a44]'
+
+  const sectionLabelClass = 'px-4 pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400'
 
   if (checking) {
     return (
@@ -198,67 +235,145 @@ const handleLogout = async () => {
 
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r flex flex-col">
-        <div className="px-8 h-[72px] border-b flex items-center">
-  <h1 className="text-lg font-semibold">CRM Dashboard</h1>
+        <div className="px-6 h-[72px] border-b flex items-center gap-3">
+  {/* eslint-disable-next-line @next/next/no-img-element */}
+  <img
+    src="https://www.thefcgroup.ca/images/team-logo.png"
+    alt="Fennessey Comeau Group"
+    className="h-12 w-auto shrink-0"
+  />
+  <span className="text-sm font-bold leading-tight text-[#0f2a44]">Fennessey Comeau Group</span>
 </div>
 
-        <nav className="px-4 py-6 space-y-2">
+        <nav className="px-4 py-6 space-y-1">
 
           <Link href="/dashboard" className={navItemClass('/dashboard')}>
-            <span>Dashboard</span>
+            <span className="flex items-center gap-3">
+              <LayoutDashboard className={iconClass} />
+              <span>Dashboard</span>
+            </span>
             {userRole === 'owner' && overdueCount > 0 && (
               <span className="ml-2 h-2 w-2 rounded-full bg-red-500" />
             )}
           </Link>
 
+          <div className={sectionLabelClass}>Clients</div>
+
           <Link href="/dashboard/leads" className={navItemClass('/dashboard/leads')}>
-  <div className="flex items-center justify-between w-full">
-    <span>Leads</span>
+            <span className="flex items-center gap-3">
+              <UserPlus className={iconClass} />
+              <span>Leads</span>
+            </span>
+            {newLeadsCount > 0 && (
+              <span className="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
+                {newLeadsCount}
+              </span>
+            )}
+          </Link>
 
-    {newLeadsCount > 0 && (
-      <span className="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
-        {newLeadsCount}
-      </span>
-    )}
-  </div>
-</Link>
-<Link href="/dashboard/contacts" className={navItemClass('/dashboard/contacts')}>
-  Contacts
-</Link>
+          <Link href="/dashboard/contacts" className={navItemClass('/dashboard/contacts')}>
+            <span className="flex items-center gap-3">
+              <Users className={iconClass} />
+              <span>Contacts</span>
+            </span>
+          </Link>
 
-<Link href="/dashboard/deals" className={navItemClass('/dashboard/deals')}>
-  Deals
-</Link>
-<Link href="/dashboard/checklists" className={navItemClass('/dashboard/checklists')}>
-  Checklists
-</Link>
+          <Link href="/dashboard/checklists" className={navItemClass('/dashboard/checklists')}>
+            <span className="flex items-center gap-3">
+              <ListChecks className={iconClass} />
+              <span>Checklists</span>
+            </span>
+          </Link>
 
-<Link href="/dashboard/properties" className={navItemClass('/dashboard/properties')}>
-  Properties
-</Link>
+          <div className={sectionLabelClass}>Business</div>
 
-<Link href="/dashboard/open-houses" className={navItemClass('/dashboard/open-houses')}>
-  Open Houses
-</Link>
+          <Link href="/dashboard/deals" className={navItemClass('/dashboard/deals')}>
+            <span className="flex items-center gap-3">
+              <Handshake className={iconClass} />
+              <span>Deals</span>
+            </span>
+          </Link>
 
-<Link href="/dashboard/campaigns" className={navItemClass('/dashboard/campaigns')}>
-  Emails
-</Link>
-<Link href="/dashboard/email-health" className={navItemClass('/dashboard/email-health') + ' pl-8 text-sm'}>
-  Email Health
-</Link>
-<Link href="/dashboard/email-cleanup" className={navItemClass('/dashboard/email-cleanup') + ' pl-8 text-sm'}>
-  Email Cleanup
-</Link>
-<Link href="/dashboard/documents" className={navItemClass('/dashboard/documents')}>
-  Documents
-</Link>
-<Link href="/dashboard/send-tenant-link" className={navItemClass('/dashboard/send-tenant-link')}>
-  Tenant Link
-</Link>
-<Link href="/dashboard/giveaway" className={navItemClass('/dashboard/giveaway')}>
-  Giveaway
-</Link>
+          <Link href="/dashboard/properties" className={navItemClass('/dashboard/properties')}>
+            <span className="flex items-center gap-3">
+              <Building2 className={iconClass} />
+              <span>Properties</span>
+            </span>
+          </Link>
+
+          <Link href="/dashboard/open-houses" className={navItemClass('/dashboard/open-houses')}>
+            <span className="flex items-center gap-3">
+              <DoorOpen className={iconClass} />
+              <span>Open Houses</span>
+            </span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={toggleEmails}
+            className="flex w-full items-center justify-between px-4 pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400 transition hover:text-[#0f2a44]"
+          >
+            <span>Emails</span>
+            <ChevronDown className={chevronClass} />
+          </button>
+
+          {emailsOpen && (
+            <div className="space-y-1">
+              <Link href="/dashboard/campaigns" className={navItemClass('/dashboard/campaigns')}>
+                <span className="flex items-center gap-3">
+                  <Mail className={iconClass} />
+                  <span>Campaigns</span>
+                </span>
+              </Link>
+
+              <Link href="/dashboard/email-health" className={navItemClass('/dashboard/email-health')}>
+                <span className="flex items-center gap-3">
+                  <Activity className={iconClass} />
+                  <span>Email Health</span>
+                </span>
+              </Link>
+
+              <Link href="/dashboard/email-cleanup" className={navItemClass('/dashboard/email-cleanup')}>
+                <span className="flex items-center gap-3">
+                  <Eraser className={iconClass} />
+                  <span>Email Cleanup</span>
+                </span>
+              </Link>
+            </div>
+          )}
+
+          <div className={sectionLabelClass}>Library</div>
+
+          <Link href="/dashboard/documents" className={navItemClass('/dashboard/documents')}>
+            <span className="flex items-center gap-3">
+              <FolderOpen className={iconClass} />
+              <span>Documents</span>
+            </span>
+          </Link>
+
+          <Link href="/dashboard/brand-images" className={navItemClass('/dashboard/brand-images')}>
+            <span className="flex items-center gap-3">
+              <ImageIcon className={iconClass} />
+              <span>Brand Images</span>
+            </span>
+          </Link>
+
+          <div className={sectionLabelClass}>Tools</div>
+
+          <Link href="/dashboard/giveaway" className={navItemClass('/dashboard/giveaway')}>
+            <span className="flex items-center gap-3">
+              <Gift className={iconClass} />
+              <span>Giveaway</span>
+            </span>
+          </Link>
+
+          <Link href="/dashboard/send-tenant-link" className={navItemClass('/dashboard/send-tenant-link')}>
+            <span className="flex items-center gap-3">
+              <Link2 className={iconClass} />
+              <span>Tenant Link</span>
+            </span>
+          </Link>
+
         </nav>
       </aside>
 
