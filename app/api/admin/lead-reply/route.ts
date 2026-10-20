@@ -3,7 +3,8 @@
 // Auth: Bearer REA_AGENT_SECRET.
 // POST { email: string, replied_at: string } -> an email from a lead
 // came back in (detected by Rea's inbox watching). For the matched
-// contact's most recent non-terminal lead (not Closed / not Lost):
+// contact's most recent non-terminal lead (not Closed — the DB
+// lead_status enum has no 'Lost' value; filtering on it errors):
 //   - last_contacted_at is stamped with the reply time
 //   - status 'New' becomes 'Contacted' (other statuses untouched — a
 //     reply is contact, not conversion)
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       .select('id, status, next_followup_date')
       .eq('account_id', ACCOUNT_ID)
       .eq('contact_id', contactId)
-      .not('status', 'in', '(Closed,Lost)')
+      .neq('status', 'Closed')
       .order('created_at', { ascending: false })
       .limit(1);
     if (leadError) throw leadError;
