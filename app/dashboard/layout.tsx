@@ -381,21 +381,18 @@ const handleLogout = async () => {
         <header className="bg-white border-b px-8 py-4 flex justify-between items-center">
 
           {/* LEFT — Production Control Header */}
-<div className="flex flex-col gap-2">
-  <div className="flex items-center gap-12 text-sm">
+<div className="grid grid-cols-[10rem_6rem_6rem_6rem_7.5rem] items-center gap-x-12 gap-y-2 text-sm">
   <div
-    className="font-semibold tracking-wide uppercase text-gray-500 w-40 shrink-0"
+    className="font-semibold tracking-wide uppercase text-gray-500"
     title="My Year to Date Closed Production"
   >
     My Production
   </div>
 
-  <div className="flex items-center gap-12 text-sm">
-
 {/* BUYERS */}
 <button
   onClick={() => router.push('/dashboard/deals')}
-  className="group cursor-pointer flex items-baseline gap-2 transition hover:scale-[1.05]"
+  className="group cursor-pointer flex items-baseline gap-2 justify-self-start transition hover:scale-[1.05]"
   title="View Closed Buyers"
 >
   <span
@@ -415,7 +412,7 @@ const handleLogout = async () => {
 {/* SELLERS */}
 <button
   onClick={() => router.push('/dashboard/deals')}
-  className="group cursor-pointer flex items-baseline gap-2 transition hover:scale-[1.05]"
+  className="group cursor-pointer flex items-baseline gap-2 justify-self-start transition hover:scale-[1.05]"
   title="View Closed Sellers"
 >
   <span
@@ -435,7 +432,7 @@ const handleLogout = async () => {
 {/* LEASES */}
 <button
   onClick={() => router.push('/dashboard/deals')}
-  className="group cursor-pointer flex items-baseline gap-2 transition hover:scale-[1.05]"
+  className="group cursor-pointer flex items-baseline gap-2 justify-self-start transition hover:scale-[1.05]"
   title="View Closed Leases"
 >
   <span
@@ -458,24 +455,20 @@ const handleLogout = async () => {
   className="group cursor-pointer bg-black text-white px-4 py-2 rounded-md transition hover:scale-[1.05]"
   title="View All Closed Deals"
 >
-  <div className="flex items-baseline gap-2">
+  <div className="flex items-baseline justify-center gap-2">
     <span className="text-lg font-bold">{totalClosed}</span>
     <span className="opacity-80">Total</span>
   </div>
 </button>
 
-</div>
-  </div>
+  <div className="col-span-5 border-t border-gray-200" aria-hidden="true" />
 
-  <div className="flex items-center gap-12 text-sm">
   <div
-    className="font-semibold tracking-wide uppercase text-gray-500 w-40 shrink-0"
+    className="font-semibold tracking-wide uppercase text-gray-500"
     title="Team Year to Date Closed Production"
   >
     Team Production
   </div>
-
-  <div className="flex items-center gap-12 text-sm">
 
   <div className="flex items-baseline gap-2">
     <span className="text-xl font-bold text-blue-600">{teamBuyers}</span>
@@ -493,13 +486,10 @@ const handleLogout = async () => {
   </div>
 
   <div className="bg-[#0f2a44] text-white px-4 py-2 rounded-md">
-    <div className="flex items-baseline gap-2">
+    <div className="flex items-baseline justify-center gap-2">
       <span className="text-lg font-bold">{teamTotal}</span>
       <span className="opacity-80">Total</span>
     </div>
-  </div>
-
-  </div>
   </div>
 </div>
 
