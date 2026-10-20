@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   Link2,
   ListChecks,
+  ListTodo,
   Mail,
   UserPlus,
   Users,
@@ -43,6 +44,7 @@ const [userRole, setUserRole] = useState<string | null>(null)
 
 const [overdueCount, setOverdueCount] = useState(0)
 const [newLeadsCount, setNewLeadsCount] = useState(0)
+const [taskCount, setTaskCount] = useState(0)
 const [closedBuyers, setClosedBuyers] = useState(0)
 const [closedSellers, setClosedSellers] = useState(0)
 const [closedLeases, setClosedLeases] = useState(0)
@@ -183,6 +185,67 @@ const { count: newLeads } = await supabase
   .eq('status', 'New')
 
 setNewLeadsCount(newLeads || 0)
+
+      // 🔹 Outstanding Tasks Count (sidebar badge — mirrors the dashboard
+      // Tasks card: pending tasks in the card's scope, plus the owner's
+      // newsletter smart task when the approval rule fires). Fail-quiet:
+      // any error leaves the badge on the plain outstanding count or hidden.
+      let outstandingTasks = 0
+      try {
+        let pendingQuery = supabase
+          .from('tasks')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', membership.account_id)
+          .eq('status', 'pending')
+
+        if (membership.role !== 'owner') {
+          pendingQuery = pendingQuery.eq('assigned_user_id', user.id)
+        }
+
+        const { count: pendingTasks } = await pendingQuery
+        outstandingTasks = pendingTasks || 0
+      } catch {
+        outstandingTasks = 0
+      }
+
+      if (membership.role === 'owner') {
+        try {
+          const res = await fetch('/api/admin/newsletter-issue')
+          if (res.ok) {
+            const issueData = await res.json()
+            const cur = issueData?.current_issue
+            const nxt = issueData?.next_issue
+            const sent = issueData?.sent_this_month
+            if (
+              cur &&
+              nxt &&
+              typeof cur.approved === 'boolean' &&
+              typeof nxt.approved === 'boolean' &&
+              typeof cur.month_name === 'string' &&
+              typeof nxt.month_name === 'string' &&
+              typeof sent === 'number' &&
+              !cur.approval_error &&
+              !nxt.approval_error
+            ) {
+              const torontoDay = Number(
+                new Intl.DateTimeFormat('en-CA', {
+                  timeZone: 'America/Toronto',
+                  day: 'numeric',
+                }).format(new Date())
+              )
+              if (!cur.approved && sent === 0) {
+                outstandingTasks += 1
+              } else if (!nxt.approved && torontoDay >= 18) {
+                outstandingTasks += 1
+              }
+            }
+          }
+        } catch {
+          // Fail quiet: badge keeps the plain outstanding count.
+        }
+      }
+
+      setTaskCount(outstandingTasks)
       setChecking(false)
     }
 
@@ -266,6 +329,18 @@ const handleLogout = async () => {
             </span>
             {userRole === 'owner' && overdueCount > 0 && (
               <span className="ml-2 h-2 w-2 rounded-full bg-red-500" />
+            )}
+          </Link>
+
+          <Link href="/dashboard/tasks" className={navItemClass('/dashboard/tasks')}>
+            <span className="flex items-center gap-3">
+              <ListTodo className={iconClass} />
+              <span>Tasks</span>
+            </span>
+            {taskCount > 0 && (
+              <span className="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
+                {taskCount}
+              </span>
             )}
           </Link>
 
