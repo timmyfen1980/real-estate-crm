@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import TaskModal from '@/app/components/TaskModal'
+import { MailWarning } from 'lucide-react'
 type Lead = {
   id: string
   first_name: string
@@ -75,6 +76,7 @@ const [collapsed, setCollapsed] = useState({
 const [taskModalOpen, setTaskModalOpen] = useState(false)
 const [taskMode, setTaskMode] = useState<'create' | 'edit'>('create')
 const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+const [newsletterTask, setNewsletterTask] = useState<string | null>(null)
   const loadDashboard = async () => {
     const {
       data: { user },
@@ -97,6 +99,46 @@ const [selectedTask, setSelectedTask] = useState<Task | null>(null)
     const owner = membership.role === 'owner'
 setIsOwner(owner)
 setCurrentUserId(user.id)
+
+    // Smart task: an unapproved newsletter issue pins a task for the owner.
+    // Driven purely by the live approval state — no task row is stored,
+    // and any failure here must never break the dashboard.
+    if (owner) {
+      try {
+        const res = await fetch('/api/admin/newsletter-issue')
+        if (res.ok) {
+          const issueData = await res.json()
+          const cur = issueData?.current_issue
+          const nxt = issueData?.next_issue
+          const sent = issueData?.sent_this_month
+          if (
+            cur &&
+            nxt &&
+            typeof cur.approved === 'boolean' &&
+            typeof nxt.approved === 'boolean' &&
+            typeof cur.month_name === 'string' &&
+            typeof nxt.month_name === 'string' &&
+            typeof sent === 'number' &&
+            !cur.approval_error &&
+            !nxt.approval_error
+          ) {
+            const torontoDay = Number(
+              new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'America/Toronto',
+                day: 'numeric',
+              }).format(new Date())
+            )
+            if (!cur.approved && sent === 0) {
+              setNewsletterTask(cur.month_name)
+            } else if (!nxt.approved && torontoDay >= 18) {
+              setNewsletterTask(nxt.month_name)
+            }
+          }
+        }
+      } catch {
+        // Fail quiet: the dashboard renders exactly as before.
+      }
+    }
 
     const leadQuery = supabase
       .from('leads')
@@ -238,6 +280,7 @@ const attentionLeads = leads
     sourceCounts[src] = (sourceCounts[src] || 0) + 1
   })
 const pendingTasksCount = tasks.filter(t => t.status === 'pending').length
+const tasksDisplayCount = pendingTasksCount + (newsletterTask ? 1 : 0)
 const newLeadsCount = leads.filter(l => l.status === 'New').length
 const overdueTasksCount = tasks.filter(
   t => t.status === 'pending' && new Date(t.due_date) < new Date()
@@ -303,7 +346,7 @@ const overdueTasks = tasks.filter(
     >
       Tasks
       <span className="text-sm text-gray-500 font-normal">
-        ({pendingTasksCount})
+        ({tasksDisplayCount})
       </span>
       <span
         className={`transition-transform ${
@@ -327,10 +370,31 @@ const overdueTasks = tasks.filter(
   </div>
 
   {!collapsed.tasks && (
-    pendingTasksCount === 0 ? (
+    tasksDisplayCount === 0 ? (
       <EmptyState text="You're clear for now." />
     ) : (
       <div className="divide-y divide-gray-100">
+        {newsletterTask && (
+          <Link
+            href="/dashboard/campaigns/bb0b2174-639b-43fc-9f03-2bb289210de2"
+            className="py-4 flex justify-between items-center gap-4 hover:bg-amber-50 transition"
+          >
+            <div className="flex items-start gap-3">
+              <MailWarning size={20} className="text-amber-500 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <div className="font-medium text-gray-900">
+                  Approve the {newsletterTask} newsletter issue
+                </div>
+                <div className="text-sm text-gray-500">
+                  Nothing sends until you approve it.
+                </div>
+              </div>
+            </div>
+            <span className="text-sm font-medium text-[#0f2a44] whitespace-nowrap">
+              Review &amp; approve {'→'}
+            </span>
+          </Link>
+        )}
         {tasks
           .filter(t => t.status === 'pending')
           .map(task => {
