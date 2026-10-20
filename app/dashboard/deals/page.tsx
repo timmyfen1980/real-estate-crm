@@ -11,6 +11,7 @@ type Deal = {
   assigned_user_id: string
   deal_type: string
   status: string
+  closing_date: string | null
   created_at: string
 }
 
@@ -117,6 +118,7 @@ export default function DealsPage() {
               <th>Type</th>
               <th>Status</th>
               <th>Assigned</th>
+              <th>Closing</th>
               <th>Date</th>
             </tr>
           </thead>
@@ -146,6 +148,12 @@ export default function DealsPage() {
 
                 <td>
                   {profiles[deal.assigned_user_id] || 'Unknown'}
+                </td>
+
+                <td className="text-gray-500">
+                  {deal.closing_date
+                    ? new Date(deal.closing_date + 'T00:00:00').toLocaleDateString('en-CA')
+                    : '-'}
                 </td>
 
                 <td className="text-gray-500">

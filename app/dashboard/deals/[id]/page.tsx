@@ -11,6 +11,7 @@ type Deal = {
   assigned_user_id: string
   deal_type: string
   status: string
+  closing_date: string | null
 }
 
 type Contact = {
@@ -40,6 +41,7 @@ export default function DealDetailPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
 
   const [status, setStatus] = useState('')
+  const [closingDate, setClosingDate] = useState('')
   const [assignedUserId, setAssignedUserId] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -58,6 +60,7 @@ export default function DealDetailPage() {
 
     setDeal(dealData)
     setStatus(dealData.status)
+    setClosingDate(dealData.closing_date || '')
     setAssignedUserId(dealData.assigned_user_id)
 
     const { data: contactData } = await supabase
@@ -113,7 +116,8 @@ export default function DealDetailPage() {
       .from('deals')
       .update({
         status,
-        assigned_user_id: assignedUserId
+        assigned_user_id: assignedUserId,
+        closing_date: closingDate || null
       })
       .eq('id', deal.id)
       .eq('account_id', membership.account_id)
@@ -250,6 +254,18 @@ if (!error && deal.deal_type === 'Seller') {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* CLOSING DATE */}
+
+          <div>
+            <label className="text-sm font-medium block mb-2">Closing Date</label>
+            <input
+              type="date"
+              value={closingDate}
+              onChange={(e) => setClosingDate(e.target.value)}
+              className="w-full border p-3 rounded"
+            />
           </div>
 
         </div>

@@ -39,6 +39,7 @@ export default function NewDealPage() {
 
   const [dealType, setDealType] = useState<'buyer' | 'seller' | 'lease'>('buyer')
   const [dealStatus, setDealStatus] = useState('Active')
+  const [closingDate, setClosingDate] = useState('')
 
   const [propertySearch, setPropertySearch] = useState('')
   const [propertyResults, setPropertyResults] = useState<Property[]>([])
@@ -228,6 +229,7 @@ if (existingDeal) {
     property_id: propertyId,
     deal_type: dealType,
     status: dealStatus,
+    closing_date: closingDate || null,
   },
 ])
 
@@ -489,6 +491,17 @@ await supabase.from('property_contacts').insert([
           <option value="Sold Firm">Sold Firm</option>
           <option value="Closed">Closed</option>
         </select>
+
+        {/* CLOSING DATE */}
+        <div>
+          <label className="text-sm text-gray-600">Closing Date</label>
+          <input
+            type="date"
+            value={closingDate}
+            onChange={(e) => setClosingDate(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 mt-1"
+          />
+        </div>
 
         <button
           onClick={createDeal}
