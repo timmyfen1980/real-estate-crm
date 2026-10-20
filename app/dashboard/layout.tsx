@@ -122,8 +122,7 @@ if (closedDeals) {
   setTotalClosed(buyers + sellers + leases)
 }
       
-// TEAM PRODUCTION (OWNER ONLY)
-if (membership.role === 'owner') {
+// TEAM PRODUCTION (ALL TEAM MEMBERS)
  const { data: teamClosed } = await supabase
   .from('deals')
   .select('deal_type')
@@ -148,8 +147,6 @@ if (teamClosed) {
   setTeamSellers(sellers)
   setTeamLeases(leases)
   setTeamTotal(buyers + sellers + leases)
-}
-    
 }
       // 🔹 Overdue Tasks Count
       const today = new Date().toISOString().split('T')[0]
@@ -381,15 +378,16 @@ const handleLogout = async () => {
       <div className="flex-1 flex flex-col">
 
         {/* Top Header */}
-        <header className="bg-white border-b px-8 h-[72px] flex justify-between items-center">
+        <header className="bg-white border-b px-8 py-4 flex justify-between items-center">
 
           {/* LEFT — Production Control Header */}
-<div className="flex items-center gap-12 text-sm">
+<div className="flex flex-col gap-2">
+  <div className="flex items-center gap-12 text-sm">
   <div
-    className="font-semibold tracking-wide uppercase text-gray-500"
-    title="Year to Date Closed Production"
+    className="font-semibold tracking-wide uppercase text-gray-500 w-40 shrink-0"
+    title="My Year to Date Closed Production"
   >
-    {new Date().getFullYear()} Production
+    My Production
   </div>
 
   <div className="flex items-center gap-12 text-sm">
@@ -467,6 +465,42 @@ const handleLogout = async () => {
 </button>
 
 </div>
+  </div>
+
+  <div className="flex items-center gap-12 text-sm">
+  <div
+    className="font-semibold tracking-wide uppercase text-gray-500 w-40 shrink-0"
+    title="Team Year to Date Closed Production"
+  >
+    Team Production
+  </div>
+
+  <div className="flex items-center gap-12 text-sm">
+
+  <div className="flex items-baseline gap-2">
+    <span className="text-xl font-bold text-blue-600">{teamBuyers}</span>
+    <span className="text-gray-500">Buyers</span>
+  </div>
+
+  <div className="flex items-baseline gap-2">
+    <span className="text-xl font-bold text-purple-600">{teamSellers}</span>
+    <span className="text-gray-500">Sellers</span>
+  </div>
+
+  <div className="flex items-baseline gap-2">
+    <span className="text-xl font-bold text-amber-600">{teamLeases}</span>
+    <span className="text-gray-500">Leases</span>
+  </div>
+
+  <div className="bg-[#0f2a44] text-white px-4 py-2 rounded-md">
+    <div className="flex items-baseline gap-2">
+      <span className="text-lg font-bold">{teamTotal}</span>
+      <span className="opacity-80">Total</span>
+    </div>
+  </div>
+
+  </div>
+  </div>
 </div>
 
           {/* RIGHT — User Controls */}
@@ -512,40 +546,6 @@ const handleLogout = async () => {
   </div>
 )}
         <main className="flex-1 p-6 overflow-y-auto">
-
-{userRole === 'owner' && pathname === '/dashboard' && (
-  <div className="mb-6 bg-white border rounded-2xl px-10 py-6 shadow-sm">
-
-    <div className="flex items-center gap-12 text-sm">
-
-      <div className="font-semibold tracking-wide uppercase text-gray-500">
-        Team Production
-      </div>
-
-      <div className="flex items-baseline gap-2">
-        <span className="text-xl font-bold text-blue-600">{teamBuyers}</span>
-        <span className="text-gray-500">Buyers</span>
-      </div>
-
-      <div className="flex items-baseline gap-2">
-        <span className="text-xl font-bold text-purple-600">{teamSellers}</span>
-        <span className="text-gray-500">Sellers</span>
-      </div>
-
-      <div className="flex items-baseline gap-2">
-        <span className="text-xl font-bold text-amber-600">{teamLeases}</span>
-        <span className="text-gray-500">Leases</span>
-      </div>
-
-      <div className="flex items-baseline gap-2">
-        <span className="text-xl font-bold">{teamTotal}</span>
-        <span className="text-gray-500">Total</span>
-      </div>
-
-    </div>
-
-  </div>
-)}
 
   {children}
 
