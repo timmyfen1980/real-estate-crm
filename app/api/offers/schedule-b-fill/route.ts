@@ -1,14 +1,20 @@
 // POST /api/offers/schedule-b-fill { package_id }
 //
-// Schedule Bs arrive FLATTENED (downloaded from REALM) — no fillable
-// fields. The names/address block at the top still has to be completed
-// for the offer. This reads the text positions out of the flattened
-// PDF (pdf.js via unpdf), finds the Buyer / Seller / Property lines,
-// and overlays editable text fields with the package's buyers, sellers
-// and property on top. The result is added to the package as a NEW
-// document ("Schedule B (names filled).pdf"); the original upload is
-// never touched. If a line can't be found, it's reported in `missing`
-// instead of guessed at. Tim, 2026-10-21.
+// Schedule Bs arrive FLATTENED — usually a scanned OREA Form 105 with
+// no text layer at all (verified on Tim's own 928 Black Cherry package,
+// 2026-10-21). The header block repeats at the top of EVERY page:
+//   BUYER: ______ / SELLER: ______ / for the property known as ______
+//   ______ dated the ____ day of ____, 20__
+// This overlays editable text fields with the package's buyers,
+// sellers, property and agreement date at those spots, on every page,
+// and adds the result to the package as a NEW document ("Schedule B
+// (names filled).pdf"); the original upload is never touched.
+//
+// Positions: if a page HAS a text layer, the Buyer/Seller/Property
+// labels are located from the text itself. If not (a scan), the
+// measured Form 105 header positions are used — that form's header is
+// identical on every Schedule B this team handles. Fields stay
+// editable so anything slightly off can be nudged in a PDF editor.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -54,17 +60,29 @@ async function authorized(req: NextRequest): Promise<boolean> {
   return !!user;
 }
 
-type Label = { page: number; x: number; y: number; width: number };
-type Item = { str: string; x: number; y: number; width: number; page: number };
+// Measured on a real Form 105 scan (fractions of page size, origin
+// top-left; y is the dotted line's height). Header identical per page.
+const FORM105: Record<string, { x0: number; x1: number; y: number }> = {
+  buyers: { x0: 0.125, x1: 0.885, y: 0.178 },
+  sellers: { x0: 0.125, x1: 0.925, y: 0.207 },
+  property: { x0: 0.252, x1: 0.925, y: 0.236 },
+  date_day: { x0: 0.435, x1: 0.575, y: 0.288 },
+  date_month: { x0: 0.655, x1: 0.815, y: 0.288 },
+  date_year: { x0: 0.852, x1: 0.9, y: 0.288 },
+};
 
-function findLabel(items: Item[], re: RegExp): (Label & { lineY: number }) | null {
-  for (const it of items) {
-    if (re.test(it.str.trim())) {
-      return { page: it.page, x: it.x, y: it.y, width: it.width, lineY: Math.round(it.y) };
-    }
-  }
-  return null;
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
+
+type Item = { str: string; x: number; y: number; width: number };
 
 export async function POST(req: NextRequest) {
   try {
@@ -100,15 +118,23 @@ export async function POST(req: NextRequest) {
     const sellers = (deal.sellers || []).filter(Boolean).join(" and ");
     const prop = deal.property || {};
     const propertyLine = [prop.address, prop.city].filter(Boolean).join(", ");
-    const wanted: { key: string; re: RegExp; value: string; field: string }[] = [
-      { key: "buyers", re: /^(buyer|purchaser)\b/i, value: buyers, field: "sb_buyer" },
-      { key: "sellers", re: /^(seller|vendor)\b/i, value: sellers, field: "sb_seller" },
-      { key: "property", re: /^(property|address|known as)\b/i, value: propertyLine, field: "sb_property" },
-    ];
+    const ad = deal.agreement_date || {};
+    const dDay = Number(ad.day) || 0;
+    const dMonth = Number(ad.month) || 0;
+    const dYear = Number(ad.year) || 0;
+    const values: Record<string, string> = {
+      buyers,
+      sellers,
+      property: propertyLine,
+      date_day: dDay ? ordinal(dDay) : "",
+      date_month: dMonth >= 1 && dMonth <= 12 ? MONTHS[dMonth - 1] : "",
+      date_year: dYear ? String(dYear).slice(-2) : "",
+    };
     const missing: string[] = [];
-    for (const w of wanted) if (!w.value) missing.push(w.key);
+    if (!buyers) missing.push("buyers");
+    if (!sellers) missing.push("sellers");
+    if (!propertyLine) missing.push("property");
 
-    // Download the flattened Schedule B.
     const dl = await svc.storage.from(BUCKET).download(source.path);
     if (dl.error || !dl.data) {
       return NextResponse.json(
@@ -118,81 +144,94 @@ export async function POST(req: NextRequest) {
     }
     const bytes = new Uint8Array(await dl.data.arrayBuffer());
 
-    // Extract text items with positions (PDF bottom-up coordinates,
-    // the same space pdf-lib writes in).
+    // Text items per page (empty for scans).
     const pdf = await getDocumentProxy(bytes);
-    const items: Item[] = [];
+    const itemsByPage = new Map<number, Item[]>();
     for (let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
       const tc: any = await page.getTextContent();
+      const items: Item[] = [];
       for (const it of tc.items || []) {
         if (!it.str || !it.transform) continue;
-        items.push({
-          str: it.str,
-          x: it.transform[4],
-          y: it.transform[5],
-          width: it.width || 0,
-          page: p,
-        });
+        items.push({ str: it.str, x: it.transform[4], y: it.transform[5], width: it.width || 0 });
       }
+      itemsByPage.set(p, items);
     }
 
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     const helvetica = await doc.embedFont(StandardFonts.Helvetica);
     const form = doc.getForm();
-    const placed: string[] = [];
+    const placed = new Set<string>();
 
-    for (const w of wanted) {
-      if (!w.value) continue;
-      const label = findLabel(items, w.re);
-      if (!label) {
-        missing.push(w.key);
-        continue;
-      }
-      // The value runs from just after the label to the right margin,
-      // stopping before any other wanted label sharing the line.
-      let endX = 571;
-      for (const other of wanted) {
-        if (other.key === w.key) continue;
-        const ol = findLabel(items, other.re);
-        if (ol && ol.page === label.page && Math.abs(ol.lineY - label.lineY) <= 3 && ol.x > label.x) {
-          endX = Math.min(endX, ol.x - 6);
-        }
-      }
-      const x = label.x + label.width + 4;
-      const width = endX - x;
-      if (width < 50) {
-        missing.push(w.key);
-        continue;
-      }
-      const page = doc.getPage(label.page - 1);
-      const field = form.createTextField(w.field);
+    const addField = (
+      pageIdx: number,
+      name: string,
+      x: number,
+      yBottom: number,
+      width: number,
+      value: string
+    ) => {
+      const page = doc.getPage(pageIdx);
+      const field = form.createTextField(name);
       field.addToPage(page, {
         x,
-        y: label.y - 3,
+        y: yBottom,
         width,
         height: 15,
         borderWidth: 0,
         textColor: rgb(0, 0, 0),
       });
-      field.setText(w.value);
+      field.setText(value);
       try {
-        (field as any).acroField.dict.set(
-          PDFName.of("DA"),
-          PDFString.of("/Helv 10 Tf 0 g")
-        );
+        (field as any).acroField.dict.set(PDFName.of("DA"), PDFString.of("/Helv 10 Tf 0 g"));
       } catch {
-        /* appearance falls back to updateFieldAppearances below */
+        /* appearance falls back to updateFieldAppearances */
       }
-      placed.push(w.key);
+    };
+
+    const labelFor: Record<string, RegExp> = {
+      buyers: /^(buyer|purchaser)\b/i,
+      sellers: /^(seller|vendor)\b/i,
+      property: /^(for the property known as|property|address|known as)\b/i,
+    };
+
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = doc.getPage(p - 1);
+      const { width: W, height: H } = page.getSize();
+      const items = itemsByPage.get(p) || [];
+      if (items.length > 0) {
+        // Text layer: place after each matching label, on every page.
+        for (const key of ["buyers", "sellers", "property"] as const) {
+          const value = values[key];
+          if (!value) continue;
+          const label = items.find((it) => labelFor[key].test(it.str.trim()));
+          if (!label) continue;
+          const x = label.x + label.width + 4;
+          const width = Math.max(50, W * 0.93 - x);
+          addField(p - 1, `sb_${key}_p${p}`, x, label.y - 3, width, value);
+          placed.add(key);
+        }
+        continue;
+      }
+      // No text layer (scan): measured Form 105 header positions.
+      for (const key of Object.keys(FORM105)) {
+        const value = values[key];
+        if (!value) continue;
+        const r = FORM105[key];
+        const x = r.x0 * W;
+        const width = (r.x1 - r.x0) * W;
+        const yBottom = H - r.y * H - 4;
+        addField(p - 1, `sb_${key}_p${p}`, x, yBottom, width, value);
+        placed.add(key.startsWith("date_") ? "date" : key);
+      }
     }
 
-    if (placed.length === 0) {
+    if (placed.size === 0) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "I couldn't find the Buyer / Seller / Property lines on that Schedule B — its layout may differ. The names can be typed onto it in a PDF editor.",
+            "I couldn't place the names on that Schedule B — its layout may differ from the usual Form 105. The names can be typed onto it in a PDF editor.",
           missing,
         },
         { status: 422 }
@@ -223,17 +262,14 @@ export async function POST(req: NextRequest) {
         added_at: new Date().toISOString(),
       },
     ];
-    const upd = await svc
-      .from("offer_packages")
-      .update({ documents })
-      .eq("id", packageId);
+    const upd = await svc.from("offer_packages").update({ documents }).eq("id", packageId);
     if (upd.error) {
       return NextResponse.json(
         { ok: false, error: `Saved the file but updating the package failed: ${upd.error.message}` },
         { status: 500 }
       );
     }
-    return NextResponse.json({ ok: true, placed, missing, documents });
+    return NextResponse.json({ ok: true, placed: Array.from(placed), missing, documents });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Schedule B fill failed." },

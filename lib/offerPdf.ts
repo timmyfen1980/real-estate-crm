@@ -427,7 +427,9 @@ export async function buildForm100(
     mappedField(doc, form, "txtp_deposit", fmtMoney(deal.deposit));
   }
   mappedField(doc, form, "txtDepositHolder", deal.deposit_holder);
-  mappedField(doc, form, "txtAttachedSchedule", deal.schedule || "A");
+  // Schedules line: only what's typed — Schedule A is part of the form
+  // itself, so there's no "A" default (Tim, 2026-10-21).
+  if (deal.schedule) mappedField(doc, form, "txtAttachedSchedule", deal.schedule);
 
   const irr = deal.irrevocable;
   mappedField(doc, form, "hidirrev_v_p", irr.by);
@@ -470,7 +472,13 @@ export async function buildForm100(
   mappedField(
     doc, form, "txtp_LeasedItems",
     rentals.length
-      ? rentals.map((r) => `${r.desc} - rental at $${Number(r.monthly).toFixed(2)}/month`).join("; ")
+      ? rentals
+          .map((r) =>
+            r.monthly !== "" && r.monthly != null && Number(r.monthly) > 0
+              ? `${r.desc} - rental at $${Number(r.monthly).toFixed(2)}/month`
+              : `${r.desc}`
+          )
+          .join("; ")
       : "None",
     9
   );
@@ -608,6 +616,11 @@ export function validate320(deal: any): string[] {
   req(deal, "property.address", missing);
   req(deal, "selling_brokerage.brokerage", missing);
   req(deal, "listing_brokerage.brokerage", missing);
+  const coop = deal.coop || {};
+  const rep = String(coop.representation || "coop");
+  if (rep === "coop" && String(coop.pay_basis || "mls") === "mls" && !String(coop.share || "").trim()) {
+    missing.push("coop.share (payable to the co-operating brokerage)");
+  }
   return missing;
 }
 
@@ -616,6 +629,7 @@ interface CoopTicks {
   item4a1: [string, string];
   header4b: [string, string];
   item4b1: [string, string];
+  item4b2: [string, string];
 }
 
 async function buildCoopForm(
@@ -735,23 +749,57 @@ async function buildCoopForm(
     if (prop.city || prop.address) setText("txtp_state", prop.province || "Ontario");
     setText("txtp_zipcode", prop.postal_code);
 
-    // Buyer side ONLY (Tim, 2026-10-21): tick the co-operating
-    // brokerage section — it represents the buyer/tenant and is paid
-    // the MLS-indicated commission. Sections 1-3 (the seller
-    // brokerage's own declarations) stay unticked.
-    tick(ticks.header4a[0], ticks.header4a[1]);
-    tick(ticks.item4a1[0], ticks.item4a1[1], "check_4a1");
-    tick(ticks.header4b[0], ticks.header4b[1]);
-    if (commission) {
-      tick(ticks.item4b1[0], ticks.item4b1[1], "check_4b1");
-      setText("txtp_bal2ndMortgage", commission);
+    // Representation decides which sections get ticked (Tim,
+    // 2026-10-21). The usual case is 'coop': we're the co-operating
+    // brokerage representing the buyer/tenant, §4 is ticked, and the
+    // seller brokerage's own sections (1-3) stay blank for them. The
+    // other cases are all in-house (our brokerage is also the listing
+    // brokerage), mapped to the form's own boxes:
+    //   same_brokerage_diff_reps → §1 header + §1a3 (chkOpt_provide '3')
+    //   multiple_brokerage       → §2 header + §2a
+    //   multiple_same_rep        → §2 header only (§2b has no box on
+    //                              the form — verified against the blank)
+    //   sold_by_us_direct        → §3 widget '1' (paid by buyer direct)
+    //   sold_by_us_agreement     → §3 widget '2' (commission agreement)
+    // (§1/§2/§3 field names are identical on the 320 and the 324.)
+    const rep = String(coop.representation || "coop");
+    const lb = deal.listing_brokerage || {};
+    if (rep === "same_brokerage_diff_reps") {
+      tick("chkOpt_ListBrok1", "1");
+      tick("chkOpt_provide", "3");
+    } else if (rep === "multiple_brokerage") {
+      tick("chkOpt_ListBrok2", "1");
+      tick("chkOpt_ListBrok2a", "1");
+    } else if (rep === "multiple_same_rep") {
+      tick("chkOpt_ListBrok2", "1");
+    } else if (rep === "sold_by_us_direct") {
+      tick("chkOpt_ListBrok3", "1");
+    } else if (rep === "sold_by_us_agreement") {
+      tick("chkOpt_ListBrok3", "2");
+    } else {
+      tick(ticks.header4a[0], ticks.header4a[1]);
+      tick(ticks.item4a1[0], ticks.item4a1[1], "check_4a1");
+      tick(ticks.header4b[0], ticks.header4b[1]);
+      if (String(coop.pay_basis || "mls") === "follows") {
+        tick(ticks.item4b2[0], ticks.item4b2[1]);
+        setText("txtcoopCommisionC1", coop.pay_text);
+      } else if (commission) {
+        tick(ticks.item4b1[0], ticks.item4b1[1], "check_4b1");
+        setText("txtp_bal2ndMortgage", commission);
+      }
     }
 
-    // Page 2 — the co-operating/buyer brokerage's block only; the
-    // seller brokerage's block stays blank for them to complete.
+    // Page 2 — the co-operating/buyer brokerage's block always; the
+    // seller brokerage's block too when the listing side is also ours
+    // (any non-coop case). For 'coop' it stays blank for them.
     setText("txts_broker", sb.brokerage);
     setText("txts_brkphone", sb.phone);
     setText("txts_brkagent", sb.agent);
+    if (rep !== "coop") {
+      setText("txtl_broker", lb.brokerage);
+      setText("txtl_brkphone", lb.phone);
+      setText("txtl_brkagent", lb.agent);
+    }
   } else {
     // Fallback for a flat blank: created fields at measured rects.
     D("buyers", join(deal.buyers));
@@ -779,6 +827,7 @@ export async function buildForm320(
     item4a1: ["chkOpt_CBrokComm", "1"],
     header4b: ["chkOpt_CoOp2", "1"],
     item4b1: ["chkOpt_CBrokComm2", "1"],
+    item4b2: ["chkOpt_CBrokComm2", "2"],
   });
 }
 
@@ -791,5 +840,6 @@ export async function buildForm324(
     item4a1: ["chkOpt_MultiRep1a", "1"],
     header4b: ["chkOpt_CoOp2", "1"],
     item4b1: ["chkOpt_MultiRep1", "0"],
+    item4b2: ["chkOpt_MultiRep1", "1"],
   });
 }

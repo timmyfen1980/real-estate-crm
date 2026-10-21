@@ -71,7 +71,9 @@ export default function PrepareOfferPage() {
   const [actionNote, setActionNote] = useState('')
   const [libFiles, setLibFiles] = useState<any[]>([])
   const [libLoaded, setLibLoaded] = useState(false)
-  const [coopTotal, setCoopTotal] = useState('')
+  const [coopRepresentation, setCoopRepresentation] = useState('coop')
+  const [coopPayBasis, setCoopPayBasis] = useState('mls')
+  const [coopPayText, setCoopPayText] = useState('')
   const [coopShare, setCoopShare] = useState('')
   const [coopBasis, setCoopBasis] = useState('of the purchase price')
   const pkgFileRef = useRef<HTMLInputElement>(null)
@@ -107,20 +109,20 @@ export default function PrepareOfferPage() {
   const [agreementDate, setAgreementDate] = useState(todayToronto())
   const [price, setPrice] = useState('')
   const [deposit, setDeposit] = useState('')
-  const [depositDueKind, setDepositDueKind] = useState('upon_acceptance')
+  const [depositDueKind, setDepositDueKind] = useState('')
   const [depositDueText, setDepositDueText] = useState('')
   const [depositHolder, setDepositHolder] = useState(BROKERAGE)
-  const [irrevocableBy, setIrrevocableBy] = useState('Buyer')
+  const [irrevocableBy, setIrrevocableBy] = useState('')
   const [irrevocableTime, setIrrevocableTime] = useState('11:59 p.m.')
   const [irrevocableDate, setIrrevocableDate] = useState(todayToronto())
   const [completionDate, setCompletionDate] = useState('')
   const [titleSearchDate, setTitleSearchDate] = useState('')
-  const [hst, setHst] = useState('in_addition')
+  const [hst, setHst] = useState('')
 
   // Inclusions
   const [chattelsText, setChattelsText] = useState('')
   const [exclusionsText, setExclusionsText] = useState('')
-  const [rentals, setRentals] = useState<{ desc: string; monthly: string }[]>([])
+  const [rentals, setRentals] = useState<{ kind: string; desc: string; monthly: string }[]>([])
 
   // Brokerages + submission (Form 801)
   const [listingBrokerage, setListingBrokerage] = useState(BROKERAGE)
@@ -144,7 +146,7 @@ export default function PrepareOfferPage() {
   const [finTime, setFinTime] = useState('6:00 p.m.')
   const [inspDays, setInspDays] = useState('5')
   const [inspTime, setInspTime] = useState('6:00 p.m.')
-  const [schedules, setSchedules] = useState('A')
+  const [schedules, setSchedules] = useState('')
   const [sheetUploaded, setSheetUploaded] = useState(false)
   // Buyer's lawyer (directory-backed)
   const [lawyers, setLawyers] = useState<any[]>([])
@@ -335,7 +337,13 @@ export default function PrepareOfferPage() {
     if (Array.isArray(deal.chattels)) setChattelsText(deal.chattels.join('\n'))
     if (Array.isArray(deal.exclusions)) setExclusionsText(deal.exclusions.join('\n'))
     if (Array.isArray(deal.rental_items))
-      setRentals(deal.rental_items.map((r: any) => ({ desc: r.desc || '', monthly: String(r.monthly ?? '') })))
+      setRentals(
+        deal.rental_items.map((r: any) => ({
+          kind: r.desc === 'Hot water tank' ? 'hot_water_tank' : r.desc ? 'other' : '',
+          desc: r.desc || '',
+          monthly: String(r.monthly ?? ''),
+        }))
+      )
     const lb = deal.listing_brokerage || {}
     if (lb.brokerage) setListingBrokerage(lb.brokerage)
     if (lb.agent) setListingAgent(lb.agent)
@@ -374,6 +382,9 @@ export default function PrepareOfferPage() {
       if (deal.coop.total) setCoopTotal(deal.coop.total)
       if (deal.coop.share) setCoopShare(deal.coop.share)
       if (deal.coop.basis) setCoopBasis(deal.coop.basis)
+      if (deal.coop.representation) setCoopRepresentation(deal.coop.representation)
+      if (deal.coop.pay_basis) setCoopPayBasis(deal.coop.pay_basis)
+      if (deal.coop.pay_text) setCoopPayText(deal.coop.pay_text)
     }
     if (Array.isArray(deal.clause_codes)) setSelectedClauses(deal.clause_codes)
     if (deal.clause_blanks) {
@@ -490,7 +501,7 @@ export default function PrepareOfferPage() {
       const data = await res.json()
       if (data.ok) {
         setActionNote('Schedule B added to this package.')
-        if (schedules.trim() === 'A') setSchedules('A, B')
+        if (!schedules.trim()) setSchedules('B')
         refreshPkg()
       } else {
         setGenError(data.error || "Couldn't add the Schedule B.")
@@ -516,7 +527,15 @@ export default function PrepareOfferPage() {
       if (!data.ok) throw new Error(data.error || 'Fill failed')
       await refreshDocs()
       const placed = (data.placed || [])
-        .map((k: string) => (k === 'buyers' ? 'buyer names' : k === 'sellers' ? 'seller names' : 'property'))
+        .map((k: string) =>
+          k === 'buyers'
+            ? 'buyer names'
+            : k === 'sellers'
+              ? 'seller names'
+              : k === 'date'
+                ? 'the agreement date'
+                : 'the property'
+        )
         .join(', ')
       const missed =
         Array.isArray(data.missing) && data.missing.length
@@ -608,10 +627,13 @@ export default function PrepareOfferPage() {
         completion_date: splitDate(completionDate),
         title_search_date: splitDate(titleSearchDate),
         hst,
-        schedule: schedules || 'A',
+        schedule: schedules || undefined,
         chattels: lines(chattelsText),
         exclusions: lines(exclusionsText),
-        rental_items: rentals
+        rental_items: rentals.map((r) => ({
+          desc: r.kind === 'hot_water_tank' ? 'Hot water tank' : r.desc.trim(),
+          monthly: r.monthly,
+        })).filter((r) => r.desc),
           .filter((r) => r.desc.trim())
           .map((r) => ({ desc: r.desc.trim(), monthly: Number(r.monthly) || 0 })),
         listing_brokerage: {
@@ -631,7 +653,13 @@ export default function PrepareOfferPage() {
           time: submittedTime,
           date: splitDate(submittedDate),
         },
-        coop: { total: coopTotal, share: coopShare, basis: coopBasis },
+        coop: {
+          share: coopShare,
+          basis: coopBasis,
+          representation: coopRepresentation,
+          pay_basis: coopPayBasis,
+          pay_text: coopPayText || undefined,
+        },
         client: pkgClient || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
@@ -940,6 +968,14 @@ export default function PrepareOfferPage() {
               key={key}
               onClick={() => {
                 setTab(key as any)
+                // A preview belongs to its form — switching tabs clears it,
+                // so a Form 100 preview never lingers on the 801 tab.
+                setResults([])
+                setPreviewUrl('')
+                setMissing([])
+                setGenError('')
+                setActionNote('')
+                setPartialNote('')
                 if (key === 'library') loadLibrary()
               }}
               className={`px-4 py-2 rounded-full text-sm border transition ${
@@ -1074,8 +1110,8 @@ export default function PrepareOfferPage() {
               </div>
             </div>
             <div>
-              <label className={labelCls}>Fronting on the</label>
-              <select className={inputCls} value={frontageSide} onChange={(e) => setFrontageSide(e.target.value)}>
+              <label className={labelCls}>Fronting on the *</label>
+              <select className={inputCls} style={miss(frontageSide)} value={frontageSide} onChange={(e) => setFrontageSide(e.target.value)}>
                 <option value=""></option>
                 <option value="North">North</option>
                 <option value="South">South</option>
@@ -1148,8 +1184,9 @@ export default function PrepareOfferPage() {
               <input type="number" className={inputCls} style={miss(deposit)} value={deposit} onChange={(e) => setDeposit(e.target.value)} />
             </div>
             <div>
-              <label className={labelCls}>Deposit due</label>
-              <select className={inputCls} value={depositDueKind} onChange={(e) => setDepositDueKind(e.target.value)}>
+              <label className={labelCls}>Deposit due *</label>
+              <select className={inputCls} style={miss(depositDueKind)} value={depositDueKind} onChange={(e) => setDepositDueKind(e.target.value)}>
+                <option value=""></option>
                 <option value="upon_acceptance">Upon Acceptance</option>
                 <option value="other">Other (type it)</option>
               </select>
@@ -1165,8 +1202,9 @@ export default function PrepareOfferPage() {
               <input className={inputCls} value={depositHolder} onChange={(e) => setDepositHolder(e.target.value)} />
             </div>
             <div>
-              <label className={labelCls}>Irrevocable by</label>
-              <select className={inputCls} value={irrevocableBy} onChange={(e) => setIrrevocableBy(e.target.value)}>
+              <label className={labelCls}>Irrevocable by *</label>
+              <select className={inputCls} style={miss(irrevocableBy)} value={irrevocableBy} onChange={(e) => setIrrevocableBy(e.target.value)}>
+                <option value=""></option>
                 <option value="Buyer">Buyer</option>
                 <option value="Seller">Seller</option>
               </select>
@@ -1188,17 +1226,19 @@ export default function PrepareOfferPage() {
               <input type="date" className={inputCls} style={miss(titleSearchDate)} value={titleSearchDate} onChange={(e) => setTitleSearchDate(e.target.value)} />
             </div>
             <div>
-              <label className={labelCls}>HST</label>
-              <select className={inputCls} value={hst} onChange={(e) => setHst(e.target.value)}>
+              <label className={labelCls}>HST *</label>
+              <select className={inputCls} style={miss(hst)} value={hst} onChange={(e) => setHst(e.target.value)}>
+                <option value=""></option>
                 <option value="in_addition">In addition to the Purchase Price</option>
                 <option value="included">Included in the Purchase Price</option>
               </select>
             </div>
             <div>
               <label className={labelCls}>Schedules attached</label>
-              <input className={inputCls} placeholder="A" value={schedules} onChange={(e) => setSchedules(e.target.value)} />
+              <input className={inputCls} placeholder="B" value={schedules} onChange={(e) => setSchedules(e.target.value)} />
               <p className="text-xs text-gray-400 mt-1">
-                Schedule A (your clauses) always goes in. Add the listing's — e.g. "A, B".
+                Only the extra schedules — your clauses (Schedule A) are already part of the
+                Form 100. Type B when the listing's Schedule B is attached; leave blank if none.
               </p>
             </div>
           </div>
@@ -1346,14 +1386,33 @@ export default function PrepareOfferPage() {
             <label className={labelCls}>Rental items</label>
             {rentals.map((r, i) => (
               <div key={i} className="flex gap-2 mt-2">
-                <input className={inputCls} placeholder="Hot water tank" value={r.desc} onChange={(e) => setRentals((prev) => prev.map((x, j) => (j === i ? { ...x, desc: e.target.value } : x)))} />
+                <select
+                  className={inputCls}
+                  value={r.kind}
+                  onChange={(e) =>
+                    setRentals((prev) =>
+                      prev.map((x, j) =>
+                        j === i
+                          ? { ...x, kind: e.target.value, desc: e.target.value === 'other' ? x.desc : '' }
+                          : x
+                      )
+                    )
+                  }
+                >
+                  <option value=""></option>
+                  <option value="hot_water_tank">Hot water tank</option>
+                  <option value="other">Other</option>
+                </select>
+                {r.kind === 'other' && (
+                  <input className={inputCls} placeholder="What's rented?" value={r.desc} onChange={(e) => setRentals((prev) => prev.map((x, j) => (j === i ? { ...x, desc: e.target.value } : x)))} />
+                )}
                 <input className={inputCls} placeholder="$ / month" type="number" value={r.monthly} onChange={(e) => setRentals((prev) => prev.map((x, j) => (j === i ? { ...x, monthly: e.target.value } : x)))} />
                 <button className="text-red-500 text-sm px-2" onClick={() => setRentals((prev) => prev.filter((_, j) => j !== i))}>
                   Remove
                 </button>
               </div>
             ))}
-            <button className="text-sm border px-3 py-1 rounded-md hover:bg-gray-100 transition mt-2" onClick={() => setRentals((prev) => [...prev, { desc: '', monthly: '' }])}>
+            <button className="text-sm border px-3 py-1 rounded-md hover:bg-gray-100 transition mt-2" onClick={() => setRentals((prev) => [...prev, { kind: '', desc: '', monthly: '' }])}>
               + Add rental item
             </button>
           </div>
@@ -1506,23 +1565,56 @@ export default function PrepareOfferPage() {
         <div className={tab === 'coop' ? sectionCls : 'hidden'}>
           <h2 className={h2Cls}>Confirmation of Co-operation — Form 320</h2>
           <p className="text-sm text-gray-600">
-            The 320 confirms how the commission is shared. The brokerages come from your
-            answers on the Form 801 tab — here are the numbers.
+            Two things decide what gets ticked on the 320: how the buyer is represented, and —
+            when we're the co-operating brokerage — what's payable to us. The brokerages
+            themselves come from your answers on the Form 801 tab.
           </p>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Total commission (%)</label>
-              <input className={inputCls} placeholder="5" value={coopTotal} onChange={(e) => setCoopTotal(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelCls}>Payable to co-operating brokerage (%)</label>
-              <input className={inputCls} style={miss(coopShare)} placeholder="2.5" value={coopShare} onChange={(e) => setCoopShare(e.target.value)} />
-            </div>
-            <div className="col-span-2">
-              <label className={labelCls}>Commission basis</label>
-              <input className={inputCls} value={coopBasis} onChange={(e) => setCoopBasis(e.target.value)} />
-            </div>
+          <div>
+            <label className={labelCls}>Type of representation *</label>
+            <select className={inputCls} value={coopRepresentation} onChange={(e) => setCoopRepresentation(e.target.value)}>
+              <option value="coop">Co-operating brokerage — we represent the buyer (designated representation, our usual)</option>
+              <option value="same_brokerage_diff_reps">Same brokerage as the listing — different designated representatives (no multiple representation)</option>
+              <option value="multiple_brokerage">Multiple representation — our brokerage represents both sides, with a Representation Agreement with the buyer</option>
+              <option value="multiple_same_rep">Multiple representation — the same designated representative acts for both seller and buyer</option>
+              <option value="sold_by_us_direct">Our own listing, sold to our buyer — the buyer pays us directly</option>
+              <option value="sold_by_us_agreement">Our own listing, sold to our buyer — paid under the commission agreement</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Anything other than co-operating means the listing side is ours too — both
+              brokerage blocks on page 2 of the form get filled in.
+            </p>
           </div>
+          {coopRepresentation === 'coop' && (
+            <>
+              <div>
+                <label className={labelCls}>Co-operating commission is</label>
+                <select className={inputCls} value={coopPayBasis} onChange={(e) => setCoopPayBasis(e.target.value)}>
+                  <option value="mls">As indicated in the MLS information (amount below)</option>
+                  <option value="follows">Paid as follows (describe it)</option>
+                </select>
+              </div>
+              {coopPayBasis === 'mls' ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelCls}>Payable to co-operating brokerage (%) *</label>
+                    <input className={inputCls} style={miss(coopShare)} placeholder="2.5" value={coopShare} onChange={(e) => setCoopShare(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Of</label>
+                    <input className={inputCls} value={coopBasis} onChange={(e) => setCoopBasis(e.target.value)} />
+                  </div>
+                  <p className="text-xs text-gray-400 col-span-2">
+                    Prints on the form as “{coopShare || '…'}% {coopBasis}, plus HST”.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className={labelCls}>Paid as follows</label>
+                  <input className={inputCls} placeholder="e.g. a flat fee of $5,000" value={coopPayText} onChange={(e) => setCoopPayText(e.target.value)} />
+                </div>
+              )}
+            </>
+          )}
           <p className="text-sm text-gray-500">
             Selling brokerage: <span className="font-medium">{sellingBrokerage}</span>
             {sellingAgent ? ` (${sellingAgent})` : ''} · Listing brokerage:{' '}
