@@ -80,10 +80,17 @@ setUnderContractCount(visitorCount || 0)
   }, [eventId])
 
   const updateStatus = async (leadId: string, status: string) => {
-    await supabase
+    const { error } = await supabase
       .from('leads')
       .update({ status })
       .eq('id', leadId)
+
+    if (error) {
+      console.error('LEAD STATUS ERROR:', error)
+      alert('Failed to update lead status — please try again')
+      // The select is controlled by lead.status, so it snaps back on its own.
+      return
+    }
 
     setLeads(prev =>
       prev.map(l =>
