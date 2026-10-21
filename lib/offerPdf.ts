@@ -610,23 +610,33 @@ export function validate320(deal: any): string[] {
   return missing;
 }
 
+interface CoopTicks {
+  header4a: [string, string];
+  item4a1: [string, string];
+  header4b: [string, string];
+  item4b1: [string, string];
+}
+
 async function buildCoopForm(
   deal: any,
   templateBytes: Uint8Array,
-  tag: string
+  tag: string,
+  ticks: CoopTicks
 ): Promise<{ bytes: Uint8Array; pages: number }> {
   createdCount = 0;
   const fields = (mapping320 as any).form320_confirmation.fields as Record<
     string,
     { rect: number[]; page: number }
   >;
-  // The WebForms/PropTx blanks carry an owner password — pdf-lib needs
+  // The WebForms blanks carry an owner password — pdf-lib needs
   // ignoreEncryption to open them (the saved output is unencrypted).
   const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
   const helvetica = await doc.embedFont(StandardFonts.Helvetica);
   const form = doc.getForm();
   const prop = deal.property || {};
 
+  // Created-field fallback (measured rects) — used only when the blank
+  // in the store has no named fields of its own.
   const D = (sem: string, text?: string, size = 10) => {
     const info = fields[sem];
     if (!info || !text) return;
@@ -635,33 +645,124 @@ async function buildCoopForm(
     });
   };
   const join = (arr: string[]) => (arr || []).join(" and ");
+  const hasField = (name: string): boolean => {
+    try {
+      form.getField(name);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const setText = (name: string, value?: string): boolean => {
+    if (!value) return false;
+    try {
+      form.getTextField(name).setText(value);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  // Tick ONE widget of a (possibly multi-widget) checkbox by its
+  // on-state value — e.g. the 320's commission group whose boxes are
+  // '1' and '2', and the 324's, whose boxes are '0' and '1'.
+  const tickValue = (name: string, wanted: string): boolean => {
+    try {
+      const field: any = form.getField(name);
+      const widgets = field.acroField.getWidgets();
+      let ok = false;
+      for (const w of widgets) {
+        const n: any = w.dict.lookup(PDFName.of("AP"))?.lookup(PDFName.of("N"));
+        const keys: string[] = n
+          ? n
+              .keys()
+              .map((k: any) => String(k.asString ? k.asString() : k).replace(/^\//, ""))
+          : [];
+        const match = keys.includes(wanted);
+        w.dict.set(PDFName.of("AS"), PDFName.of(match ? wanted : "Off"));
+        if (match) ok = true;
+      }
+      if (ok) field.acroField.dict.set(PDFName.of("V"), PDFName.of(wanted));
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+  const tick = (name: string, wanted: string, fallbackSem?: string) => {
+    if (tickValue(name, wanted)) return;
+    try {
+      form.getCheckBox(name).check();
+      return;
+    } catch {
+      /* fall through to the drawn X */
+    }
+    if (fallbackSem) D(fallbackSem, "X", 8);
+  };
 
-  D("buyers", join(deal.buyers));
-  D("sellers", join(deal.sellers));
-  D("property", [prop.address, prop.city].filter(Boolean).join(", "));
-
-  // Section 4 — the co-operating brokerage side is OUR side in this
-  // workspace: it represents the buyer/tenant (4a-1) and is paid the
-  // MLS-indicated commission by the seller brokerage (4b-1). The
-  // seller brokerage's own declaration sections (1 and 2) are left for
-  // that brokerage — the PDF stays editable.
-  D("check_4a1", "X", 8);
-  D("check_4b1", "X", 8);
+  const sb = deal.selling_brokerage || {};
   const coop = deal.coop || {};
   const share = String(coop.share || "").trim();
-  if (share) {
-    const pct = share.includes("%") ? share : `${share}%`;
-    const basis = String(coop.basis || "of the purchase price").trim();
-    D("commission_amount", `${pct} ${basis}, plus HST`);
-  }
+  const commission = share
+    ? `${share.includes("%") ? share : `${share}%`} ${String(
+        coop.basis || "of the purchase price"
+      ).trim()}, plus HST`
+    : "";
 
-  // Buyer side ONLY (Tim, 2026-10-21): the co-operating/buyer
-  // brokerage's block is filled; the seller brokerage's signature
-  // block stays blank for that brokerage to complete itself.
-  const sb = deal.selling_brokerage || {};
-  D("coop_brokerage", sb.brokerage);
-  D("coop_tel", sb.phone);
-  D("coop_print_name", sb.agent);
+  if (hasField("txtbuyer1")) {
+    // The blank's own fields — the proper WebForms route.
+    const buyers = (deal.buyers as string[]) || [];
+    const sellers = (deal.sellers as string[]) || [];
+    setText("txtbuyer1", buyers[0]);
+    if (buyers.length > 1) {
+      setText("hidband", "and");
+      setText("txtbuyer2", buyers.slice(1).join(" and "));
+    }
+    setText("txtseller1", sellers[0]);
+    if (sellers.length > 1) {
+      setText("hidsand", "and");
+      setText("txtseller2", sellers.slice(1).join(" and "));
+    }
+    const addr = String(prop.address || "");
+    const m = addr.match(/^(\d+)\s+(.*)$/);
+    if (m) {
+      setText("txtp_streetnum", m[1]);
+      setText("txtp_street", m[2]);
+    } else if (addr) {
+      setText("txtp_street", addr);
+    }
+    setText("txtp_UnitNumber", prop.unit_number || prop.unit);
+    setText("txtp_city", prop.city);
+    if (prop.city || prop.address) setText("txtp_state", prop.province || "Ontario");
+    setText("txtp_zipcode", prop.postal_code);
+
+    // Buyer side ONLY (Tim, 2026-10-21): tick the co-operating
+    // brokerage section — it represents the buyer/tenant and is paid
+    // the MLS-indicated commission. Sections 1-3 (the seller
+    // brokerage's own declarations) stay unticked.
+    tick(ticks.header4a[0], ticks.header4a[1]);
+    tick(ticks.item4a1[0], ticks.item4a1[1], "check_4a1");
+    tick(ticks.header4b[0], ticks.header4b[1]);
+    if (commission) {
+      tick(ticks.item4b1[0], ticks.item4b1[1], "check_4b1");
+      setText("txtp_bal2ndMortgage", commission);
+    }
+
+    // Page 2 — the co-operating/buyer brokerage's block only; the
+    // seller brokerage's block stays blank for them to complete.
+    setText("txts_broker", sb.brokerage);
+    setText("txts_brkphone", sb.phone);
+    setText("txts_brkagent", sb.agent);
+  } else {
+    // Fallback for a flat blank: created fields at measured rects.
+    D("buyers", join(deal.buyers));
+    D("sellers", join(deal.sellers));
+    D("property", [prop.address, prop.city].filter(Boolean).join(", "));
+    D("check_4a1", "X", 8);
+    D("check_4b1", "X", 8);
+    if (commission) D("commission_amount", commission);
+    D("coop_brokerage", sb.brokerage);
+    D("coop_tel", sb.phone);
+    D("coop_print_name", sb.agent);
+  }
 
   form.updateFieldAppearances(helvetica);
   const bytes = await doc.save();
@@ -672,12 +773,22 @@ export async function buildForm320(
   deal: any,
   templateBytes: Uint8Array
 ): Promise<{ bytes: Uint8Array; pages: number }> {
-  return buildCoopForm(deal, templateBytes, "f320");
+  return buildCoopForm(deal, templateBytes, "f320", {
+    header4a: ["chkOpt_CoOp", "1"],
+    item4a1: ["chkOpt_CBrokComm", "1"],
+    header4b: ["chkOpt_CoOp2", "1"],
+    item4b1: ["chkOpt_CBrokComm2", "1"],
+  });
 }
 
 export async function buildForm324(
   deal: any,
   templateBytes: Uint8Array
 ): Promise<{ bytes: Uint8Array; pages: number }> {
-  return buildCoopForm(deal, templateBytes, "f324");
+  return buildCoopForm(deal, templateBytes, "f324", {
+    header4a: ["chkOpt_MultiDesign", "1"],
+    item4a1: ["chkOpt_MultiRep1a", "1"],
+    header4b: ["chkOpt_CoOp2", "1"],
+    item4b1: ["chkOpt_MultiRep1", "0"],
+  });
 }
