@@ -224,13 +224,20 @@ export default function Dashboard() {
   }
 
   const dismissFollowup = async (id: string) => {
-    setEmailFollowups(function (prev) {
-      return prev ? prev.filter(function (item) { return item.id !== id }) : prev
-    })
-    await supabase
+    const { error } = await supabase
       .from('email_followups')
       .update({ status: 'dismissed' })
       .eq('id', id)
+
+    if (error) {
+      console.error('DISMISS FOLLOWUP ERROR:', error)
+      alert('Failed to dismiss — please try again')
+      return
+    }
+
+    setEmailFollowups(function (prev) {
+      return prev ? prev.filter(function (item) { return item.id !== id }) : prev
+    })
   }
 
   // Pipeline Health "+ Add task": creates a real task from a dashboard
@@ -605,13 +612,19 @@ export default function Dashboard() {
 
                               <button
                                 onClick={async () => {
-                                  await supabase
+                                  const { error: completeError } = await supabase
                                     .from('tasks')
                                     .update({
                                       status: 'completed',
                                       completed_at: new Date().toISOString(),
                                     })
                                     .eq('id', task.id)
+
+                                  if (completeError) {
+                                    console.error('COMPLETE TASK ERROR:', completeError)
+                                    alert('Failed to complete task — please try again')
+                                    return
+                                  }
 
                                   loadDashboard()
                                 }}
