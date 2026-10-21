@@ -1,0 +1,249 @@
+{
+ "standards": [
+  {
+   "id": "STD-A",
+   "code": "A",
+   "title": "Balance of Purchase Price",
+   "text": "The Buyer agrees to pay the balance of the Purchase Price, subject to adjustments, to the Seller on completion of this transaction, with funds drawn on a lawyer's trust account in the form of a bank draft, certified cheque or wire transfer using the Lynx high value payment system as set out and prescribed by the Canadian Payments Act (R.S.C., 1985, c. C-21) as amended from time to time"
+  },
+  {
+   "id": "STD-B",
+   "code": "B",
+   "title": "Financing",
+   "text": "This offer/agreement is conditional until 6:00 p.m. on the fifth banking day after the date of acceptance upon the buyer or the agent arranging a new first mortgage at the buyer's expense. If the said mortgage cannot be obtained, or if this condition is not waived by notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, within the time specified, this offer/agreement shall then become null and void, and the full deposit herein shall be returned to the buyer without interest or deduction. This condition is included for the benefit of the buyer, and may be waived at his sole option by notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, within the time specified."
+  },
+  {
+   "id": "STD-D",
+   "code": "C",
+   "title": "Home Inspection by Buyer",
+   "text": "This offer/agreement is conditional upon the buyer obtaining at the buyer's expense an inspection of the subject property by a registered home inspector by 6:00 p.m. on the fifth banking day after the date of acceptance, and in the event that such inspection reveals deficiencies, as defined by the inspection report, in the subject property which the buyer is unwilling to accept or which the seller is unwilling to remedy, then this offer/agreement shall become null and void and the deposit shall be returned to the buyer in full without interest or deduction. This condition is included for the benefit of the buyer, and may be waived at his sole option by notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, within the time specified."
+  },
+  {
+   "id": "STD-SURVEY",
+   "code": null,
+   "title": "Seller to Provide Survey",
+   "text": "The seller agrees to provide, within 48 hours of acceptance of this offer, a survey of the property, completed by an Ontario Land Surveyor, showing the current location of all buildings, structures, additions, fences, improvements, easements, rights of way and encroachments affecting the said property."
+  },
+  {
+   "id": "STD-VIEWINGS",
+   "code": null,
+   "title": "Buyer's Further Viewings",
+   "text": "The seller and buyer agree that the buyer shall have the right to view the property three further times after all conditions have been removed and prior to completion. This viewing shall occur at a mutually agreed upon time within 48 hours of the request to view. The seller agrees to provide access to the property for the purpose of this viewing."
+  },
+  {
+   "id": "STD-WARRANTY",
+   "code": null,
+   "title": "Chattels and Fixtures Warranty",
+   "text": "The seller represents and warrants that the chattels and fixtures as included in this agreement of purchase and sale will be in working order and free from all liens and encumbrances on completion. The parties agree that this representation and warranty shall survive and not merge on completion of this transaction, but apply only to the state of the property at completion of this transaction."
+  },
+  {
+   "id": "STD-ZB",
+   "code": "ZB",
+   "title": "Broom Swept Condition",
+   "text": "The seller agrees to remove, at the seller's own expense, all items not included in the agreement of purchase and sale, from the subject property and the seller agrees to the leave the property in a clean and broomswept condition."
+  }
+ ],
+ "options": [
+  {
+   "code": "D",
+   "title": "HOME INSPECTION BY BUYER",
+   "text": "This offer/agreement is conditional upon the inspection of the subject property by the buyer, INSERT NAME, and the obtaining of a report satisfactory to the buyer at the buyer's own expense. Unless the buyer gives notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, not later than 6:00 p.m. on the INSERT DATE, that this condition is fulfilled, this offer/agreement shall become null and void, and the full deposit herein shall be returned to the buyer without interest or deduction.  The seller agrees to co-operate in providing access to the property for the purpose of this inspection. This condition is included for the benefit of the buyer and may be waived at the buyer's sole option by notice in writing to the seller as aforesaid within the time period stated herein.  The buyer and seller acknowledge and agree that the buyer will be responsible for any damages caused to the subject property during the course of this home inspection.",
+   "blanks": [
+    "INSERT DATE",
+    "INSERT NAME"
+   ]
+  },
+  {
+   "code": "E",
+   "title": "HOME INSPECTION DECLINED",
+   "text": "The buyer acknowledges having been informed by the agent of the benefits of having a home inspection done and the buyer acknowledges that the same has been declined.",
+   "blanks": []
+  },
+  {
+   "code": "F",
+   "title": "INSURNACE",
+   "text": "This offer/agreement is conditional on the buyer arranging insurance for the property satisfactory to the buyer in the buyer's sole and absolute discretion.  Unless the buyer gives notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, not later than 6:00 p.m. on the third banking day after the date of acceptance, that this condition is fulfilled, this offer/agreement shall be null and void and the deposit shall be returned to the buyer in full without interest or deduction.  The seller agrees to co-operate in providing access to the property, if necessary, for any inspection of the property required for the fulfillment of this condition.  This condition is included for the benefit of the buyer and may be waived at the buyer's sole option by notice in writing to the seller as aforesaid within the time period stated herein.",
+   "blanks": []
+  },
+  {
+   "code": "G",
+   "title": "PURCHASER’S LAWYER’S APPROVAL",
+   "text": "This offer/agreement is conditional upon the approval of the terms hereof by the buyer's solicitor. Unless the buyer gives notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, not later than 6:00 p.m. on the third banking day after the date of acceptance that this condition is fulfilled, this offer/agreement shall become null and void and the deposit shall be returned to the buyer in full without interest or deduction. This condition is included for the benefit of the buyer and may be waived at the buyer's sole option by notice in writing to the seller as aforesaid within the time period stated herein.",
+   "blanks": []
+  },
+  {
+   "code": "H",
+   "title": "WOOD ENERGY TECHNOLOGY TRANSFER",
+   "text": "This offer/agreement is conditional until 6:00 p.m. on the fifth banking day after the date of acceptance upon the seller obtaining at the seller's own expense a wood energy technology transfer (WETT) report satisfactory to the buyer in the buyer's sole and absolute discretion.  Unless the buyer gives notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, that this condition is fulfilled, this offer/agreement shall become null and void and the deposit shall be returned to the buyer in full without interest or deduction.  This condition is included for the benefit of the buyer and may be waived at the buyer's sole option by notice in writing to the seller as aforesaid within the time period stated herein.",
+   "blanks": []
+  },
+  {
+   "code": "I",
+   "title": "PURCHASER’S OFFER FIRMING",
+   "text": "This offer/agreement is conditional until INSERT TIME, DATE, upon an offer on the buyer's property known as INSERT ADDRESS, becoming firm and binding.  Otherwise this offer/agreement shall become null and void, and the deposit shall be returned to the buyer in full without interest or deduction.  This condition is included for the benefit of the buyer and may be waived at his sole option, by notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, within the time specified.",
+   "blanks": [
+    "INSERT ADDRESS",
+    "INSERT TIME"
+   ]
+  },
+  {
+   "code": "J",
+   "title": "SPP",
+   "text": "This offer/agreement is conditional upon the sale of the buyer's property known as INSERT ADDRESS.  Unless the buyer gives notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, by 6:00 p.m. on the INSERT DATE, that this condition is fulfilled, this offer/agreement shall become null and void, and the deposit shall be returned to the buyer in full without interest or deduction.  This condition is included for the benefit of the buyer and may be waived at his sole option by notice in writing as aforesaid within the time period stated herein.",
+   "blanks": [
+    "INSERT ADDRESS",
+    "INSERT DATE"
+   ]
+  },
+  {
+   "code": "K",
+   "title": "SPP ESCAPE",
+   "text": "Provided further that the seller may continue to offer the property for sale, and, in the event he receives another offer satisfactory to him, he may so notify the buyer in writing delivered to the buyer, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto.  The buyer shall have 48 hours from the giving of such notice to waive this condition by notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, failing which this offer/agreement shall become null and void, and the buyer's deposit shall be returned in full without interest or deduction and the seller shall be at liberty to accept a new offer.",
+   "blanks": []
+  },
+  {
+   "code": "M",
+   "title": "NO SURVEY",
+   "text": "The buyer acknowledges that the buyer's agent has not been able to obtain a survey of the property from the seller or the seller's agent, and as such cannot confirm the lot dimensions of the subject property.  The buyer acknowledges that the buyer's agent has advised them of the benefits of obtaining a survey of the property prior to closing and notwithstanding the above, the buyer agrees to close this transaction without a survey.  The buyer agrees to release, quitclaim, and forever discharge the buyer's agent, his/her employer, his/her heirs and assigns from any liability resulting from the buyer's decision to close this transaction without a survey.",
+   "blanks": []
+  },
+  {
+   "code": "N",
+   "title": "RIGHT TO ENTER ONCE",
+   "text": "The seller and buyer agree that the buyer shall have the right to view the property one further time after all conditions have been removed and prior to completion.  This viewing shall occur at a mutually agreed upon time within 48 hours of the request to view.  The seller agrees to provide access to the property for the purpose of this viewing.",
+   "blanks": []
+  },
+  {
+   "code": "O",
+   "title": "RIGHT TO ENTER TWICE",
+   "text": "The seller and buyer agree that the buyer shall have the right to view the property two further times after all conditions have been removed and prior to completion.  These viewings shall each occur at a mutually agreed upon time within 48 hours of the request to view.  The seller agrees to provide access to the property for the purpose of these viewings.",
+   "blanks": []
+  },
+  {
+   "code": "P",
+   "title": "OFFER RELEASE - SELLER",
+   "text": "This offer/agreement is conditional upon the seller being released from a prior agreement of purchase and sale.  Unless the seller gives notice in writing delivered to the buyer, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, not later than 6:00 p.m. on the INSERT DATE, that this condition is fulfilled, this offer/agreement shall become null and void and the deposit shall be returned to the buyer in full without interest or deduction.",
+   "blanks": [
+    "INSERT DATE"
+   ]
+  },
+  {
+   "code": "Q",
+   "title": "OFFER RELEASE - BUYER",
+   "text": "This offer/agreement is conditional upon the buyer being released from a prior agreement of purchase and sale.  Unless the buyer gives notice in writing delivered to the seller, personally or in accordance with any other provisions for the delivery of notice in this agreement of purchase and sale or any schedule thereto, not later than 6:00 p.m. on the INSERT DATE, that this condition is fulfilled, this offer/agreement shall become null and void and the deposit shall be returned to the buyer in full without interest or deduction.",
+   "blanks": [
+    "INSERT DATE"
+   ]
+  },
+  {
+   "code": "R",
+   "title": "SEPTIC",
+   "text": "The seller hereby warrants that during his occupancy of the dwelling, the septic tank system has operated satisfactorily, and to the best of his knowledge the system was installed according to the provisions of the health authorities having jurisdiction.",
+   "blanks": []
+  },
+  {
+   "code": "S",
+   "title": "WELL",
+   "text": "The seller hereby warrants that during his occupancy of the property the well pump and related equipment have performed adequately, and that the well is capable of supplying safe, potable and sufficient water for normal household use.  The seller agrees to supply the buyer with a certificate indicating water potability on or before the date set for title search.  The parties agree that this representation and warranty shall survive and not merge on completion of this transaction, but apply only to the state of the property at completion of this transaction.",
+   "blanks": []
+  },
+  {
+   "code": "T",
+   "title": "STATUS CERTIFICATE",
+   "text": "The seller agrees to supply to the buyer, at the seller's own expense, within ten days of acceptance of this offer, a current Condominium Status Certificate and all supporting documents.  The buyer shall have three business days from this receipt of said certificate for his solicitor's approval, failing which this offer/agreement shall become null and void and the buyer's deposit shall be returned in full without interest or deduction.",
+   "blanks": []
+  },
+  {
+   "code": "U",
+   "title": "APARTMENT NOT WARRANTED",
+   "text": "The buyer acknowledges having been informed that the basement apartment is illegal and does not comply with the fire and hydro codes and municipal by-laws and regulations of INSERT TOWN OR CITY NAME and that the home being purchased may only be used as a single family residence.",
+   "blanks": [
+    "INSERT TOWN OR CITY NAME"
+   ]
+  },
+  {
+   "code": "V",
+   "title": "POOL CLAUSE",
+   "text": "The seller represents and warrants, to the best of the seller's knowledge and belief that the swimming pool, its equipment and the fencing of the said pool comply with all applicable by-laws, regulations and legislation.  The parties agree that this representation and warranty shall survive and not merge on completion of this transaction, but apply only to the state of the property existing at completion of this transaction.  The seller represents and warrants that the swimming pool and equipment are now and on the completion date shall be in working order.  The parties agree that this representation and warranty shall survive and not merge on completion of this transaction, but apply only to the state of the property existing at completion of this transaction.",
+   "blanks": []
+  },
+  {
+   "code": "W",
+   "title": "OIL TANK/FURNACE CERTIFIED",
+   "text": "The seller agrees to have the oil furnace and oil tank checked by a certified heating professional and to have such oil furnace and tank verified to be functioning properly according to appropriate current safety standards.  The seller agrees to provide to the buyer, prior to the last day for examining title, written verification of same.  The parties agree that the representations and warranties stated herein shall survive and not merge on completion of this transaction, but apply only to the state of the property at completion of this transaction.",
+   "blanks": []
+  },
+  {
+   "code": "X",
+   "title": "SPIS",
+   "text": "The seller hereby agrees to provide to the buyer a copy of a Seller Property Information Statement by 6:00 p.m. on the fourth banking day after the date of acceptance of this offer.",
+   "blanks": []
+  },
+  {
+   "code": "Y",
+   "title": "GROW HOUSE - WARRANTY",
+   "text": "The seller represents and warrants that, during the time the seller has owned the property, the use of the property and the buildings and structures thereon has not been for the growth or manufacture of any illegal substances, and that, to the best of the seller's knowledge and belief, the use of the property and the buildings and structures thereon has never been for the growth or manufacture of illegal substances.  This warranty shall survive and not merge on the completion of this transaction.",
+   "blanks": []
+  },
+  {
+   "code": "Z",
+   "title": "GROW HOUSE - ACKNOWLEDGEMENT",
+   "text": "The buyer acknowledges that the use of the property and buildings and structures thereon may have been for the growth or manufacture of illegal substances and acknowledges that the seller makes no representations and/or warranties with respect to the state of repair of the premises and the buyer accepts the property and the buildings and structures thereon in their present state and in an \"as is\" condition.",
+   "blanks": []
+  },
+  {
+   "code": "ZC",
+   "title": "ESA",
+   "text": "The seller agrees to provide, at the seller's own expense, an Electrical Safety Authority certificate on or before one week prior to closing.",
+   "blanks": []
+  },
+  {
+   "code": "ZD",
+   "title": "CREDIT ON CLOSOING THROUGH LAWYERS",
+   "text": "The seller agrees to credit the buyer INSERT AMOUNT on closing towards the cost of INSERT ITEM.  It is agreed that this credit will be adjusted on closing through the lawyers undertaking.",
+   "blanks": [
+    "INSERT AMOUNT",
+    "INSERT ITEM"
+   ]
+  },
+  {
+   "code": "ZE",
+   "title": "BUYER LICENSES SELLER TO OCCUPY PROPERTY BEYOND CLOSING",
+   "text": "The buyer and seller acknowledge that the closing date as scheduled shall be INSERT DATE.  Notwithstanding the above, the seller shall not provide vacant possession on closing, and as such shall be entitled to occupy the property from the scheduled closing date until INSERT DATE.  The parties acknowledge that the right to occupy the property as stated above, shall not be deemed to be a tenancy pursuant to the Residential Tenancies Act, and the only right that the seller shall have to occupy the property is pursuant to the terms of the agreement of purchase and sale.  Upon INSERT DATE at 5 p.m., the seller agrees to provide vacant possession of the property.  To compensate the buyer for the above, the seller agrees to provide an abatement on closing in the amount of INSERT AMOUNT and the seller agrees to pay all utilities from the scheduled closing date until the date of vacant possession, INSERT DATE.  The buyer will maintain insurance for the property during the occupancy, and the seller shall maintain contents and liability insurance during the term of the occupancy.  The seller will be responsible for utilities up to and including INSERT DATE.  The buyer will be responsible for taxes during the occupancy.",
+   "blanks": [
+    "INSERT AMOUNT",
+    "INSERT DATE"
+   ]
+  },
+  {
+   "code": "ZF",
+   "title": "MULTIPLE OFFERS",
+   "text": "This offer is being submitted on the basis that it is part of multiple offers (____ offers in total, including this offer).  If the seller receives less than _____offers, including this offer,  by ____a.m./p.m., DATE, the seller will notify the buyer and the buyer shall have one hour to revoke or revise their offer.  If the seller accepts the buyer offer, the seller shall immediately provide the name, address and phone number of each brokerage company that submitted competing offers.",
+   "blanks": [
+    "____ (fill-in blank)"
+   ]
+  },
+  {
+   "code": "ZG",
+   "title": "TO BE USED AFTER ORIGINAL DEAL DIES (I.E. WAIVER TIME MISSED) PRIOR TO MUTUAL RELEASE BEING SIGNED",
+   "text": "This Agreement replaces a prior accepted Agreement of Purchase and Sale dated .....,...,.... (attached hereto).",
+   "blanks": [
+    "..... (date)"
+   ]
+  },
+  {
+   "code": "ZH",
+   "title": "CO-OP BROKER NOT COLLECTING COMMISSION – CREDIT TO BUYER",
+   "text": "The Buyer and Seller acknowledge that the cooperating broker is not collecting commissions on the above transaction.  The only commission payable will be whatever is owing to the listing brokerage.  In return for the reduced commission, the Seller agrees to credit the Buyer the amount of $XXXXXX on the statement of adjustments.",
+   "blanks": [
+    "$XXXXXX (amount)"
+   ]
+  },
+  {
+   "code": "ZI",
+   "title": "ADDING AN ADDITIONAL BUYER ON AMENDMENT",
+   "text": "The buyers, (insert name of ALL buyers here) hereby agree to all the terms and conditions of the offer dated (insert date), attached hereto.\n\n(Note ** it is best to just do a whole new offer, but if this is the only way you can do it, then have the buyer being added initial the bottom of all pages of the original offer, ATTACH IT again to the amendment, with the new buyers initials, and have them sign and initial the amendment with the old buyers).",
+   "blanks": []
+  }
+ ]
+}

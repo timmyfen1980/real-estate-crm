@@ -1,0 +1,792 @@
+{
+ "hidband": {
+  "blank": "ssssss",
+  "dist": 15.5,
+  "rect": [
+   73,
+   126,
+   480,
+   139
+  ]
+ },
+ "hidsand": {
+  "blank": "ssssssss",
+  "dist": 7.0,
+  "rect": [
+   73,
+   154,
+   520,
+   167
+  ]
+ },
+ "txtp_Subdivision": {
+  "blank": "b",
+  "dist": 3.0,
+  "rect": [
+   93,
+   234,
+   297,
+   247
+  ]
+ },
+ "txtsideOf": {
+  "blank": "bb",
+  "dist": 2.0,
+  "rect": [
+   325,
+   234,
+   572,
+   247
+  ]
+ },
+ "hidInThe1": {
+  "blank": "in the",
+  "dist": 11.5,
+  "rect": [
+   61,
+   259,
+   139,
+   272
+  ]
+ },
+ "txtInThe": {
+  "blank": "fdvzvxc",
+  "dist": 11.5,
+  "rect": [
+   139,
+   259,
+   571,
+   272
+  ]
+ },
+ "txtp_SchoolDistrict": {
+  "blank": "fronting on the",
+  "dist": 7.5,
+  "rect": [
+   131,
+   284,
+   207,
+   297
+  ]
+ },
+ "hidSize1": {
+  "blank": "bfgbff",
+  "dist": 9.0,
+  "rect": [
+   207,
+   284,
+   284,
+   297
+  ]
+ },
+ "txtp_ZoningClass": {
+  "blank": "side of",
+  "dist": 6.5,
+  "rect": [
+   381,
+   284,
+   454,
+   297
+  ]
+ },
+ "hidSize2": {
+  "blank": "vfddsfdfgfhg",
+  "dist": 7.5,
+  "rect": [
+   454,
+   284,
+   527,
+   297
+  ]
+ },
+ "txtp_legaldesc": {
+  "blank": "ccccc",
+  "dist": 6.5,
+  "rect": [
+   41,
+   334,
+   516,
+   347
+  ]
+ },
+ "txtp_price": {
+  "blank": "Dollars CDN",
+  "dist": 2.0,
+  "rect": [
+   467,
+   366,
+   570,
+   379
+  ]
+ },
+ "txtp_pricewords": {
+  "blank": "cccccc",
+  "dist": 1.0,
+  "rect": [
+   41,
+   391,
+   545,
+   404
+  ]
+ },
+ "hidhereupon": {
+  "blank": "bbbb",
+  "dist": 1.5,
+  "rect": [
+   130,
+   416,
+   571,
+   429
+  ]
+ },
+ "txtp_depositwords": {
+  "blank": "bbbbb",
+  "dist": 1.0,
+  "rect": [
+   41,
+   443,
+   408,
+   456
+  ]
+ },
+ "txtp_deposit": {
+  "blank": "Dollars CDN_2",
+  "dist": 1.5,
+  "rect": [
+   466,
+   443,
+   570,
+   456
+  ]
+ },
+ "txtDepositHolder": {
+  "blank": "cccccccc",
+  "dist": 0.5,
+  "rect": [
+   164,
+   466,
+   467,
+   479
+  ]
+ },
+ "txtAttachedSchedule": {
+  "blank": "ccccccc",
+  "dist": 1.0,
+  "rect": [
+   105,
+   558,
+   369,
+   571
+  ]
+ },
+ "hidirrev_v_p": {
+  "blank": "bbbbbb",
+  "dist": 0.5,
+  "rect": [
+   246,
+   581,
+   416,
+   594
+  ]
+ },
+ "txtp_irrev_t": {
+  "blank": "until",
+  "dist": 1.5,
+  "rect": [
+   435,
+   581,
+   511,
+   594
+  ]
+ },
+ "txtp_OfferExpireDate_d": {
+  "blank": "on the",
+  "dist": 2.0,
+  "rect": [
+   537,
+   581,
+   572,
+   594
+  ]
+ },
+ "txtp_OfferExpireDate_mmmm": {
+  "blank": "day of",
+  "dist": 2.5,
+  "rect": [
+   84,
+   608,
+   248,
+   621
+  ]
+ },
+ "txtp_OfferExpireDate_yy": {
+  "blank": "ccccccccc",
+  "dist": 0.5,
+  "rect": [
+   263,
+   608,
+   284,
+   621
+  ]
+ },
+ "txtp_closedate_d": {
+  "blank": "bbbbbbb",
+  "dist": 1.5,
+  "rect": [
+   384,
+   645,
+   419,
+   658
+  ]
+ },
+ "txtp_closedate_mmmm": {
+  "blank": "bbbbbbbb",
+  "dist": 1.5,
+  "rect": [
+   446,
+   645,
+   572,
+   658
+  ]
+ },
+ "txtp_closedate_yy": {
+  "blank": "ccccccccccc",
+  "dist": 0.5,
+  "rect": [
+   72,
+   668,
+   106,
+   681
+  ]
+ },
+ "txtListFax": {
+  "blank": "FAX No",
+  "dist": 1.5,
+  "rect": [
+   93,
+   160,
+   305,
+   173
+  ]
+ },
+ "txtl_brkagentemail": {
+  "blank": "Email Address",
+  "dist": 0.5,
+  "rect": [
+   113,
+   191,
+   305,
+   204
+  ]
+ },
+ "txtSellFax": {
+  "blank": "FAX No_2",
+  "dist": 2.0,
+  "rect": [
+   349,
+   160,
+   571,
+   173
+  ]
+ },
+ "txts_brkagentemail": {
+  "blank": "Email Address_2",
+  "dist": 0.5,
+  "rect": [
+   369,
+   191,
+   571,
+   204
+  ]
+ },
+ "txtp_propincludes": {
+  "blank": "ddddddddd",
+  "dist": 13.5,
+  "rect": [
+   60,
+   274,
+   568,
+   287
+  ]
+ },
+ "txtp_propexcludes": {
+  "blank": "fffff",
+  "dist": 12.5,
+  "rect": [
+   58,
+   445,
+   569,
+   458
+  ]
+ },
+ "txtp_LeasedItems": {
+  "blank": "fffffff",
+  "dist": 5.5,
+  "rect": [
+   58,
+   559,
+   571,
+   572
+  ]
+ },
+ "hidinc_add": {
+  "blank": "fffffffff",
+  "dist": 2.0,
+  "rect": [
+   58,
+   651,
+   210,
+   664
+  ]
+ },
+ "txtp_fundingDate_d": {
+  "blank": "uuuu",
+  "dist": 0.5,
+  "rect": [
+   271,
+   30,
+   305,
+   43
+  ]
+ },
+ "txtp_fundingDate_mmmm": {
+  "blank": "uuuuu",
+  "dist": 0.0,
+  "rect": [
+   331,
+   30,
+   465,
+   43
+  ]
+ },
+ "txtp_fundingDate_yy": {
+  "blank": "sssssssssss",
+  "dist": 1.0,
+  "rect": [
+   481,
+   30,
+   509,
+   43
+  ]
+ },
+ "txtp_otherliensdesc": {
+  "blank": "ssssssssss",
+  "dist": 1.0,
+  "rect": [
+   346,
+   75,
+   551,
+   88
+  ]
+ },
+ "txtw_sig1": {
+  "blank": "nhgnhgnhg_1",
+  "dist": 18.0,
+  "rect": [
+   70,
+   80,
+   200,
+   92
+  ]
+ },
+ "txtw_sig2": {
+  "blank": "t_1",
+  "dist": 18.0,
+  "rect": [
+   70,
+   106,
+   200,
+   118
+  ]
+ },
+ "txtw_sig3": {
+  "blank": "eee",
+  "dist": 18.0,
+  "rect": [
+   70,
+   187,
+   200,
+   199
+  ]
+ },
+ "txtw_sig4": {
+  "blank": "ewfdsfsd",
+  "dist": 17.5,
+  "rect": [
+   70,
+   214,
+   200,
+   225
+  ]
+ },
+ "txtw_sig5": {
+  "blank": "ythtnrhgrsg",
+  "dist": 18.5,
+  "rect": [
+   70,
+   269,
+   200,
+   281
+  ]
+ },
+ "txtsp_sig1": {
+  "blank": "nhgdbfs",
+  "dist": 3.5,
+  "rect": [
+   287,
+   270,
+   434,
+   282
+  ]
+ },
+ "txtp_exec_t": {
+  "blank": "tt",
+  "dist": 0.0,
+  "rect": [
+   212,
+   301,
+   316,
+   314
+  ]
+ },
+ "txtp_exec_d": {
+  "blank": "this",
+  "dist": 1.0,
+  "rect": [
+   332,
+   301,
+   374,
+   314
+  ]
+ },
+ "txtp_exec_mmmm": {
+  "blank": "ttt",
+  "dist": 1.5,
+  "rect": [
+   399,
+   301,
+   529,
+   314
+  ]
+ },
+ "txtp_exec_yy": {
+  "blank": "20",
+  "dist": 1.5,
+  "rect": [
+   544,
+   301,
+   571,
+   314
+  ]
+ },
+ "txtSignerSig": {
+  "blank": "q",
+  "dist": 31.5,
+  "rect": [
+   415,
+   362,
+   559,
+   375
+  ]
+ },
+ "txtl_broker": {
+  "blank": "qqqq",
+  "dist": 0.5,
+  "rect": [
+   112,
+   362,
+   404,
+   375
+  ]
+ },
+ "txtl_brkphone": {
+  "blank": "qq",
+  "dist": 42.0,
+  "rect": [
+   417,
+   402,
+   561,
+   415
+  ]
+ },
+ "txtl_brkagent": {
+  "blank": "qqq",
+  "dist": 115.0,
+  "rect": [
+   138,
+   402,
+   406,
+   415
+  ]
+ },
+ "txtl_brkname": {
+  "blank": "TelNo",
+  "dist": 128.0,
+  "rect": [
+   50,
+   381,
+   560,
+   394
+  ]
+ },
+ "txts_broker": {
+  "blank": "TelNo_2",
+  "dist": 53.0,
+  "rect": [
+   50,
+   421,
+   560,
+   434
+  ]
+ },
+ "txts_brkphone": {
+  "blank": "undefined_5",
+  "dist": 114.5,
+  "rect": [
+   495,
+   488,
+   538,
+   501
+  ]
+ },
+ "txts_brkagent": {
+  "blank": "Cdfabgfz",
+  "dist": 115.5,
+  "rect": [
+   59,
+   499,
+   218,
+   510
+  ]
+ },
+ "txts_brkname": {
+  "blank": "iykgjhn",
+  "dist": 101.0,
+  "rect": [
+   329,
+   499,
+   487,
+   510
+  ]
+ },
+ "txtSStreet": {
+  "blank": "Date_4",
+  "dist": 3.5,
+  "rect": [
+   112,
+   526,
+   299,
+   539
+  ]
+ },
+ "txtSStreet2": {
+  "blank": "qqqqqq",
+  "dist": 2.0,
+  "rect": [
+   40,
+   542,
+   178,
+   555
+  ]
+ },
+ "txtSPhone": {
+  "blank": "qqqqqqqqq",
+  "dist": 3.5,
+  "rect": [
+   188,
+   542,
+   297,
+   555
+  ]
+ },
+ "txts_lawyername": {
+  "blank": "Tel No",
+  "dist": 3.0,
+  "rect": [
+   94,
+   560,
+   298,
+   573
+  ]
+ },
+ "txts_lawyeraddr": {
+  "blank": "Sellers Lawyer",
+  "dist": 2.0,
+  "rect": [
+   72,
+   576,
+   299,
+   589
+  ]
+ },
+ "txts_lawyeremail": {
+  "blank": "Address",
+  "dist": 2.5,
+  "rect": [
+   62,
+   592,
+   299,
+   605
+  ]
+ },
+ "txts_lawyerphone": {
+  "blank": "aaa",
+  "dist": 4.5,
+  "rect": [
+   40,
+   608,
+   173,
+   621
+  ]
+ },
+ "txts_lawyerfax": {
+  "blank": "aaaaaa",
+  "dist": 2.0,
+  "rect": [
+   187,
+   608,
+   298,
+   621
+  ]
+ },
+ "txtBStreet": {
+  "blank": "Date_5",
+  "dist": 2.0,
+  "rect": [
+   383,
+   526,
+   570,
+   539
+  ]
+ },
+ "txtBStreet2": {
+  "blank": "qqqqqqqq",
+  "dist": 4.0,
+  "rect": [
+   311,
+   542,
+   447,
+   555
+  ]
+ },
+ "txtBPhone": {
+  "blank": "a",
+  "dist": 4.0,
+  "rect": [
+   459,
+   542,
+   568,
+   555
+  ]
+ },
+ "txtb_lawyername": {
+  "blank": "Tel No_2",
+  "dist": 1.0,
+  "rect": [
+   367,
+   560,
+   571,
+   573
+  ]
+ },
+ "txtb_lawyeraddr": {
+  "blank": "Buyers Lawyer",
+  "dist": 2.5,
+  "rect": [
+   340,
+   576,
+   569,
+   589
+  ]
+ },
+ "txtb_lawyeremail": {
+  "blank": "Address_2",
+  "dist": 3.5,
+  "rect": [
+   333,
+   592,
+   569,
+   605
+  ]
+ },
+ "txtb_lawyerphone": {
+  "blank": "aaaa",
+  "dist": 4.5,
+  "rect": [
+   309,
+   608,
+   443,
+   621
+  ]
+ },
+ "txtb_lawyerfax": {
+  "blank": "aaaaa",
+  "dist": 3.0,
+  "rect": [
+   456,
+   608,
+   569,
+   621
+  ]
+ },
+ "txtListSig": {
+  "blank": "fdsf fff",
+  "dist": 0.5,
+  "rect": [
+   162,
+   715,
+   301,
+   726
+  ]
+ },
+ "txtSellSig": {
+  "blank": "bfsbbsgf",
+  "dist": 0.5,
+  "rect": [
+   503,
+   715,
+   572,
+   726
+  ]
+ },
+ "hidband2": {
+  "blank": "SELLER",
+  "dist": 10.0,
+  "rect": [
+   74,
+   128,
+   555,
+   141
+  ]
+ },
+ "hidsand2": {
+  "blank": "qqqqq",
+  "dist": 13.5,
+  "rect": [
+   74,
+   152,
+   572,
+   165
+  ]
+ },
+ "hidDynamicPage": {
+  "blank": "dated the",
+  "dist": 78.5,
+  "rect": [
+   257,
+   198,
+   291,
+   211
+  ]
+ },
+ "txtAddSchedule": {
+  "blank": "22",
+  "dist": 6.5,
+  "rect": [
+   39,
+   440,
+   579,
+   452
+  ]
+ }
+}

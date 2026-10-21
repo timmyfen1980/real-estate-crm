@@ -1,0 +1,598 @@
+{
+ "form801_offer_summary": {
+  "title": "OREA Form 801 \u2014 Offer Summary Document (for use with Agreement of Purchase and Sale)",
+  "source": "NOT in timmyfen1980/REA (verified via full recursive tree of the repo, 400 entries, zero 801 hits; the app's /form_pdfs/801.pdf was also never committed). Rects measured from the official OREA Form 801 (Revised Sept 2015) sample layout; the 2020 version has identical field geometry.",
+  "fields": {
+   "real_property_address": {
+    "blank": null,
+    "rect": [
+     205,
+     139,
+     571,
+     156
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "agreement_date_day": {
+    "blank": null,
+    "rect": [
+     246,
+     165,
+     285,
+     178
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "agreement_date_month": {
+    "blank": null,
+    "rect": [
+     311,
+     165,
+     489,
+     178
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "agreement_date_year": {
+    "blank": null,
+    "rect": [
+     510,
+     165,
+     542,
+     178
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "submitting_brokerage": {
+    "blank": null,
+    "rect": [
+     190,
+     186,
+     571,
+     199
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "submitting_sales_rep": {
+    "blank": null,
+    "rect": [
+     177,
+     207,
+     571,
+     220
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "buyer_names": {
+    "blank": null,
+    "rect": [
+     80,
+     228,
+     490,
+     244
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "buyer1_signature": {
+    "blank": null,
+    "rect": [
+     41,
+     254,
+     206,
+     270
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "buyer1_signature_date": {
+    "blank": null,
+    "rect": [
+     213,
+     254,
+     301,
+     270
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "buyer2_signature": {
+    "blank": null,
+    "rect": [
+     311,
+     254,
+     476,
+     270
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "buyer2_signature_date": {
+    "blank": null,
+    "rect": [
+     483,
+     254,
+     572,
+     270
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "submitted_via": {
+    "blank": null,
+    "rect": [
+     128,
+     280,
+     301,
+     296
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "submitted_time": {
+    "blank": null,
+    "rect": [
+     396,
+     280,
+     435,
+     296
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "submitted_day": {
+    "blank": null,
+    "rect": [
+     503,
+     280,
+     550,
+     296
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "submitted_month": {
+    "blank": null,
+    "rect": [
+     41,
+     307,
+     154,
+     320
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "submitted_year": {
+    "blank": null,
+    "rect": [
+     170,
+     307,
+     195,
+     320
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "irrevocable_time": {
+    "blank": null,
+    "rect": [
+     257,
+     307,
+     287,
+     320
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "irrevocable_day": {
+    "blank": null,
+    "rect": [
+     353,
+     307,
+     392,
+     320
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "irrevocable_month": {
+    "blank": null,
+    "rect": [
+     417,
+     307,
+     533,
+     320
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "irrevocable_year": {
+    "blank": null,
+    "rect": [
+     549,
+     307,
+     576,
+     320
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_buyer_names": {
+    "blank": null,
+    "rect": [
+     63,
+     364,
+     443,
+     380
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_buyer1_signature": {
+    "blank": null,
+    "rect": [
+     41,
+     390,
+     206,
+     406
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_buyer1_signature_date": {
+    "blank": null,
+    "rect": [
+     213,
+     390,
+     301,
+     406
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_buyer2_signature": {
+    "blank": null,
+    "rect": [
+     311,
+     390,
+     476,
+     406
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_buyer2_signature_date": {
+    "blank": null,
+    "rect": [
+     483,
+     390,
+     572,
+     406
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_submitted_via": {
+    "blank": null,
+    "rect": [
+     125,
+     416,
+     300,
+     432
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_submitted_time": {
+    "blank": null,
+    "rect": [
+     395,
+     416,
+     434,
+     432
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_submitted_day": {
+    "blank": null,
+    "rect": [
+     503,
+     416,
+     549,
+     432
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_submitted_month": {
+    "blank": null,
+    "rect": [
+     41,
+     442,
+     154,
+     455
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_submitted_year": {
+    "blank": null,
+    "rect": [
+     170,
+     442,
+     195,
+     455
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_irrevocable_time": {
+    "blank": null,
+    "rect": [
+     257,
+     442,
+     287,
+     455
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_irrevocable_day": {
+    "blank": null,
+    "rect": [
+     351,
+     442,
+     391,
+     455
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_irrevocable_month": {
+    "blank": null,
+    "rect": [
+     415,
+     442,
+     531,
+     455
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "counter_irrevocable_year": {
+    "blank": null,
+    "rect": [
+     547,
+     442,
+     575,
+     455
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "seller_names": {
+    "blank": null,
+    "rect": [
+     81,
+     520,
+     571,
+     533
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "seller_contact": {
+    "blank": null,
+    "rect": [
+     122,
+     543,
+     571,
+     556
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "listing_brokerage": {
+    "blank": null,
+    "rect": [
+     132,
+     569,
+     571,
+     582
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "listing_sales_rep": {
+    "blank": null,
+    "rect": [
+     180,
+     592,
+     571,
+     605
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "received_via": {
+    "blank": null,
+    "rect": [
+     123,
+     615,
+     219,
+     631
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "received_time": {
+    "blank": null,
+    "rect": [
+     313,
+     615,
+     343,
+     631
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "received_day": {
+    "blank": null,
+    "rect": [
+     409,
+     615,
+     431,
+     631
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "received_month": {
+    "blank": null,
+    "rect": [
+     457,
+     615,
+     548,
+     631
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "received_year": {
+    "blank": null,
+    "rect": [
+     552,
+     615,
+     600,
+     631
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "presented_via": {
+    "blank": null,
+    "rect": [
+     129,
+     641,
+     235,
+     657
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "presented_time": {
+    "blank": null,
+    "rect": [
+     296,
+     641,
+     333,
+     657
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "presented_day": {
+    "blank": null,
+    "rect": [
+     400,
+     641,
+     432,
+     657
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "presented_month": {
+    "blank": null,
+    "rect": [
+     459,
+     641,
+     547,
+     657
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "presented_year": {
+    "blank": null,
+    "rect": [
+     552,
+     641,
+     600,
+     657
+    ],
+    "page": 0,
+    "type": "text"
+   },
+   "offer_outcome_accepted": {
+    "blank": null,
+    "rect": [
+     140,
+     662,
+     150,
+     672
+    ],
+    "page": 0,
+    "type": "checkbox"
+   },
+   "offer_outcome_signed_back": {
+    "blank": null,
+    "rect": [
+     230,
+     662,
+     240,
+     672
+    ],
+    "page": 0,
+    "type": "checkbox"
+   },
+   "offer_outcome_expired_declined": {
+    "blank": null,
+    "rect": [
+     400,
+     662,
+     410,
+     672
+    ],
+    "page": 0,
+    "type": "checkbox"
+   },
+   "comments": {
+    "blank": null,
+    "rect": [
+     91,
+     680,
+     571,
+     693
+    ],
+    "page": 0,
+    "type": "text"
+   }
+  },
+  "app_widget_hints": {
+   "note": "Tim's old app (Nov15thamApp.js FORM_ALIAS) filled a WebForms fillable 801.pdf using these widget names; they are NOT present in any available copy, but map to these semantic fields if that fillable ever resurfaces.",
+   "txtbuyer1": "buyer_names (buyer 1)",
+   "txtbuyer2": "buyer_names (buyer 2)",
+   "txtseller1": "seller_names (seller 1)",
+   "txtseller2": "seller_names (seller 2)",
+   "txtp_streetnum": "real_property_address (street number part)",
+   "txtp_street": "real_property_address (street name part)",
+   "txtp_UnitNumber": "real_property_address (unit part)",
+   "txtp_city": "real_property_address (city part)",
+   "txtp_state": "real_property_address (province part)",
+   "txtp_zipcode": "real_property_address (postal code part)"
+  }
+ },
+ "notes": [
+  "Form 801 is the Offer Summary Document \u2014 a 1-page cover sheet the BUYING brokerage completes (mandatory in full) as evidence of a written signed offer; the LISTING brokerage completes the receiving section. It is NOT the Confirmation of Co-operation and Representation (that is OREA Form 320).",
+  "No fillable 801 exists in the repo or publicly (OREA forms are member-only via WEBForms/PropTx); all 'blank' values are null. The direct-draw filler (fill_direct2.py pattern) only needs rects, so this map is still fillable.",
+  "Date fragments (day/month/year pieces) and the outcome checkboxes are positioned from dotted-line runs; sub-day rects are approximate within ~10pt."
+ ]
+}
