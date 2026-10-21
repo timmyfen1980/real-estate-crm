@@ -16,8 +16,8 @@ const BROKERAGE = 'RE/MAX Hallmark First Group Realty Ltd.'
 // phone too, where we have it.
 const TEAM_AGENTS = [
   { name: 'Tim Fennessey', phone: '905 493-7355', email: 'tim@thefcgroup.ca' },
-  { name: 'Aidan Comeau', phone: '', email: 'aidan@thefcgroup.ca' },
-  { name: 'Beth Nickle', phone: '', email: 'beth@thefcgroup.ca' },
+  { name: 'Aidan Comeau', phone: '289 388-6386', email: 'aidan@thefcgroup.ca' },
+  { name: 'Beth Nickle', phone: '905 668-3800', email: 'beth@thefcgroup.ca' },
 ]
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -90,6 +90,30 @@ export default function PrepareOfferPage() {
   const sigRef = useRef('')
   const tabRef = useRef(tab)
   const [saveState, setSaveState] = useState('')
+  // Agent pickers: defaults above, but phone numbers are read live
+  // from each person's profile (Account page) so they're kept in
+  // exactly one place.
+  const [teamAgents, setTeamAgents] = useState(TEAM_AGENTS)
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await fetch('/api/offers/team')
+        const data = await res.json()
+        if (data.ok && Array.isArray(data.team)) {
+          setTeamAgents((prev) =>
+            prev.map((a) => {
+              const p = data.team.find(
+                (t: any) => (t.name || '').trim().toLowerCase() === a.name.toLowerCase()
+              )
+              return p && p.phone ? { ...a, phone: p.phone } : a
+            })
+          )
+        }
+      } catch {
+        /* the defaults stand */
+      }
+    })()
+  }, [])
   // MLS prefill
 
   // Property
@@ -1327,9 +1351,9 @@ export default function PrepareOfferPage() {
               <input className={inputCls} placeholder="tim@thefcgroup.ca" value={sellingEmail} onChange={(e) => setSellingEmail(e.target.value)} />
               <select
                 className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
-                value={TEAM_AGENTS.some((t) => t.email === sellingEmail) ? sellingEmail : ''}
+                value={teamAgents.some((t) => t.email === sellingEmail) ? sellingEmail : ''}
                 onChange={(e) => {
-                  const t = TEAM_AGENTS.find((x) => x.email === e.target.value)
+                  const t = teamAgents.find((x) => x.email === e.target.value)
                   if (t) {
                     setSellingEmail(t.email)
                     setSellingAgent(t.name)
@@ -1338,7 +1362,7 @@ export default function PrepareOfferPage() {
                 }}
               >
                 <option value="">…or pick who's preparing it</option>
-                {TEAM_AGENTS.map((t) => (
+                {teamAgents.map((t) => (
                   <option key={t.email} value={t.email}>
                     {t.name} — {t.email}
                   </option>
@@ -1500,9 +1524,9 @@ export default function PrepareOfferPage() {
               <input className={inputCls} style={miss(listingAgent)} value={listingAgent} onChange={(e) => setListingAgent(e.target.value)} />
               <select
                 className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
-                value={TEAM_AGENTS.some((t) => t.name === listingAgent) ? listingAgent : ''}
+                value={teamAgents.some((t) => t.name === listingAgent) ? listingAgent : ''}
                 onChange={(e) => {
-                  const t = TEAM_AGENTS.find((x) => x.name === e.target.value)
+                  const t = teamAgents.find((x) => x.name === e.target.value)
                   if (t) {
                     setListingAgent(t.name)
                     if (t.phone) setListingPhone(t.phone)
@@ -1511,7 +1535,7 @@ export default function PrepareOfferPage() {
                 }}
               >
                 <option value="">…or pick a team agent</option>
-                {TEAM_AGENTS.map((t) => (
+                {teamAgents.map((t) => (
                   <option key={t.name} value={t.name}>
                     {t.name}
                   </option>
@@ -1531,9 +1555,9 @@ export default function PrepareOfferPage() {
               <input className={inputCls} style={miss(sellingAgent)} value={sellingAgent} onChange={(e) => setSellingAgent(e.target.value)} />
               <select
                 className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
-                value={TEAM_AGENTS.some((t) => t.name === sellingAgent) ? sellingAgent : ''}
+                value={teamAgents.some((t) => t.name === sellingAgent) ? sellingAgent : ''}
                 onChange={(e) => {
-                  const t = TEAM_AGENTS.find((x) => x.name === e.target.value)
+                  const t = teamAgents.find((x) => x.name === e.target.value)
                   if (t) {
                     setSellingAgent(t.name)
                     if (t.phone) setSellingPhone(t.phone)
@@ -1542,7 +1566,7 @@ export default function PrepareOfferPage() {
                 }}
               >
                 <option value="">…or pick a team agent</option>
-                {TEAM_AGENTS.map((t) => (
+                {teamAgents.map((t) => (
                   <option key={t.name} value={t.name}>
                     {t.name}
                   </option>
