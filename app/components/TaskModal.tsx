@@ -154,10 +154,17 @@ console.log('TASK CREATED:', data)
     }
 
     if (mode === 'edit' && task) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('tasks')
         .update(payload)
         .eq('id', task.id)
+
+      if (updateError) {
+        console.error('TASK UPDATE ERROR:', updateError)
+        setError('Failed to save changes — please try again.')
+        setLoading(false)
+        return
+      }
 
       if (task.lead_id) {
         await supabase.from('lead_activity').insert({
