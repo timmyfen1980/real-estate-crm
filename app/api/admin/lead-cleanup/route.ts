@@ -34,7 +34,7 @@ function db(): SupabaseClient {
 async function computeReport(supabase: SupabaseClient) {
   const { data: openLeads, error: leadError } = await supabase
     .from('leads')
-    .select('id, first_name, last_name, email, status, deal_type, contact_id, created_at')
+    .select('id, first_name, last_name, email, status, deal_type, contact_id, created_at, last_contacted_at')
     .eq('account_id', ACCOUNT_ID)
     .in('status', OPEN_STATUSES);
   if (leadError) throw leadError;
@@ -114,7 +114,7 @@ async function computeReport(supabase: SupabaseClient) {
     }
   }
 
-  return { toConvert, duplicates, openLeadCount: leads.length };
+  return { toConvert, duplicates, openLeadCount: leads.length, leads };
 }
 
 export async function GET(req: NextRequest) {
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = db();
-    const { toConvert, duplicates, openLeadCount } = await computeReport(supabase);
+    const { toConvert, duplicates, openLeadCount, leads } = await computeReport(supabase);
 
     if (body.action === 'report') {
       return NextResponse.json({
@@ -157,6 +157,13 @@ export async function POST(req: NextRequest) {
         open_leads: openLeadCount,
         to_convert: toConvert,
         duplicates,
+        open_lead_details: leads.map((l: any) => ({
+          lead_id: l.id,
+          name: (l.first_name + ' ' + l.last_name).trim(),
+          status: l.status,
+          created_at: l.created_at,
+          last_contacted_at: l.last_contacted_at || null,
+        })),
       });
     }
 
