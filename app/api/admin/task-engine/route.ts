@@ -323,10 +323,11 @@ export async function POST(req: NextRequest) {
     // price-change emails on the home they viewed. Complete any open
     // auto follow-up / check-in tasks that point at them.
     let realtorTasksCleared = 0;
+    let realtorDripsPaused = 0;
     try {
       const { data: realtorLeads } = await supabase
         .from('leads')
-        .select('id')
+        .select('id, contact_id')
         .eq('account_id', ACCOUNT_ID)
         .eq('working_with_realtor', true);
       const rIds = (realtorLeads || []).map((r: any) => r.id);
@@ -342,6 +343,22 @@ export async function POST(req: NextRequest) {
           .eq('status', 'pending')
           .select('id');
         if (!clearErr) realtorTasksCleared = (cleared || []).length;
+      }
+      // Drip emails are contact too — pause their active enrollments
+      // (Tim approved 2026-10-21).
+      const rContacts = Array.from(
+        new Set(
+          (realtorLeads || []).map((r: any) => r.contact_id).filter(Boolean)
+        )
+      );
+      if (rContacts.length > 0) {
+        const { data: pausedRows, error: pauseErr } = await supabase
+          .from('contact_campaigns')
+          .update({ status: 'paused' })
+          .in('contact_id', rContacts)
+          .eq('status', 'active')
+          .select('id');
+        if (!pauseErr) realtorDripsPaused = (pausedRows || []).length;
       }
     } catch {
       // Best-effort only.
@@ -456,6 +473,7 @@ export async function POST(req: NextRequest) {
         drip_checkins_created: dripCheckinsCreated,
         lead_followups_created: leadFollowupsCreated,
         realtor_tasks_cleared: realtorTasksCleared,
+        realtor_drips_paused: realtorDripsPaused,
       });
     }
 
@@ -583,6 +601,7 @@ export async function POST(req: NextRequest) {
       drip_checkins_created: dripCheckinsCreated,
       lead_followups_created: leadFollowupsCreated,
       realtor_tasks_cleared: realtorTasksCleared,
+      realtor_drips_paused: realtorDripsPaused,
     });
   } catch (err: any) {
     return NextResponse.json(
