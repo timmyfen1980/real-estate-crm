@@ -141,14 +141,38 @@ export async function POST(req: NextRequest) {
     if (!sellers) missing.push("sellers");
     if (!propertyLine) missing.push("property");
 
-    const dl = await svc.storage.from(BUCKET).download(source.path);
-    if (dl.error || !dl.data) {
+    // Fetch via a signed URL rather than storage.download() — the SDK
+    // download mishandles object paths containing spaces (e.g.
+    // "…-Sched B.pdf") and hands back an error body as if it were the
+    // file (hit live, 2026-10-21). The signed-URL path is the same one
+    // the package file downloads use, and it works.
+    const signed = await svc.storage.from(BUCKET).createSignedUrl(source.path, 120);
+    if (signed.error || !signed.data?.signedUrl) {
       return NextResponse.json(
         { ok: false, error: "Could not read the Schedule B file from storage." },
         { status: 400 }
       );
     }
-    const bytes = new Uint8Array(await dl.data.arrayBuffer());
+    const resp = await fetch(signed.data.signedUrl);
+    if (!resp.ok) {
+      return NextResponse.json(
+        { ok: false, error: "Could not read the Schedule B file from storage." },
+        { status: 400 }
+      );
+    }
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    if (bytes.length < 5 || bytes[0] !== 0x25) {
+      // Not a PDF (0x25 = '%') — say what arrived instead of a parser's
+      // opaque "No PDF header found".
+      const head = Buffer.from(bytes.slice(0, 120)).toString("latin1");
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `The stored Schedule B doesn't look like a PDF (it starts: ${head.slice(0, 80)}).`,
+        },
+        { status: 400 }
+      );
+    }
 
     // Text items per page (empty for scans).
     const pdf = await getDocumentProxy(bytes);
