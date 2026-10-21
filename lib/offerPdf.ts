@@ -409,14 +409,21 @@ export async function buildForm100(
   if (prop.frontage) mappedPair(doc, form, "txtp_SchoolDistrict", "hidSize1", prop.frontage);
   if (prop.depth) mappedPair(doc, form, "txtp_ZoningClass", "hidSize2", prop.depth);
   mappedField(doc, form, "txtp_legaldesc", prop.legal_description, 9);
-  mappedField(doc, form, "txtp_price", fmtMoney(deal.price));
-  mappedField(doc, form, "txtp_pricewords", numToWords(deal.price), 9);
+  // Price/deposit are skippable so partial generation ("what we have so
+  // far") never crashes on a missing amount — the fields stay blank on
+  // the PDF for the agent to complete by hand.
+  if (deal.price) {
+    mappedField(doc, form, "txtp_price", fmtMoney(deal.price));
+    mappedField(doc, form, "txtp_pricewords", numToWords(deal.price), 9);
+  }
   mappedField(
     doc, form, "hidhereupon",
     deal.deposit_due === "upon_acceptance" ? "Upon Acceptance" : String(deal.deposit_due)
   );
-  mappedField(doc, form, "txtp_depositwords", numToWords(deal.deposit), 9);
-  mappedField(doc, form, "txtp_deposit", fmtMoney(deal.deposit));
+  if (deal.deposit) {
+    mappedField(doc, form, "txtp_depositwords", numToWords(deal.deposit), 9);
+    mappedField(doc, form, "txtp_deposit", fmtMoney(deal.deposit));
+  }
   mappedField(doc, form, "txtDepositHolder", deal.deposit_holder);
   mappedField(doc, form, "txtAttachedSchedule", deal.schedule || "A");
 

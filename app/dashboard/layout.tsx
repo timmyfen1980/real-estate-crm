@@ -11,6 +11,7 @@ import {
   ChevronDown,
   DoorOpen,
   FileText,
+  FolderOpen,
   Eraser,
   FolderOpen,
   Gift,
@@ -422,6 +423,13 @@ const handleLogout = async () => {
             <span className="flex items-center gap-3">
               <DoorOpen className={iconClass} />
               <span>Open Houses</span>
+            </span>
+          </Link>
+
+          <Link href="/dashboard/offers" className={navItemClass('/dashboard/offers')}>
+            <span className="flex items-center gap-3">
+              <FolderOpen className={iconClass} />
+              <span>Offers</span>
             </span>
           </Link>
 

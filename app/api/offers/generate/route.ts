@@ -123,13 +123,119 @@ function resolveClauses(
   return { paragraphs, missing };
 }
 
+// Fill the structural pieces a partial deal may lack so the PDF builder
+// can run with blanks instead of crashing.
+function normalizePartial(deal: any): any {
+  const d = { ...deal };
+  const blankDate = { day: "", month: "", year: "" };
+  if (!d.agreement_date) d.agreement_date = { ...blankDate };
+  if (!d.irrevocable) d.irrevocable = { by: "", time: "", date: { ...blankDate } };
+  else if (!d.irrevocable.date) d.irrevocable = { ...d.irrevocable, date: { ...blankDate } };
+  if (!d.completion_date) d.completion_date = { ...blankDate };
+  if (!d.title_search_date) d.title_search_date = { ...blankDate };
+  if (!d.property) d.property = {};
+  if (!d.buyers) d.buyers = [];
+  if (!d.sellers) d.sellers = [];
+  if (!d.chattels) d.chattels = [];
+  if (!d.exclusions) d.exclusions = [];
+  if (!d.selling_brokerage)
+    d.selling_brokerage = { brokerage: "", agent: "", phone: "" };
+  if (!d.listing_brokerage)
+    d.listing_brokerage = { brokerage: "", agent: "", phone: "" };
+  if (!d.submitted) d.submitted = { via: "", time: "", date: { ...blankDate } };
+  else if (!d.submitted.date) d.submitted = { ...d.submitted, date: { ...blankDate } };
+  return d;
+}
+
+async function resolveUserId(req: NextRequest): Promise<string | null> {
+  const supabase = serviceClient();
+  const token = (req.headers.get("authorization") || "").replace("Bearer ", "").trim();
+  if (token && token === process.env.REA_AGENT_SECRET) {
+    const { data: owner } = await supabase
+      .from("account_users")
+      .select("user_id")
+      .eq("account_id", FC_ACCOUNT_ID)
+      .eq("role", "owner")
+      .maybeSingle();
+    return owner?.user_id || null;
+  }
+  const cookieStore = await cookies();
+  const supabaseAuth = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
+  const {
+    data: { user },
+  } = await supabaseAuth.auth.getUser();
+  return user?.id || null;
+}
+
+// Save the generated forms as an offer package (Offers tab). The files
+// land in the client-documents bucket under offers/<package-id>/ and the
+// package row lists them, so later forms can join the same package.
+async function savePackage(
+  req: NextRequest,
+  deal: any,
+  files: any[],
+  partial: boolean
+): Promise<string> {
+  const supabase = serviceClient();
+  const userId = await resolveUserId(req);
+  const prop = deal.property || {};
+  const { data: pkg, error } = await supabase
+    .from("offer_packages")
+    .insert({
+      account_id: FC_ACCOUNT_ID,
+      created_by: userId,
+      address: prop.address || "Untitled offer",
+      city: prop.city || null,
+      mls: prop.mls || null,
+      status: "draft",
+      partial,
+      deal,
+      documents: [],
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  const docs: any[] = [];
+  for (const f of files) {
+    const path = `offers/${pkg.id}/${f.filename}`;
+    const bytes = Buffer.from(f.base64, "base64");
+    const { error: upErr } = await supabase.storage
+      .from("client-documents")
+      .upload(path, bytes, { contentType: "application/pdf", upsert: true });
+    if (upErr) throw new Error(upErr.message);
+    docs.push({
+      form: f.form,
+      filename: f.filename,
+      path,
+      signed: false,
+      added_at: new Date().toISOString(),
+    });
+  }
+  const { error: updErr } = await supabase
+    .from("offer_packages")
+    .update({ documents: docs })
+    .eq("id", pkg.id);
+  if (updErr) throw new Error(updErr.message);
+  return pkg.id;
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!(await authorized(req))) {
       return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
     }
     const body = (await req.json().catch(() => ({}))) as any;
-    const deal = body.deal;
+    let deal = body.deal;
     if (!deal || typeof deal !== "object") {
       return NextResponse.json({ ok: false, error: "Need a deal object." }, { status: 400 });
     }
@@ -150,9 +256,14 @@ export async function POST(req: NextRequest) {
       paragraphs = resolved.paragraphs;
       missing.push(...resolved.missing);
     }
-    if (missing.length > 0) {
+    // "Generate what we have" (Tim, 2026-10-21): with allow_partial the
+    // agent can download a draft with fields still missing — the blanks
+    // simply stay blank on the editable PDF.
+    const partial = body.allow_partial === true;
+    if (missing.length > 0 && !partial) {
       return NextResponse.json({ ok: false, missing }, { status: 400 });
     }
+    if (partial) deal = normalizePartial(deal);
 
     const files: any[] = [];
     const addr = String(deal.property?.address || "offer").replace(/[^\w\- ]+/g, "").trim();
@@ -188,7 +299,25 @@ export async function POST(req: NextRequest) {
         base64: Buffer.from(bytes).toString("base64"),
       });
     }
-    return NextResponse.json({ ok: true, files });
+    // Save as an offer package for the Offers tab (best-effort: a save
+    // failure — e.g. the table not created yet — never blocks the PDFs).
+    let packageId: string | null = null;
+    let packageError: string | null = null;
+    if (body.save_package !== false) {
+      try {
+        packageId = await savePackage(req, deal, files, partial);
+      } catch (e: any) {
+        packageError = e?.message || "Package save failed.";
+      }
+    }
+    return NextResponse.json({
+      ok: true,
+      files,
+      partial: partial || undefined,
+      missing: partial ? missing : undefined,
+      package_id: packageId,
+      package_error: packageError,
+    });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, code: "server_error", error: e?.message || "Generation failed." },

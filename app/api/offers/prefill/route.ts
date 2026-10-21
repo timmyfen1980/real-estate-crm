@@ -177,12 +177,97 @@ async function fromIDX(mls: string): Promise<any | null> {
   return prefill;
 }
 
+function streetNameFromAddress(addr: string): string | undefined {
+  const m = addr.match(/^\s*\d+[A-Za-z]?\s+(.+)$/);
+  if (!m) return undefined;
+  const name = m[1].replace(/,?\s*(unit|apt|apartment|suite|ste|#).*$/i, "").trim();
+  return name || undefined;
+}
+
+async function nominatim(q: string): Promise<{ lat: number; lon: number } | null> {
+  const url =
+    "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ca&q=" +
+    encodeURIComponent(q);
+  const res = await fetch(url, {
+    headers: { "User-Agent": "FCGroupCRM/1.0 (crm.thefcgroup.ca)" },
+    signal: AbortSignal.timeout(4000),
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const data: any = await res.json().catch(() => null);
+  const row = data?.[0];
+  if (!row) return null;
+  return { lat: parseFloat(row.lat), lon: parseFloat(row.lon) };
+}
+
+// Best-effort: which side of the street does the house front on?
+// Geocode the house and two neighbours on the same street; the house's
+// offset from the street line gives the side. Returns undefined when it
+// can't be determined — the workspace dropdown stays blank for the
+// agent to set. Never overrides anything; prefill only fills blanks.
+async function guessStreetSide(
+  address: string,
+  city?: string
+): Promise<string | undefined> {
+  try {
+    const numMatch = address.match(/^\s*(\d+)/);
+    if (!numMatch) return undefined;
+    const n = parseInt(numMatch[1], 10);
+    const street = streetNameFromAddress(address);
+    if (!street) return undefined;
+    const where = city ? `, ${city}, Ontario` : ", Ontario";
+    const house = await nominatim(`${address}${where}`);
+    if (!house) return undefined;
+    const pts: { lat: number; lon: number }[] = [];
+    for (const off of [30, -30, 12, -12]) {
+      if (pts.length >= 2) break;
+      const m = n + off;
+      if (m <= 0) continue;
+      const p = await nominatim(`${m} ${street}${where}`);
+      if (
+        p &&
+        !pts.some(
+          (x) => Math.abs(x.lat - p.lat) < 0.00005 && Math.abs(x.lon - p.lon) < 0.00005
+        )
+      ) {
+        pts.push(p);
+      }
+    }
+    if (pts.length < 2) return undefined;
+    const [a, b] = pts;
+    const kx = Math.cos((house.lat * Math.PI) / 180);
+    const ax = a.lon * kx;
+    const ay = a.lat;
+    const bx = b.lon * kx;
+    const by = b.lat;
+    const hx = house.lon * kx;
+    const hy = house.lat;
+    const vx = bx - ax;
+    const vy = by - ay;
+    const len2 = vx * vx + vy * vy;
+    if (len2 < 1e-10) return undefined;
+    const t = ((hx - ax) * vx + (hy - ay) * vy) / len2;
+    const dx = hx - (ax + t * vx);
+    const dy = hy - (ay + t * vy);
+    if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return undefined;
+    if (Math.abs(dy) >= Math.abs(dx)) return dy > 0 ? "North" : "South";
+    return dx > 0 ? "East" : "West";
+  } catch {
+    return undefined;
+  }
+}
+
 async function byKey(key: string): Promise<any | null> {
   const dla = await fromDLA(key);
-  if (dla) return { ok: true, source: "DLA", prefill: dla };
-  const idx = await fromIDX(key);
-  if (idx) return { ok: true, source: "IDX", prefill: idx };
-  return null;
+  const idx = dla ? null : await fromIDX(key);
+  const prefill = dla || idx;
+  if (!prefill) return null;
+  if (prefill.address) {
+    const sn = streetNameFromAddress(prefill.address);
+    if (sn) prefill.street_name = sn;
+    const side = await guessStreetSide(prefill.address, prefill.city);
+    if (side) prefill.street_side = side;
+  }
+  return { ok: true, source: dla ? "DLA" : "IDX", prefill };
 }
 
 function normText(s: string): string {

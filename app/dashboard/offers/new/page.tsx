@@ -56,12 +56,18 @@ export default function PrepareOfferPage() {
   const [pin, setPin] = useState('')
   const [frontage, setFrontage] = useState('')
   const [depth, setDepth] = useState('')
+  const [frontageUnit, setFrontageUnit] = useState('feet')
+  const [depthUnit, setDepthUnit] = useState('feet')
   const [frontageSide, setFrontageSide] = useState('')
   const [frontageStreet, setFrontageStreet] = useState('')
 
   // Parties
-  const [buyersText, setBuyersText] = useState('')
-  const [sellersText, setSellersText] = useState('')
+  const [buyers, setBuyers] = useState<string[]>(['', '', '', ''])
+  const [sellers, setSellers] = useState<string[]>(['', '', '', ''])
+  const setBuyerAt = (i: number, v: string) =>
+    setBuyers((prev) => prev.map((x, j) => (j === i ? v : x)))
+  const setSellerAt = (i: number, v: string) =>
+    setSellers((prev) => prev.map((x, j) => (j === i ? v : x)))
 
   // Terms
   const [agreementDate, setAgreementDate] = useState(todayToronto())
@@ -107,6 +113,11 @@ export default function PrepareOfferPage() {
   const [results, setResults] = useState<{ filename: string; url: string }[]>([])
 
   const [candidates, setCandidates] = useState<any[]>([])
+  const [pickedMls, setPickedMls] = useState('')
+  const [sheetBusy, setSheetBusy] = useState(false)
+  const [sheetNote, setSheetNote] = useState('')
+  const [partialNote, setPartialNote] = useState('')
+  const [packageNote, setPackageNote] = useState('')
 
   const STANDARD_CHATTELS_TEXT =
     'All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.'
@@ -128,15 +139,22 @@ export default function PrepareOfferPage() {
     if (p.pin) setPin(String(p.pin))
     if (p.frontage) setFrontage(String(p.frontage))
     if (p.depth) setDepth(String(p.depth))
-    if (p.list_price) setPrice(String(p.list_price))
+    // The purchase price is the offer amount, not the list price — it
+    // stays blank on purpose (Tim, 2026-10-21). The list price shows in
+    // the note below for reference.
     if (p.chattels) setChattelsText(String(p.chattels))
     if (p.exclusions) setExclusionsText(String(p.exclusions))
     if (p.listing_brokerage) setListingBrokerage(String(p.listing_brokerage))
+    if (p.street_name) setFrontageStreet((prev) => prev || String(p.street_name))
+    if (p.street_side) setFrontageSide((prev) => prev || String(p.street_side))
     setCandidates([])
+    const listed = p.list_price
+      ? ` Listed at $${Number(p.list_price).toLocaleString()} — the offer price stays blank for you to set.`
+      : ''
     setPrefillNote(
-      source === 'DLA'
-        ? 'Filled from the DLA back-office feed. Seller legal names are not in any feed — add them below.'
-        : 'Filled the basics from the listing feed. Legal description and lot details are not in the public feed — add them below, plus the seller legal names.'
+      (source === 'DLA'
+        ? 'Filled from the DLA back-office feed — legal description, PIN, lot size, taxes and inclusions included.'
+        : 'Filled the basics from the listing feed.') + listed
     )
   }
 
@@ -165,6 +183,7 @@ export default function PrepareOfferPage() {
         setPrefillNote('Found these — pick the right property:')
         return
       }
+      if (looksLikeKey) setPickedMls(q.toUpperCase())
       applyPrefill(data.prefill || {}, data.source)
     } catch {
       setPrefillNote('Prefill failed — fill the form in manually.')
@@ -206,6 +225,7 @@ export default function PrepareOfferPage() {
 
   const pickCandidate = async (key: string) => {
     setPrefilling(true)
+    setPickedMls(key)
     try {
       const res = await fetch('/api/offers/prefill', {
         method: 'POST',
@@ -222,6 +242,75 @@ export default function PrepareOfferPage() {
       setPrefillNote('Prefill failed — fill the form in manually.')
     } finally {
       setPrefilling(false)
+    }
+  }
+
+  // MLS listing sheet upload: read it, fill ONLY what's still blank.
+  const onSheetUpload = async (file: File | null) => {
+    if (!file) return
+    setSheetBusy(true)
+    setSheetNote('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/offers/listing-extract', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!data.ok) {
+        setSheetNote(data.error || "Couldn't read that sheet.")
+        return
+      }
+      const f = data.fields || {}
+      const filled: string[] = []
+      const blank = (cur: string, val: any, setter: (v: string) => void, label: string) => {
+        if (!cur.trim() && val !== undefined && val !== null && String(val).trim()) {
+          setter(String(val))
+          filled.push(label)
+        }
+      }
+      if (Array.isArray(f.seller_names) && f.seller_names.length) {
+        setSellers((prev) => {
+          const next = [...prev]
+          let used = false
+          for (const name of f.seller_names) {
+            const slot = next.findIndex((x) => !x.trim())
+            if (slot === -1) break
+            next[slot] = String(name)
+            used = true
+          }
+          if (used) filled.push('seller names')
+          return next
+        })
+      }
+      blank(legalDescription, f.legal_description, setLegalDescription, 'legal description')
+      blank(pin, f.pin, setPin, 'PIN')
+      if (!frontage.trim() && f.frontage) {
+        setFrontage(String(f.frontage))
+        if (f.frontage_unit === 'metres' || f.frontage_unit === 'meters') setFrontageUnit('metres')
+        filled.push('frontage')
+      }
+      if (!depth.trim() && f.depth) {
+        setDepth(String(f.depth))
+        if (f.depth_unit === 'metres' || f.depth_unit === 'meters') setDepthUnit('metres')
+        filled.push('depth')
+      }
+      if (!frontageSide && f.street_side) {
+        const s = String(f.street_side).trim()
+        setFrontageSide(s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+        filled.push('fronting side')
+      }
+      blank(chattelsText, f.chattels_inclusions, setChattelsText, 'inclusions')
+      blank(exclusionsText, f.exclusions, setExclusionsText, 'exclusions')
+      blank(listingBrokerage, f.listing_brokerage, setListingBrokerage, 'listing brokerage')
+      blank(listingAgent, f.listing_agent, setListingAgent, 'listing agent')
+      setSheetNote(
+        filled.length
+          ? `From the sheet, filled: ${filled.join(', ')}. Everything already entered was left untouched.`
+          : 'Read the sheet — everything on it was already filled in, so nothing changed.'
+      )
+    } catch {
+      setSheetNote("Couldn't read that sheet — try again.")
+    } finally {
+      setSheetBusy(false)
     }
   }
 
@@ -255,18 +344,19 @@ export default function PrepareOfferPage() {
     }
     return {
       deal: {
-        buyers: lines(buyersText),
-        sellers: lines(sellersText),
+        buyers: buyers.map((s) => s.trim()).filter(Boolean),
+        sellers: sellers.map((s) => s.trim()).filter(Boolean),
         property: {
           address,
           city,
           municipality: municipality || undefined,
           legal_description: legalDescription,
           pin: pin || undefined,
-          frontage: frontage || undefined,
-          depth: depth || undefined,
+          frontage: frontage ? `${frontage} ${frontageUnit}` : undefined,
+          depth: depth ? `${depth} ${depthUnit}` : undefined,
           frontage_side: frontageSide || undefined,
           frontage_street: frontageStreet || undefined,
+          mls: pickedMls || undefined,
         },
         agreement_date: splitDate(agreementDate),
         price: Number(price),
@@ -311,22 +401,36 @@ export default function PrepareOfferPage() {
     }
   }
 
-  const generate = async () => {
+  const generate = async (allowPartial = false) => {
     setGenerating(true)
     setMissing([])
     setGenError('')
     setResults([])
+    setPartialNote('')
+    setPackageNote('')
     try {
       const res = await fetch('/api/offers/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildDeal()),
+        body: JSON.stringify({ ...buildDeal(), allow_partial: allowPartial }),
       })
       const data = await res.json()
       if (!data.ok) {
         if (Array.isArray(data.missing) && data.missing.length) setMissing(data.missing)
         else setGenError(data.error || 'Generation failed.')
         return
+      }
+      if (data.partial) {
+        setPartialNote(
+          `Generated with what you have — still missing: ${(data.missing || []).join('; ')}`
+        )
+      }
+      if (data.package_id) {
+        setPackageNote('Saved to your Offers tab as a package.')
+      } else if (data.package_error) {
+        setPackageNote(
+          `The PDFs are fine, but the package didn't save: ${data.package_error}`
+        )
       }
       const urls = (data.files || []).map((f: any) => {
         const bytes = Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0))
@@ -450,6 +554,28 @@ export default function PrepareOfferPage() {
               ))}
             </div>
           )}
+          <div className="border-t pt-4 mt-2">
+            <p className="text-sm text-gray-600">
+              …or upload the MLS listing sheet (PDF or photo of the REALM printout) and I'll
+              fill what's still blank from it — seller names included, if they're on the sheet.
+            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <label className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100 transition cursor-pointer whitespace-nowrap">
+                {sheetBusy ? 'Reading…' : 'Upload listing sheet'}
+                <input
+                  type="file"
+                  accept=".pdf,image/*"
+                  className="hidden"
+                  disabled={sheetBusy}
+                  onChange={(e) => {
+                    onSheetUpload(e.target.files?.[0] || null)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              {sheetNote && <span className="text-sm text-gray-600">{sheetNote}</span>}
+            </div>
+          </div>
         </div>
 
         {/* PROPERTY */}
@@ -474,15 +600,37 @@ export default function PrepareOfferPage() {
             </div>
             <div>
               <label className={labelCls}>Frontage</label>
-              <input className={inputCls} placeholder="40 ft" value={frontage} onChange={(e) => setFrontage(e.target.value)} />
+              <div className="flex gap-2">
+                <input className={inputCls} placeholder="40.06" value={frontage} onChange={(e) => setFrontage(e.target.value)} />
+                <select className="border p-3 rounded-md" value={frontageUnit} onChange={(e) => setFrontageUnit(e.target.value)}>
+                  <option value="feet">feet</option>
+                  <option value="metres">metres</option>
+                </select>
+              </div>
             </div>
             <div>
               <label className={labelCls}>Depth</label>
-              <input className={inputCls} placeholder="100 ft" value={depth} onChange={(e) => setDepth(e.target.value)} />
+              <div className="flex gap-2">
+                <input className={inputCls} placeholder="100.1" value={depth} onChange={(e) => setDepth(e.target.value)} />
+                <select className="border p-3 rounded-md" value={depthUnit} onChange={(e) => setDepthUnit(e.target.value)}>
+                  <option value="feet">feet</option>
+                  <option value="metres">metres</option>
+                </select>
+              </div>
             </div>
             <div>
-              <label className={labelCls}>Fronting on the (N/S/E/W)</label>
-              <input className={inputCls} value={frontageSide} onChange={(e) => setFrontageSide(e.target.value)} />
+              <label className={labelCls}>Fronting on the</label>
+              <select className={inputCls} value={frontageSide} onChange={(e) => setFrontageSide(e.target.value)}>
+                <option value=""></option>
+                <option value="North">North</option>
+                <option value="South">South</option>
+                <option value="East">East</option>
+                <option value="West">West</option>
+                <option value="Northeast">Northeast</option>
+                <option value="Northwest">Northwest</option>
+                <option value="Southeast">Southeast</option>
+                <option value="Southwest">Southwest</option>
+              </select>
             </div>
             <div>
               <label className={labelCls}>Side of (street)</label>
@@ -499,13 +647,29 @@ export default function PrepareOfferPage() {
         <div className={sectionCls}>
           <h2 className={h2Cls}>Buyers &amp; Sellers</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Buyer legal names (one per line)</label>
-              <textarea className={inputCls} rows={3} value={buyersText} onChange={(e) => setBuyersText(e.target.value)} />
+            <div className="space-y-2">
+              <label className={labelCls}>Buyer legal names</label>
+              {buyers.map((b, i) => (
+                <input
+                  key={i}
+                  className={inputCls}
+                  placeholder={`Buyer ${i + 1}`}
+                  value={b}
+                  onChange={(e) => setBuyerAt(i, e.target.value)}
+                />
+              ))}
             </div>
-            <div>
-              <label className={labelCls}>Seller legal names (one per line)</label>
-              <textarea className={inputCls} rows={3} value={sellersText} onChange={(e) => setSellersText(e.target.value)} />
+            <div className="space-y-2">
+              <label className={labelCls}>Seller legal names</label>
+              {sellers.map((s, i) => (
+                <input
+                  key={i}
+                  className={inputCls}
+                  placeholder={`Seller ${i + 1}`}
+                  value={s}
+                  onChange={(e) => setSellerAt(i, e.target.value)}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -701,7 +865,7 @@ export default function PrepareOfferPage() {
         {/* GENERATE */}
         <div className="space-y-4">
           <button
-            onClick={generate}
+            onClick={() => generate()}
             disabled={generating}
             className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition disabled:opacity-50"
           >
@@ -715,6 +879,17 @@ export default function PrepareOfferPage() {
                   <li key={i}>{m}</li>
                 ))}
               </ul>
+              <button
+                onClick={() => generate(true)}
+                disabled={generating}
+                className="mt-3 bg-black text-white px-4 py-2 rounded-md text-sm hover:bg-gray-800 transition disabled:opacity-50"
+              >
+                Generate anyway with what I have
+              </button>
+              <p className="text-xs text-red-600 mt-2">
+                You'll get the PDFs with the missing pieces left blank, to finish right in the
+                PDF.
+              </p>
             </div>
           )}
           {genError && <p className="text-sm text-red-600">{genError}</p>}
@@ -723,6 +898,15 @@ export default function PrepareOfferPage() {
               <p className="text-sm font-medium text-green-800">
                 Your offer is ready — both PDFs are editable. Review, adjust anything, then send for signature.
               </p>
+              {partialNote && <p className="text-sm text-amber-700">{partialNote}</p>}
+              {packageNote && (
+                <p className="text-sm text-green-800">
+                  {packageNote}{' '}
+                  <a href="/dashboard/offers" className="underline font-medium">
+                    Open the Offers tab →
+                  </a>
+                </p>
+              )}
               {results.map((r) => (
                 <a
                   key={r.filename}
