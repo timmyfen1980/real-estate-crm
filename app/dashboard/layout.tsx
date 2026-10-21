@@ -13,7 +13,6 @@ import {
   FileText,
   FolderOpen,
   Eraser,
-  FolderOpen,
   Gift,
   Handshake,
   Image as ImageIcon,
