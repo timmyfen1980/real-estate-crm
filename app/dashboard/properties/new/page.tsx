@@ -34,7 +34,7 @@ export default function NewPropertyPage() {
 
     if (!membership) return
 
-    const { data: property } = await supabase
+    const { data: property, error: propertyError } = await supabase
       .from('properties')
       .insert({
         address,
@@ -46,22 +46,43 @@ export default function NewPropertyPage() {
       .select()
       .single()
 
+    if (propertyError || !property) {
+      console.log('PROPERTY CREATE ERROR:', propertyError)
+      alert('Failed to create property — please try again')
+      setSaving(false)
+      return
+    }
+
     if (imageFile && property) {
 
       const imagePath = `${membership.account_id}/${property.id}/image.${imageFile.name.split('.').pop()}`
 
-      await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('property-images')
         .upload(imagePath, imageFile, { upsert: true })
+
+      if (uploadError) {
+        console.log('IMAGE UPLOAD ERROR:', uploadError)
+        alert('Property created, but the image could not be uploaded — you can add it from the property page')
+        setSaving(false)
+        return
+      }
 
       const { data } = supabase.storage
         .from('property-images')
         .getPublicUrl(imagePath)
 
-      await supabase
+      const { error: imageUrlError } = await supabase
         .from('properties')
         .update({ image_url: data.publicUrl })
         .eq('id', property.id)
+
+      if (imageUrlError) {
+        console.log('IMAGE URL UPDATE ERROR:', imageUrlError)
+        alert('Property created and image uploaded, but the property record could not be updated — please retry from the property page')
+        setSaving(false)
+        return
+      }
     }
 
     router.push('/dashboard/properties')
