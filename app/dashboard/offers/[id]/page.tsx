@@ -379,7 +379,6 @@ export default function PrepareOfferPage() {
     if (bl.phone) setLawyerPhone(bl.phone)
     if (bl.fax) setLawyerFax(bl.fax)
     if (deal.coop) {
-      if (deal.coop.total) setCoopTotal(deal.coop.total)
       if (deal.coop.share) setCoopShare(deal.coop.share)
       if (deal.coop.basis) setCoopBasis(deal.coop.basis)
       if (deal.coop.representation) setCoopRepresentation(deal.coop.representation)
