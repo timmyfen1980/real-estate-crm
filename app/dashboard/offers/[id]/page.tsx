@@ -630,10 +630,11 @@ export default function PrepareOfferPage() {
         schedule: schedules || undefined,
         chattels: lines(chattelsText),
         exclusions: lines(exclusionsText),
-        rental_items: rentals.map((r) => ({
-          desc: r.kind === 'hot_water_tank' ? 'Hot water tank' : r.desc.trim(),
-          monthly: r.monthly,
-        })).filter((r) => r.desc),
+        rental_items: rentals
+          .map((r) => ({
+            desc: r.kind === 'hot_water_tank' ? 'Hot water tank' : r.desc,
+            monthly: r.monthly,
+          }))
           .filter((r) => r.desc.trim())
           .map((r) => ({ desc: r.desc.trim(), monthly: Number(r.monthly) || 0 })),
         listing_brokerage: {

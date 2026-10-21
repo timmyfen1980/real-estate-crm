@@ -120,7 +120,13 @@ export async function POST(req: NextRequest) {
     const propertyLine = [prop.address, prop.city].filter(Boolean).join(", ");
     const ad = deal.agreement_date || {};
     const dDay = Number(ad.day) || 0;
-    const dMonth = Number(ad.month) || 0;
+    // Stored deals carry the month as a number OR a name ("October"),
+    // and the year as 2 or 4 digits — accept all of them.
+    const monthFromName =
+      MONTHS.findIndex(
+        (m) => m.toLowerCase() === String(ad.month || "").toLowerCase()
+      ) + 1;
+    const dMonth = monthFromName || Number(ad.month) || 0;
     const dYear = Number(ad.year) || 0;
     const values: Record<string, string> = {
       buyers,
