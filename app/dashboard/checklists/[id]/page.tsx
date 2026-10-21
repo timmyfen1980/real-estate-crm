@@ -137,6 +137,9 @@ export default function ClientFileDetailPage() {
     try {
       const token = await enablePortalAccess(file.id);
       setFile({ ...file, portal_token: token, portal_enabled: true });
+    } catch (err: any) {
+      console.error('ENABLE PORTAL ERROR:', err);
+      alert(err?.message || 'Failed to enable portal — please try again');
     } finally {
       setPortalBusy(false);
     }
@@ -318,7 +321,14 @@ export default function ClientFileDetailPage() {
       .eq('id', file.id)
       .select()
       .single();
-    if (!error && data) {
+    if (error) {
+      console.error('LINK DEAL ERROR:', error);
+      alert('Failed to link deal — please try again');
+      // Revert the address preview and keep the picker open so Tim can retry.
+      setFAddress(file.property_address || '');
+      return;
+    }
+    if (data) {
       setFile(data as ClientFile);
     }
     setShowDealPicker(false);
