@@ -114,13 +114,19 @@ export default function TasksPage() {
   }, [])
 
   const completeTask = async (task: Task) => {
-    await supabase
+    const { error } = await supabase
       .from('tasks')
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
       })
       .eq('id', task.id)
+
+    if (error) {
+      console.error('COMPLETE TASK ERROR:', error)
+      alert('Failed to complete task — please try again')
+      return
+    }
 
     if (task.lead_id) {
       await supabase.from('lead_activity').insert({
@@ -137,13 +143,19 @@ export default function TasksPage() {
   }
 
   const reopenTask = async (task: Task) => {
-    await supabase
+    const { error } = await supabase
       .from('tasks')
       .update({
         status: 'pending',
         completed_at: null,
       })
       .eq('id', task.id)
+
+    if (error) {
+      console.error('REOPEN TASK ERROR:', error)
+      alert('Failed to reopen task — please try again')
+      return
+    }
 
     loadTasks()
   }
