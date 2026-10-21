@@ -328,12 +328,18 @@ const handleEnrollContacts = async () => {
   setEnrolling(false)
 }
 const handlePauseContact = async (id: string) => {
-  await supabase
+  const { error } = await supabase
     .from('contact_campaigns')
     .update({
       status: 'paused',
     })
     .eq('id', id)
+
+  if (error) {
+    console.error('PAUSE ENROLLMENT ERROR:', error)
+    alert('Failed to pause — please try again')
+    return
+  }
 
   setCampaignContacts((prev) =>
     prev.map((item) =>
@@ -348,12 +354,18 @@ const handlePauseContact = async (id: string) => {
 }
 
 const handleResumeContact = async (id: string) => {
-  await supabase
+  const { error } = await supabase
     .from('contact_campaigns')
     .update({
       status: 'active',
     })
     .eq('id', id)
+
+  if (error) {
+    console.error('RESUME ENROLLMENT ERROR:', error)
+    alert('Failed to resume — please try again')
+    return
+  }
 
   setCampaignContacts((prev) =>
     prev.map((item) =>
@@ -368,10 +380,16 @@ const handleResumeContact = async (id: string) => {
 }
 
 const handleRemoveContact = async (id: string) => {
-  await supabase
+  const { error } = await supabase
     .from('contact_campaigns')
     .delete()
     .eq('id', id)
+
+  if (error) {
+    console.error('REMOVE ENROLLMENT ERROR:', error)
+    alert('Failed to remove — please try again')
+    return
+  }
 
   setCampaignContacts((prev) =>
     prev.filter((item) => item.id !== id)
