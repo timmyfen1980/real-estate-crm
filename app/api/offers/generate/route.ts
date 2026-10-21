@@ -6,7 +6,7 @@
 // Body: {
 //   deal,                                  // engine-shaped deal JSON
 //   forms?: ("100" | "801")[],             // default ["100"]
-//   includeStandards?: boolean,           // default true (Standard Offer Clauses)
+//   deal.standard_codes?: string[],        // which Standard Offer Clauses to include (default: all seven)
 //   clauseCodes?: string[],                // optional library codes, e.g. ["J","K","T"]
 //   clauseBlanks?: { [code]: { [blank]: string | string[] } }
 // }
@@ -88,16 +88,19 @@ interface ChosenClause {
 
 function resolveClauses(
   deal: any,
-  includeStandards: boolean,
+  standardCodes: string[] | null,
   clauseCodes: string[],
   clauseBlanks: Record<string, Record<string, string | string[]>>
 ): { paragraphs: string[]; missing: string[] } {
   const missing: string[] = [];
   const chosen: ChosenClause[] = [];
-  if (includeStandards) {
-    for (const s of (library as any).standards as any[]) {
-      chosen.push({ label: `Standard clause ${s.code || s.id} (${s.title})`, code: s.code || s.id, text: s.text });
-    }
+  // Standard clauses: null = all seven (the default — they come
+  // preselected in every offer); an array = only those keys, so the
+  // workspace can leave one out of a single offer (Tim, 2026-10-21).
+  for (const s of (library as any).standards as any[]) {
+    const key = s.code || s.id;
+    if (standardCodes && !standardCodes.includes(key)) continue;
+    chosen.push({ label: `Standard clause ${key} (${s.title})`, code: key, text: s.text });
   }
   for (const code of clauseCodes) {
     const opt = ((library as any).options as any[]).find((o) => o.code === code);
@@ -333,7 +336,11 @@ export async function POST(req: NextRequest) {
     if (forms.includes("100")) {
       const resolved = resolveClauses(
         deal,
-        body.includeStandards !== false,
+        Array.isArray(deal.standard_codes)
+          ? deal.standard_codes.map(String)
+          : body.includeStandards === false
+            ? []
+            : null,
         Array.isArray(body.clauseCodes) ? body.clauseCodes : [],
         body.clauseBlanks || {}
       );

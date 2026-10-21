@@ -197,6 +197,13 @@ export default function PrepareOfferPage() {
   const [nlEmail, setNlEmail] = useState('')
   const [nlPhone, setNlPhone] = useState('')
   const [selectedClauses, setSelectedClauses] = useState<string[]>([])
+  // Standard Offer Clauses (Tim, 2026-10-21): all seven come
+  // PRESELECTED in every offer; unticking one leaves it out of this
+  // offer only. Keys are the library's code (or id when it has none).
+  const STD_KEYS: string[] = ((LIB.standards || []) as any[]).map((s: any) => s.code || s.id)
+  const [stdCodes, setStdCodes] = useState<string[]>(STD_KEYS)
+  const toggleStd = (key: string) =>
+    setStdCodes((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
   const [blankValues, setBlankValues] = useState<Record<string, Record<string, string>>>({})
   const [blankArrays, setBlankArrays] = useState<Record<string, string[]>>({})
 
@@ -421,6 +428,7 @@ export default function PrepareOfferPage() {
       if (deal.coop.pay_text) setCoopPayText(deal.coop.pay_text)
     }
     if (Array.isArray(deal.clause_codes)) setSelectedClauses(deal.clause_codes)
+    if (Array.isArray(deal.standard_codes)) setStdCodes(deal.standard_codes.map(String))
     if (deal.clause_blanks) {
       const bv: Record<string, Record<string, string>> = {}
       const ba: Record<string, string[]> = {}
@@ -702,6 +710,7 @@ export default function PrepareOfferPage() {
           financing: { days: finDays, time: finTime },
           inspection: { days: inspDays, time: inspTime },
         },
+        standard_codes: stdCodes,
         listing_sheet: sheetUploaded || undefined,
         buyer_lawyer: lawyerName
           ? {
@@ -1631,6 +1640,29 @@ export default function PrepareOfferPage() {
               The wording above is the actual clause — Schedule A is edited to match these
               answers. Standard wording: 6:00 p.m. on the fifth banking day.
             </p>
+          </div>
+          <div>
+            <p className={labelCls}>Standard Offer Clauses — in every offer</p>
+            <div className="border rounded-md p-3 space-y-2 mt-1">
+              {((LIB.standards || []) as any[]).map((s: any) => {
+                const key = s.code || s.id
+                return (
+                  <label key={key} className="flex items-start gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={stdCodes.includes(key)}
+                      onChange={() => toggleStd(key)}
+                    />
+                    <span>{s.title}</span>
+                  </label>
+                )
+              })}
+              <p className="text-xs text-gray-400 pt-1">
+                These come ticked on every offer. Untick one to leave it out of THIS offer
+                only — the next offer starts with all seven ticked again.
+              </p>
+            </div>
           </div>
           <div>
             <p className={labelCls}>Additional clauses</p>
