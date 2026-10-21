@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
-type TemplateKey = 'open_house' | 'drip' | 'intro' | 'general'
+type TemplateKey = 'open_house' | 'drip' | 'intro' | 'general' | 'price_change'
 
 const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   open_house: 'Open house follow-up',
   drip: 'Drip check-in',
   intro: 'Intro',
   general: 'General check-in',
+  price_change: 'Price change',
 }
 
 type LeadInfo = {
@@ -21,6 +22,8 @@ type LeadInfo = {
   deal_type: string | null
   property_id: string | null
   contact_id: string | null
+  working_with_realtor: boolean | null
+  realtor_name: string | null
 }
 
 function buildTemplate(
@@ -52,6 +55,17 @@ Worth a quick chat this week about what you're looking for? No pressure at all �
 Are you still thinking about ${looking}? The market has been moving, and there may be some good options worth a look right now.
 
 Happy to send a few things over that fit what you're after, or just talk through timing — whatever's most helpful.`,
+      }
+    }
+    case 'price_change': {
+      const place = address || 'a home you viewed'
+      return {
+        subject: `Price update: ${place}`,
+        body: `Quick note — the price on ${place} has just been adjusted.
+
+I know you're working with another agent, and I completely respect that. I only wanted you to have the update, since you'd shown interest in the home.
+
+Feel free to pass it along to your realtor, or reach out if you'd like any details.`,
       }
     }
     case 'intro': {
@@ -104,7 +118,7 @@ export default function FollowUpModal({
       const { data: leadData } = await supabase
         .from('leads')
         .select(
-          'id, first_name, last_name, email, status, deal_type, property_id, contact_id'
+          'id, first_name, last_name, email, status, deal_type, property_id, contact_id, working_with_realtor, realtor_name'
         )
         .eq('id', leadId)
         .single()
@@ -148,7 +162,8 @@ export default function FollowUpModal({
       }
 
       let key: TemplateKey = 'general'
-      if (attendances && attendances.length > 0) key = 'open_house'
+      if (info.working_with_realtor) key = 'price_change'
+      else if (attendances && attendances.length > 0) key = 'open_house'
       else if (hasDrip) key = 'drip'
       else if (info.status === 'New') key = 'intro'
 
@@ -231,6 +246,15 @@ export default function FollowUpModal({
           </div>
         ) : (
           <>
+            {lead?.working_with_realtor && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                ⚠ {lead.first_name} is working with another realtor
+                {lead.realtor_name ? ` (${lead.realtor_name})` : ''}. The
+                only email these leads should get is a price-change update
+                on the home they viewed.
+              </div>
+            )}
+
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
                 Suggested: {TEMPLATE_LABELS[suggestedKey]} — switch if you like

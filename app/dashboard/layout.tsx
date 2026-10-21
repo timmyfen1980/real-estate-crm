@@ -199,6 +199,7 @@ const { count: newLeads } = await supabase
   .or(
     `status.eq.New,next_followup_date.lte.${_todayStr},and(next_followup_date.is.null,created_at.lt.${_staleCutoff})`
   )
+  .or('working_with_realtor.is.null,working_with_realtor.eq.false')
 
 setNewLeadsCount(newLeads || 0)
 

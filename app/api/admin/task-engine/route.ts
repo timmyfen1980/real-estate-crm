@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
 
       const { data: openLeads } = await supabase
         .from('leads')
-        .select('id, first_name, last_name, contact_id, assigned_user_id, last_contacted_at, created_at')
+        .select('id, first_name, last_name, contact_id, assigned_user_id, last_contacted_at, created_at, working_with_realtor')
         .eq('account_id', ACCOUNT_ID)
         .not('status', 'in', '("Client","Closed","Lost")');
       const leadList = (openLeads || []).filter((l: any) => !!l.contact_id);
@@ -275,6 +275,7 @@ export async function POST(req: NextRequest) {
 
         const checkins: any[] = [];
         for (const l of leadList) {
+          if ((l as any).working_with_realtor) continue; // hands-off rule
           const campId = campByContact.get(l.contact_id);
           if (!campId) continue;
           if (recentSet.has(l.id)) continue;
@@ -317,6 +318,35 @@ export async function POST(req: NextRequest) {
       // Best-effort only.
     }
 
+    // --- Hands-off cleanup (working-with-realtor rule) -----------------
+    // Leads flagged working_with_realtor are never contacted except for
+    // price-change emails on the home they viewed. Complete any open
+    // auto follow-up / check-in tasks that point at them.
+    let realtorTasksCleared = 0;
+    try {
+      const { data: realtorLeads } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('account_id', ACCOUNT_ID)
+        .eq('working_with_realtor', true);
+      const rIds = (realtorLeads || []).map((r: any) => r.id);
+      if (rIds.length > 0) {
+        const { data: cleared, error: clearErr } = await supabase
+          .from('tasks')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .in('lead_id', rIds)
+          .in('source', ['lead_followup', 'drip_checkin'])
+          .eq('status', 'pending')
+          .select('id');
+        if (!clearErr) realtorTasksCleared = (cleared || []).length;
+      }
+    } catch {
+      // Best-effort only.
+    }
+
     // --- Lead follow-ups (Tim's 7-day rule, 2026-10-21) ----------------
     // Any open lead whose last contact (or creation, if never contacted)
     // is more than 7 days ago gets a 'Follow up — {name}' task due
@@ -338,7 +368,7 @@ export async function POST(req: NextRequest) {
 
       const { data: openLeads2 } = await supabase
         .from('leads')
-        .select('id, first_name, last_name, assigned_user_id, last_contacted_at, created_at')
+        .select('id, first_name, last_name, assigned_user_id, last_contacted_at, created_at, working_with_realtor')
         .eq('account_id', ACCOUNT_ID)
         .not('status', 'in', '("Client","Closed","Lost")');
 
@@ -356,6 +386,7 @@ export async function POST(req: NextRequest) {
 
       const followups: any[] = [];
       for (const l of openLeads2 || []) {
+        if ((l as any).working_with_realtor) continue; // hands-off rule
         if (busyLeads.has(l.id)) continue;
         const lastTouch = String(l.last_contacted_at || l.created_at || '').slice(0, 10);
         if (!lastTouch) continue;
@@ -424,6 +455,7 @@ export async function POST(req: NextRequest) {
         closing_date_available: true,
         drip_checkins_created: dripCheckinsCreated,
         lead_followups_created: leadFollowupsCreated,
+        realtor_tasks_cleared: realtorTasksCleared,
       });
     }
 
@@ -550,6 +582,7 @@ export async function POST(req: NextRequest) {
       closing_date_available: true,
       drip_checkins_created: dripCheckinsCreated,
       lead_followups_created: leadFollowupsCreated,
+      realtor_tasks_cleared: realtorTasksCleared,
     });
   } catch (err: any) {
     return NextResponse.json(

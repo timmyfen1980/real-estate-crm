@@ -649,6 +649,7 @@ const toggleEnrollment = async (enrollment: any) => {
     ? Math.floor((Date.now() - new Date(lastTouchStr).getTime()) / 86400000)
     : null
   const needsFollowup =
+    !lead.working_with_realtor &&
     !['Client', 'Closed', 'Lost'].includes(lead.status) &&
     (lead.status === 'New' || (daysSinceContact !== null && daysSinceContact > 7))
 
@@ -845,6 +846,21 @@ const toggleEnrollment = async (enrollment: any) => {
 </div>
 </div>
 </div>
+        {lead.working_with_realtor &&
+          !['Client', 'Closed', 'Lost'].includes(lead.status) && (
+            <div className="bg-gray-50 border border-gray-300 rounded-2xl p-6">
+              <div className="font-semibold text-gray-900">
+                Working with another realtor
+                {lead.realtor_name ? ` — ${lead.realtor_name}` : ''}
+              </div>
+              <div className="text-sm text-gray-600">
+                Hands off — no follow-up contact. These leads are only kept
+                so they can get a price-change email on the home they
+                viewed.
+              </div>
+            </div>
+          )}
+
         {needsFollowup && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-wrap justify-between items-center gap-4">
             <div>

@@ -18,6 +18,8 @@ type Lead = {
   contact_id?: string | null
   next_followup_date?: string | null
   last_contacted_at?: string | null
+  working_with_realtor?: boolean | null
+  realtor_name?: string | null
 }
 
 type DripInfo = {
@@ -227,6 +229,7 @@ useEffect(() => {
   }
 
   const needsAttention = (lead: Lead) => {
+    if (lead.working_with_realtor) return false // hands-off rule
     if (['Client', 'Closed', 'Lost'].includes(lead.status)) return false
     if (lead.status === 'New') return true
     if (lead.next_followup_date) {
@@ -256,6 +259,9 @@ useEffect(() => {
       return 'Client — managed in Deals'
     }
     if (lead.status === 'Lost') return '—'
+    if (lead.working_with_realtor) {
+      return 'Working with a realtor — hands off (price-change emails only)'
+    }
     if (lead.next_followup_date && lead.next_followup_date.slice(0, 10) < TODAY) {
       return `Follow-up overdue — was due ${fmtDay(lead.next_followup_date)}`
     }
