@@ -91,12 +91,17 @@ const [endTime, setEndTime] = useState('16:00')
       expireDate.setDate(expireDate.getDate() + 1)
 
       if (event.is_active && today >= expireDate) {
-        await supabase
+        const { error: expireError } = await supabase
           .from('open_house_events')
           .update({ is_active: false })
           .eq('id', event.id)
 
-        event.is_active = false
+        if (expireError) {
+          console.error('AUTO-EXPIRE ERROR:', expireError)
+          // Leave the event showing active so the next load retries the expiry.
+        } else {
+          event.is_active = false
+        }
       }
 
       updatedEvents.push(event)
@@ -189,10 +194,12 @@ const createEvent = async () => {
           .from('property-images')
           .getPublicUrl(imagePath)
 
-        await supabase
+        const { error: imageUrlError } = await supabase
           .from('properties')
           .update({ image_url: data.publicUrl })
           .eq('id', propertyId)
+
+        if (imageUrlError) throw new Error(imageUrlError.message)
       }
 
       if (newFeatureFile) {
@@ -208,10 +215,12 @@ const createEvent = async () => {
           .from('property-documents')
           .getPublicUrl(docPath)
 
-        await supabase
+        const { error: docUrlError } = await supabase
           .from('properties')
           .update({ feature_sheet_url: data.publicUrl })
           .eq('id', propertyId)
+
+        if (docUrlError) throw new Error(docUrlError.message)
       }
     }
 
@@ -262,10 +271,16 @@ const createEvent = async () => {
 }
 
   const endEvent = async (eventId: string) => {
-    await supabase
+    const { error: endError } = await supabase
       .from('open_house_events')
       .update({ is_active: false })
       .eq('id', eventId)
+
+    if (endError) {
+      console.error('END EVENT ERROR:', endError)
+      showToast('Failed to end open house — please try again')
+      return
+    }
 
     setConfirmEndId(null)
     showToast('Open house ended')
