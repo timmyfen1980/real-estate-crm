@@ -121,7 +121,7 @@ const [selectedTask, setSelectedTask] = useState<Task | null>(null)
       .single()
 
     if (!leadData) {
-      router.push('/dashboard/open-houses')
+      router.push('/dashboard/leads')
       return
     }
 

@@ -147,11 +147,24 @@ export async function GET(req: NextRequest) {
 
     const { data: tasks, error: tasksError } = await supabase
       .from('tasks')
-      .select('id, title, due_date, priority, status, assigned_user_id, source')
+      .select('id, title, due_date, priority, status, assigned_user_id, source, lead_id')
       .eq('account_id', ACCOUNT_ID)
       .neq('status', 'completed')
       .order('due_date', { ascending: true });
     if (tasksError) throw tasksError;
+
+    // Which of the tasks' lead_ids still resolve to a real lead row?
+    const taskLeadIds = Array.from(
+      new Set((tasks || []).map((t: any) => t.lead_id).filter(Boolean))
+    );
+    const existingLeadIds = new Set<string>();
+    if (taskLeadIds.length > 0) {
+      const { data: leadRows } = await supabase
+        .from('leads')
+        .select('id')
+        .in('id', taskLeadIds);
+      for (const l of leadRows || []) existingLeadIds.add(l.id);
+    }
 
     return NextResponse.json({
       team,
@@ -167,7 +180,10 @@ export async function GET(req: NextRequest) {
           ? nameById.get(d.assigned_user_id) || null
           : null,
       })),
-      open_tasks: tasks || [],
+      open_tasks: (tasks || []).map((t: any) => ({
+        ...t,
+        lead_exists: t.lead_id ? existingLeadIds.has(t.lead_id) : null,
+      })),
     });
   } catch (err: any) {
     return NextResponse.json(

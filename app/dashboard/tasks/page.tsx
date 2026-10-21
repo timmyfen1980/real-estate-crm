@@ -31,6 +31,7 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [newsletterTask, setNewsletterTask] = useState<string | null>(null)
   const [showAllCompleted, setShowAllCompleted] = useState(false)
+  const [viewScope, setViewScope] = useState<'mine' | 'team'>('mine')
 
   const loadTasks = async () => {
     const {
@@ -196,8 +197,17 @@ export default function TasksPage() {
     )
   }
 
+  // Whose tasks are on screen: 'mine' by default for everyone. The
+  // owner can flip to 'team' to see everybody's list (names are shown).
+  const visibleTasks =
+    isOwner && viewScope === 'mine'
+      ? tasks.filter(function (t) {
+          return t.assigned_user_id === currentUserId
+        })
+      : tasks
+
   // Pending: due date ascending — overdue first, then today, then upcoming.
-  const pendingTasks = tasks
+  const pendingTasks = visibleTasks
     .filter(function (t) {
       return t.status === 'pending'
     })
@@ -207,7 +217,7 @@ export default function TasksPage() {
     })
   // Completed: most recently completed first; the list is capped at 5
   // until "Show all" expands it.
-  const completedTasks = tasks
+  const completedTasks = visibleTasks
     .filter(function (t) {
       return t.status === 'completed'
     })
@@ -248,12 +258,14 @@ export default function TasksPage() {
   const pendingTasksCount = dueTasks.length
   const tasksDisplayCount = pendingTasksCount + (newsletterTask ? 1 : 0)
   const overdueTasksCount = pendingTasks.filter(function (t) {
-    return new Date(t.due_date) < new Date()
+    return (t.due_date || '') < _todayStr
   }).length
 
   function renderPendingTask(task: Task) {
-    const due = new Date(task.due_date)
-    const isOverdue = due < new Date()
+    // Parse the date at noon so a date-only value doesn't render as
+    // the day before in Toronto time.
+    const due = new Date(String(task.due_date).slice(0, 10) + 'T12:00:00')
+    const isOverdue = String(task.due_date).slice(0, 10) < _todayStr
     const formattedDate = due.toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
@@ -390,12 +402,39 @@ export default function TasksPage() {
               </span>
             </div>
 
-            <button
-              onClick={openCreate}
-              className="px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-900 transition"
-            >
-              + New Task
-            </button>
+            <div className="flex items-center gap-3">
+              {isOwner && (
+                <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setViewScope('mine')}
+                    className={`px-3 py-2 text-sm transition ${
+                      viewScope === 'mine'
+                        ? 'bg-black text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Mine
+                  </button>
+                  <button
+                    onClick={() => setViewScope('team')}
+                    className={`px-3 py-2 text-sm transition ${
+                      viewScope === 'team'
+                        ? 'bg-black text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Team
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={openCreate}
+                className="px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-900 transition"
+              >
+                + New Task
+              </button>
+            </div>
           </div>
 
           {tasksDisplayCount === 0 ? (
