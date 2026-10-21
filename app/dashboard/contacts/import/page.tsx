@@ -375,19 +375,27 @@ if (!membership) {
     })
 
     if (duplicateMode === 'update') {
+      let failedCount = 0
+
       for (const contact of prepared) {
         if (!contact.email) continue
 
         const existingId = existingMap[contact.email]
 
-        if (existingId) {
-          await supabase
-            .from('contacts')
-            .update(contact)
-            .eq('id', existingId)
-        } else {
-          await supabase.from('contacts').insert([contact])
+        const result = existingId
+          ? await supabase.from('contacts').update(contact).eq('id', existingId)
+          : await supabase.from('contacts').insert([contact])
+
+        if (result.error) {
+          console.error('IMPORT ROW ERROR:', contact.email, result.error)
+          failedCount++
         }
+      }
+
+      if (failedCount > 0) {
+        alert(`Import finished with ${failedCount} failed row${failedCount === 1 ? '' : 's'} — check console for details`)
+        setLoading(false)
+        return
       }
     }
 
