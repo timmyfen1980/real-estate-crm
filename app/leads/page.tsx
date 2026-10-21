@@ -68,7 +68,7 @@ export default function LeadsPage() {
 
     if (!membership) return
 
-    await supabase.from('leads').insert([
+    const { error } = await supabase.from('leads').insert([
       {
         account_id: membership.account_id,
         user_id: userData.user.id,
@@ -78,6 +78,12 @@ export default function LeadsPage() {
         phone,
       },
     ])
+
+    if (error) {
+      console.error('LEAD CREATE ERROR:', error)
+      alert('Failed to create lead — please try again')
+      return
+    }
 
     setFirstName('')
     setLastName('')
