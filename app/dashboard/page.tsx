@@ -214,9 +214,10 @@ export default function Dashboard() {
       .eq('account_id', accountIdValue)
       .order('due_date', { ascending: true })
 
-    const scopedTaskQuery = owner
-      ? taskQuery
-      : taskQuery.eq('assigned_user_id', user.id)
+    // Per-person (Tim, 2026-10-21): the dashboard's task numbers and
+    // overdue list are the signed-in user's OWN tasks, owner included —
+    // the team picture lives on the Tasks page's Team view.
+    const scopedTaskQuery = taskQuery.eq('assigned_user_id', user.id)
 
     const { data: taskData } = await scopedTaskQuery
     setTasks(taskData || [])
@@ -282,6 +283,11 @@ export default function Dashboard() {
 
   const attentionLeads = leads
     .filter(l => {
+      // Per-person (Tim, 2026-10-21): Needs Attention shows the
+      // signed-in user's own leads only, and never hands-off
+      // working-with-realtor leads.
+      if (l.assigned_user_id !== currentUserId) return false
+      if ((l as any).working_with_realtor) return false
 
       // Always show new leads
       if (l.status === 'New') return true
@@ -340,7 +346,9 @@ export default function Dashboard() {
   }).length
 
   const pendingTasksCount = tasks.filter(t => t.status === 'pending').length
-  const newLeadsCount = leads.filter(l => l.status === 'New').length
+  const newLeadsCount = leads.filter(
+    l => l.status === 'New' && l.assigned_user_id === currentUserId
+  ).length
   const overdueTasksCount = tasks.filter(
     t => t.status === 'pending' && new Date(t.due_date) < new Date()
   ).length
@@ -793,3 +801,4 @@ function EmptyState({ text }: { text: string }) {
     </div>
   )
 }
+

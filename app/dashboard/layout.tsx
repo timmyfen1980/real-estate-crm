@@ -168,11 +168,13 @@ if (teamClosed) {
   .not('due_date', 'is', null)
   .lt('due_date', today)
 
-if (membership.role === 'owner') {
-  query = query.eq('account_id', membership.account_id)
-} else {
-  query = query.eq('assigned_user_id', user.id)
-}
+// Per-person (Tim, 2026-10-21): the overdue banner counts the
+// signed-in user's OWN overdue tasks, owner included — same rule as
+// the sidebar badge and the dashboard. The team picture lives on
+// the Tasks page's Team view.
+query = query
+  .eq('account_id', membership.account_id)
+  .eq('assigned_user_id', user.id)
 
 const { count } = await query
 
