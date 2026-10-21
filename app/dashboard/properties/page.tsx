@@ -144,6 +144,7 @@ export default function PropertiesPage() {
       {renderSection('Coming Soon', 'coming_soon')}
 
 {renderSection('For Sale', 'for_sale')}
+{renderSection('Purchased', 'purchased')}
 {renderSection('For Lease', 'for_lease')}
 
 {renderSection('Sold', 'sold')}

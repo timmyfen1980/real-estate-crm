@@ -139,6 +139,7 @@ export default function NewPropertyPage() {
             <option value="coming_soon">Coming Soon</option>
 
 <option value="for_sale">For Sale</option>
+<option value="purchased">Purchased</option>
 <option value="sold">Sold</option>
 
 <option value="for_lease">For Lease</option>
