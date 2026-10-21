@@ -198,10 +198,13 @@ export default function OffersPage() {
           return (
             <div key={pkg.id} className="bg-white rounded-2xl shadow p-6 space-y-4">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="font-semibold text-lg">
+                <Link
+                  href={`/dashboard/offers/${pkg.id}`}
+                  className="font-semibold text-lg hover:underline"
+                >
                   {pkg.address}
                   {pkg.city ? <span className="text-gray-500 font-normal">, {pkg.city}</span> : null}
-                </div>
+                </Link>
                 {pkg.mls && <span className="text-xs bg-gray-100 rounded-full px-2 py-1">MLS# {pkg.mls}</span>}
                 {pkg.partial && (
                   <span className="text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-1">

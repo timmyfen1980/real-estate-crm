@@ -12,7 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const BUCKET = "client-documents";
 const DIR = "system/offer-templates";
-const NAMES = ["form100", "form801"] as const;
+const NAMES = ["form100", "form801", "form320"] as const;
 
 function unauthorized(req: NextRequest): boolean {
   const authHeader = req.headers.get("authorization") || "";
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const file = form.get("file");
   if (!(NAMES as readonly string[]).includes(name) || !(file instanceof File)) {
     return NextResponse.json(
-      { ok: false, error: "Need name (form100|form801) and a PDF file." },
+      { ok: false, error: "Need name (form100|form801|form320) and a PDF file." },
       { status: 400 }
     );
   }

@@ -229,6 +229,49 @@ async function savePackage(
   return pkg.id;
 }
 
+// Save generated forms into an EXISTING package (the workspace page):
+// files replace any earlier copy of the same form; the deal snapshot is
+// refreshed so the package always holds the latest answers.
+async function saveIntoPackage(
+  packageId: string,
+  deal: any,
+  files: any[],
+  partial: boolean
+): Promise<string> {
+  const supabase = serviceClient();
+  const { data: pkg, error } = await supabase
+    .from("offer_packages")
+    .select("id,documents")
+    .eq("account_id", FC_ACCOUNT_ID)
+    .eq("id", packageId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!pkg) throw new Error("Package not found.");
+  let docs: any[] = Array.isArray(pkg.documents) ? [...pkg.documents] : [];
+  for (const f of files) {
+    const path = `offers/${packageId}/${f.filename}`;
+    const bytes = Buffer.from(f.base64, "base64");
+    const { error: upErr } = await supabase.storage
+      .from("client-documents")
+      .upload(path, bytes, { contentType: "application/pdf", upsert: true });
+    if (upErr) throw new Error(upErr.message);
+    docs = docs.filter((d: any) => d.form !== f.form);
+    docs.push({
+      form: f.form,
+      filename: f.filename,
+      path,
+      signed: false,
+      added_at: new Date().toISOString(),
+    });
+  }
+  const { error: updErr } = await supabase
+    .from("offer_packages")
+    .update({ documents: docs, deal, partial })
+    .eq("id", packageId);
+  if (updErr) throw new Error(updErr.message);
+  return packageId;
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!(await authorized(req))) {
@@ -305,7 +348,14 @@ export async function POST(req: NextRequest) {
     let packageError: string | null = null;
     if (body.save_package !== false) {
       try {
-        packageId = await savePackage(req, deal, files, partial);
+        const snapshot = {
+          ...deal,
+          clause_codes: Array.isArray(body.clauseCodes) ? body.clauseCodes : [],
+          clause_blanks: body.clauseBlanks || {},
+        };
+        packageId = body.package_id
+          ? await saveIntoPackage(String(body.package_id), snapshot, files, partial)
+          : await savePackage(req, snapshot, files, partial);
       } catch (e: any) {
         packageError = e?.message || "Package save failed.";
       }
