@@ -40,6 +40,7 @@ export default function EditOpenHousePage() {
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const loadData = async () => {
     const {
@@ -90,8 +91,9 @@ export default function EditOpenHousePage() {
 
     setSaving(true)
     setSaved(false)
+    setSaveError(null)
 
-    await supabase
+    const { error } = await supabase
       .from('open_house_events')
       .update({
         event_date: eventDate,
@@ -104,6 +106,13 @@ export default function EditOpenHousePage() {
       .eq('id', event.id)
 
     setSaving(false)
+
+    if (error) {
+      console.error('EVENT UPDATE ERROR:', error)
+      setSaveError('Failed to save changes — please try again')
+      return
+    }
+
     setSaved(true)
 
     setTimeout(() => setSaved(false), 3000)
@@ -255,6 +264,12 @@ export default function EditOpenHousePage() {
         {saved && (
           <p className="text-center text-green-600 text-sm">
             Event updated successfully
+          </p>
+        )}
+
+        {saveError && (
+          <p className="text-center text-red-600 text-sm">
+            {saveError}
           </p>
         )}
       </div>
