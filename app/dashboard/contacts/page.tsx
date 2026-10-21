@@ -171,10 +171,17 @@ setLoading(false)
 
   const bulkLifecycleUpdate = async (stage: string) => {
     if (!selectedIds.length) return
-    await supabase
+    const { error } = await supabase
       .from('contacts')
       .update({ lifecycle_stage: stage })
       .in('id', selectedIds)
+
+    if (error) {
+      console.error('BULK STAGE UPDATE ERROR:', error)
+      alert('Failed to update contacts — please try again')
+      return
+    }
+
     loadData()
     setSelectedIds([])
   }
@@ -199,10 +206,17 @@ const bulkDelete = async () => {
 }
   const bulkReassign = async (userId: string) => {
     if (!selectedIds.length || !isOwner) return
-    await supabase
+    const { error } = await supabase
       .from('contacts')
       .update({ assigned_user_id: userId })
       .in('id', selectedIds)
+
+    if (error) {
+      console.error('BULK REASSIGN ERROR:', error)
+      alert('Failed to reassign contacts — please try again')
+      return
+    }
+
     loadData()
     setSelectedIds([])
   }
