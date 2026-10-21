@@ -247,10 +247,16 @@ if (dealType === 'lease') {
   newPropertyStatus = dealStatus === 'Closed' ? 'sold' : 'for_sale'
 }
 
-await supabase
+const { error: propStatusError } = await supabase
   .from('properties')
   .update({ status: newPropertyStatus })
   .eq('id', propertyId)
+
+if (propStatusError) {
+  console.error('PROPERTY STATUS SYNC ERROR:', propStatusError)
+  alert('Deal was created, but the property status could not be updated — please set it manually on the property page.')
+  return
+}
 
 // 🔍 STEP 1 — CHECK FOR EXISTING LEAD
 const { data: existingLead } = await supabase
@@ -264,7 +270,7 @@ const { data: existingLead } = await supabase
 
 if (existingLead) {
   // UPDATE EXISTING LEAD
-  await supabase
+  const { error: leadSyncError } = await supabase
   .from('leads')
   .update({
     deal_type: dealType,
@@ -276,6 +282,12 @@ if (existingLead) {
     property_id: propertyId,
   })
   .eq('id', existingLead.id)
+
+  if (leadSyncError) {
+    console.error('LEAD SYNC ERROR:', leadSyncError)
+    alert('Deal was created, but the linked lead could not be updated — please update the lead manually.')
+    return
+  }
 } else {
   // CREATE NEW LEAD
   // GET CONTACT DETAILS (REQUIRED FOR LEAD INSERT)
@@ -313,7 +325,12 @@ const { error: leadInsertError } = await supabase
     },
   ])
 
-console.log('LEAD INSERT ERROR:', leadInsertError)
+console.error('LEAD INSERT ERROR:', leadInsertError)
+
+if (leadInsertError) {
+  alert('Deal was created, but the lead could not be created — please add it manually from the lead page.')
+  return
+}
 }
 
     
@@ -332,13 +349,19 @@ if (!existingLink) {
     ? 'seller'
     : 'tenant'
 
-await supabase.from('property_contacts').insert([
+const { error: linkError } = await supabase.from('property_contacts').insert([
   {
     contact_id: contactId,
     property_id: propertyId,
     role,
   },
 ])
+
+if (linkError) {
+  console.error('PROPERTY LINK ERROR:', linkError)
+  alert('Deal was created, but the contact could not be linked to the property — please link it manually from the property page.')
+  return
+}
 }
 
     alert('Deal created')
