@@ -25,6 +25,7 @@ export default function OffersPage() {
   const [busyId, setBusyId] = useState('')
   const [libFor, setLibFor] = useState('')
   const [libFiles, setLibFiles] = useState<string[]>([])
+  const [confirmRemove, setConfirmRemove] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const addTarget = useRef<string>('')
 
@@ -94,6 +95,21 @@ export default function OffersPage() {
       setPackages((prev) =>
         prev.map((p) => (p.id === pkg.id ? { ...p, documents: data.documents } : p))
       )
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  const removeDoc = async (pkg: any, doc: any) => {
+    setBusyId(pkg.id)
+    try {
+      const data = await act({ action: 'delete_doc', id: pkg.id, path: doc.path })
+      setPackages((prev) =>
+        prev.map((p) => (p.id === pkg.id ? { ...p, documents: data.documents } : p))
+      )
+      setConfirmRemove('')
     } catch (e: any) {
       alert(e.message)
     } finally {
@@ -185,6 +201,24 @@ export default function OffersPage() {
         className="ml-auto text-xs border rounded-md px-2 py-1 hover:bg-gray-100 transition whitespace-nowrap disabled:opacity-50"
       >
         {doc.signed ? 'Move to unsigned' : 'Mark signed'}
+      </button>
+      <button
+        onClick={() => {
+          const key = `${pkg.id}|${doc.path}`
+          if (confirmRemove !== key) {
+            setConfirmRemove(key)
+            return
+          }
+          removeDoc(pkg, doc)
+        }}
+        disabled={busyId === pkg.id}
+        className={
+          confirmRemove === `${pkg.id}|${doc.path}`
+            ? 'text-xs border border-red-300 bg-red-50 text-red-700 rounded-md px-2 py-1 transition whitespace-nowrap disabled:opacity-50'
+            : 'text-xs border rounded-md px-2 py-1 text-gray-500 hover:bg-red-50 hover:text-red-700 transition whitespace-nowrap disabled:opacity-50'
+        }
+      >
+        {confirmRemove === `${pkg.id}|${doc.path}` ? 'Sure? Remove it' : 'Remove'}
       </button>
     </div>
   )
