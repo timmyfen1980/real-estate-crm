@@ -81,7 +81,10 @@ const [selectedRole, setSelectedRole] = useState<'seller' | 'buyer' | 'tenant' |
       .eq('property_id', propertyId)
 
     if (sellerData) {
-      const parsed = sellerData.map((s: any) => s.contacts)
+      // A property_contacts row can point at a contact that no longer
+      // exists (deleted or merged) — the join then returns null, and a
+      // null entry crashes the render below (seller.id). Drop nulls.
+      const parsed = sellerData.map((s: any) => s.contacts).filter(Boolean)
       setSellers(parsed)
     }
 
@@ -112,6 +115,20 @@ if (openHouseData) {
   useEffect(() => {
     loadData()
   }, [])
+const handleDelete = async () => {
+  if (!property) return
+  if (!confirm(`Delete ${property.address}? This removes the property record. Deals and open-house records keep their own history.`)) return
+  const { error } = await supabase
+    .from('properties')
+    .delete()
+    .eq('id', propertyId)
+  if (error) {
+    console.log('DELETE PROPERTY ERROR:', error)
+    alert('Failed to delete — please try again')
+    return
+  }
+  router.push('/dashboard/properties')
+}
 const removeSeller = async (contactId: string) => {
 
   const { error } = await supabase
@@ -444,6 +461,7 @@ if (updateError) {
 
 <option value="for_sale">For Sale</option>
 <option value="purchased">Purchased</option>
+<option value="not_our_listing">Not Our Listing</option>
 <option value="sold">Sold</option>
 
 <option value="for_lease">For Lease</option>
@@ -629,6 +647,15 @@ if (updateError) {
   className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition"
 >
   {saving ? 'Saving...' : 'Save Changes'}
+</button>
+
+{/* DELETE — for Not Our Listing records and other disposables */}
+
+<button
+  onClick={handleDelete}
+  className="w-full mt-3 border border-red-300 text-red-600 py-3 rounded-xl hover:bg-red-50 transition"
+>
+  Delete Property
 </button>
 
 {/* SELLER MODAL */}

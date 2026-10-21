@@ -151,6 +151,7 @@ export default function PropertiesPage() {
 {renderSection('Leased', 'leased')}
 
 {renderSection('Closed', 'closed')}
+{renderSection('Not Our Listing', 'not_our_listing')}
 
     </div>
   )

@@ -2,10 +2,14 @@
 // /api/admin/property-status — agent-side property categorization.
 // Auth: Bearer REA_AGENT_SECRET.
 //
-// GET  -> every property in the account with the deal types linked to it,
-//         plus a suggestion: a 'for_sale' property whose deals are buyer
-//         deals (and no seller deal) is a purchase, not a listing.
-// POST { ids: string[], status } -> set the status on those properties.
+// GET  -> every property in the account with the deals linked to it, a
+//         suggested category (buyer purchases mislabeled 'for_sale' ->
+//         'purchased'; a listing whose seller deal is Sold Firm/Closed
+//         -> 'sold'), and a count of dangling property_contacts links
+//         (rows pointing at contacts that no longer exist — these crash
+//         the property detail page render).
+// POST { ids, status }            -> set the status on those properties.
+// POST { action: 'cleanup_links' } -> delete dangling property_contacts rows.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -15,6 +19,7 @@ const ALLOWED = [
   "coming_soon",
   "for_sale",
   "purchased",
+  "not_our_listing",
   "sold",
   "for_lease",
   "leased",
@@ -31,6 +36,19 @@ function serviceClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+}
+
+async function danglingLinks(supabase: any, propertyIds: string[]) {
+  const { data: links } = await supabase
+    .from("property_contacts")
+    .select("property_id,contact_id")
+    .in("property_id", propertyIds);
+  const { data: contacts } = await supabase
+    .from("contacts")
+    .select("id")
+    .eq("account_id", FC_ACCOUNT_ID);
+  const valid = new Set((contacts || []).map((c: any) => c.id));
+  return (links || []).filter((l: any) => !valid.has(l.contact_id));
 }
 
 export async function GET(req: NextRequest) {
@@ -61,16 +79,40 @@ export async function GET(req: NextRequest) {
     });
     byProperty.set(d.property_id, arr);
   }
+  const dangling = await danglingLinks(
+    supabase,
+    (props || []).map((p: any) => p.id)
+  );
+  const danglingByProperty = new Map<string, number>();
+  for (const d of dangling) {
+    danglingByProperty.set(d.property_id, (danglingByProperty.get(d.property_id) || 0) + 1);
+  }
   const properties = (props || []).map((p: any) => {
     const linked = byProperty.get(p.id) || [];
     const types = linked.map((d) => d.type).filter(Boolean) as string[];
-    const suggestion =
-      p.status === "for_sale" && types.includes("buyer") && !types.includes("seller")
-        ? "purchased"
-        : null;
-    return { ...p, deals: linked, suggestion };
+    let suggestion: string | null = null;
+    if (p.status === "for_sale" && types.includes("buyer") && !types.includes("seller")) {
+      suggestion = "purchased";
+    } else if (
+      p.status === "for_sale" &&
+      types.includes("seller") &&
+      !types.includes("buyer") &&
+      linked.some((d) => d.status === "Sold Firm" || d.status === "Closed")
+    ) {
+      suggestion = "sold";
+    }
+    return {
+      ...p,
+      deals: linked,
+      suggestion,
+      dangling_links: danglingByProperty.get(p.id) || 0,
+    };
   });
-  return NextResponse.json({ ok: true, properties });
+  return NextResponse.json({
+    ok: true,
+    properties,
+    dangling_total: dangling.length,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -78,6 +120,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
   const body = (await req.json().catch(() => ({}))) as any;
+  const supabase = serviceClient();
+
+  if (body.action === "cleanup_links") {
+    const { data: props } = await supabase
+      .from("properties")
+      .select("id")
+      .eq("account_id", FC_ACCOUNT_ID);
+    const dangling = await danglingLinks(
+      supabase,
+      (props || []).map((p: any) => p.id)
+    );
+    let removed = 0;
+    for (const d of dangling) {
+      const { error } = await supabase
+        .from("property_contacts")
+        .delete()
+        .eq("property_id", d.property_id)
+        .eq("contact_id", d.contact_id);
+      if (!error) removed++;
+    }
+    return NextResponse.json({ ok: true, found: dangling.length, removed });
+  }
+
   const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
   const status = String(body.status || "");
   if (ids.length === 0 || !ALLOWED.includes(status)) {
@@ -86,7 +151,6 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const supabase = serviceClient();
   const { data, error } = await supabase
     .from("properties")
     .update({ status })
