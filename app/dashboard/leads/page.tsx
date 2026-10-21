@@ -14,6 +14,16 @@ type Lead = {
   created_at: string
   property_id: string
   assigned_user_id: string
+  contact_id?: string | null
+  next_followup_date?: string | null
+  last_contacted_at?: string | null
+}
+
+type DripInfo = {
+  campaign_name: string
+  current_step: number
+  total_steps: number | null
+  next_send_at: string | null
 }
 
 
@@ -24,6 +34,8 @@ export default function LeadsPage() {
   const [properties, setProperties] = useState<Record<string, string>>({})
   const [profiles, setProfiles] = useState<Record<string, string>>({})
   const [attendanceCounts, setAttendanceCounts] = useState<Record<string, number>>({})
+  const [dripByContact, setDripByContact] = useState<Record<string, DripInfo>>({})
+  const [activeTab, setActiveTab] = useState<'attention' | 'working' | 'nurturing' | 'clients' | 'archived' | 'all'>('attention')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
 
@@ -128,6 +140,57 @@ const { data: leadData } = await query.order('created_at', {
       setAttendanceCounts(countMap)
     }
 
+    // Active email drip enrollments for these leads' contacts, so the
+    // list can show who is being nurtured automatically (and on what).
+    const contactIds = [
+      ...new Set(leadsList.map(l => l.contact_id).filter(Boolean)),
+    ] as string[]
+    if (contactIds.length > 0) {
+      const { data: enrollData } = await supabase
+        .from('contact_campaigns')
+        .select('contact_id, campaign_id, current_step, next_send_at')
+        .in('contact_id', contactIds)
+        .eq('status', 'active')
+
+      if (enrollData && enrollData.length > 0) {
+        const campaignIds = [...new Set(enrollData.map(e => e.campaign_id))]
+        const { data: campaignData } = await supabase
+          .from('email_campaigns')
+          .select('id, name')
+          .in('id', campaignIds)
+
+        const campaignNames: Record<string, string> = {}
+        campaignData?.forEach(c => {
+          campaignNames[c.id] = c.name
+        })
+
+        const { data: seqData } = await supabase
+          .from('email_sequences')
+          .select('campaign_id, step_number')
+          .in('campaign_id', campaignIds)
+
+        const totals: Record<string, number> = {}
+        seqData?.forEach(s => {
+          totals[s.campaign_id] = Math.max(totals[s.campaign_id] || 0, s.step_number)
+        })
+
+        const dripMap: Record<string, DripInfo> = {}
+        enrollData.forEach(e => {
+          if (!dripMap[e.contact_id]) {
+            dripMap[e.contact_id] = {
+              campaign_name: campaignNames[e.campaign_id] || 'Email drip',
+              current_step: e.current_step || 0,
+              total_steps: totals[e.campaign_id] || null,
+              next_send_at: e.next_send_at || null,
+            }
+          }
+        })
+        setDripByContact(dripMap)
+      } else {
+        setDripByContact({})
+      }
+    }
+
     setLoading(false)
   }
 
@@ -141,19 +204,112 @@ useEffect(() => {
   if (status) setStatusFilter(status)
   if (deal) setDealTypeFilter(deal)
 }, [searchParams])
+  // ---- Categories + next-step recommendations ----
+  const torontoToday = () => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Toronto',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date())
+    const get = (t: string) => parts.find(p => p.type === t)?.value || ''
+    return `${get('year')}-${get('month')}-${get('day')}`
+  }
+  const TODAY = torontoToday()
+
+  const daysSince = (iso: string | null | undefined) => {
+    if (!iso) return null
+    const then = new Date(String(iso).slice(0, 10) + 'T12:00:00').getTime()
+    const now = new Date(TODAY + 'T12:00:00').getTime()
+    return Math.floor((now - then) / 86400000)
+  }
+
+  const needsAttention = (lead: Lead) => {
+    if (['Client', 'Closed', 'Lost'].includes(lead.status)) return false
+    if (lead.status === 'New') return true
+    if (lead.next_followup_date) {
+      return lead.next_followup_date.slice(0, 10) <= TODAY
+    }
+    const age = daysSince(lead.created_at)
+    return age !== null && age > 14
+  }
+
+  const categoryOf = (lead: Lead): string => {
+    if (lead.status === 'Lost') return 'archived'
+    if (lead.status === 'Client' || lead.status === 'Closed') return 'clients'
+    if (needsAttention(lead)) return 'attention'
+    if (lead.contact_id && dripByContact[lead.contact_id]) return 'nurturing'
+    return 'working'
+  }
+
+  const fmtDay = (d: string) =>
+    new Date(d.slice(0, 10) + 'T12:00:00').toLocaleDateString('en-CA', {
+      month: 'short',
+      day: 'numeric',
+    })
+
+  const nextStepFor = (lead: Lead): string => {
+    const drip = lead.contact_id ? dripByContact[lead.contact_id] : null
+    if (lead.status === 'Client' || lead.status === 'Closed') {
+      return 'Client — managed in Deals'
+    }
+    if (lead.status === 'Lost') return '—'
+    if (lead.next_followup_date && lead.next_followup_date.slice(0, 10) < TODAY) {
+      return `Follow-up overdue — was due ${fmtDay(lead.next_followup_date)}`
+    }
+    if (lead.next_followup_date && lead.next_followup_date.slice(0, 10) === TODAY) {
+      return 'Follow up today'
+    }
+    if (lead.status === 'New') return 'Send intro — first touch due'
+    const since = daysSince(lead.last_contacted_at || lead.created_at)
+    if (drip && since !== null && since > 60) {
+      return `Personal check-in due — on ${drip.campaign_name} drip, no contact in ${since}d`
+    }
+    if (drip) {
+      return `On ${drip.campaign_name} drip · Step ${drip.current_step}${
+        drip.total_steps ? ' of ' + drip.total_steps : ''
+      }${drip.next_send_at ? ' · next ' + fmtDay(drip.next_send_at) : ''}`
+    }
+    if (!lead.next_followup_date) {
+      return since !== null && since > 14
+        ? `No follow-up set — last contact ${since}d ago`
+        : 'Set a follow-up date'
+    }
+    return `Follow-up ${fmtDay(lead.next_followup_date)}`
+  }
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      attention: 0,
+      working: 0,
+      nurturing: 0,
+      clients: 0,
+      archived: 0,
+      all: leads.length,
+    }
+    leads.forEach(l => {
+      const c = categoryOf(l)
+      counts[c] = (counts[c] || 0) + 1
+    })
+    return counts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, dripByContact])
+
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
       const fullName = `${lead.first_name} ${lead.last_name}`.toLowerCase()
       const email = (lead.email || '').toLowerCase()
 
       return (
+        (activeTab === 'all' || categoryOf(lead) === activeTab) &&
         (!search || fullName.includes(search.toLowerCase()) || email.includes(search.toLowerCase())) &&
         (!statusFilter || lead.status === statusFilter) &&
         (!assignedFilter || lead.assigned_user_id === assignedFilter) &&
         (!dealTypeFilter || lead.deal_type === dealTypeFilter)
       )
     })
-  }, [leads, search, statusFilter, assignedFilter, dealTypeFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, search, statusFilter, assignedFilter, dealTypeFilter, activeTab, dripByContact])
 
   const totalPages = Math.ceil(filteredLeads.length / pageSize)
 
@@ -164,7 +320,7 @@ useEffect(() => {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, statusFilter, assignedFilter, dealTypeFilter, pageSize])
+  }, [search, statusFilter, assignedFilter, dealTypeFilter, pageSize, activeTab])
 
  
  
@@ -304,7 +460,7 @@ const createLead = async () => {
 
         <div className="p-8 border-b space-y-6">
   <div className="flex justify-between items-center">
-    <h1 className="text-2xl font-semibold">All Leads</h1>
+    <h1 className="text-2xl font-semibold">Leads</h1>
 
     <button
       onClick={() => setShowModal(true)}
@@ -314,6 +470,35 @@ const createLead = async () => {
     </button>
   </div>
 
+
+          {/* Category tabs */}
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ['attention', 'Needs Attention'],
+                ['working', 'Working'],
+                ['nurturing', 'Nurturing'],
+                ['clients', 'Clients'],
+                ['archived', 'Archived'],
+                ['all', 'All'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`px-3 py-1.5 rounded-full text-sm border transition ${
+                  activeTab === key
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {label}{' '}
+                <span className={activeTab === key ? 'text-gray-300' : 'text-gray-400'}>
+                  {categoryCounts[key] || 0}
+                </span>
+              </button>
+            ))}
+          </div>
 
           {/* Filters */}
           <div className="grid md:grid-cols-4 gap-4">
@@ -389,6 +574,7 @@ const createLead = async () => {
                 <tr>
                   <th className="p-4 font-medium">Name</th>
                   <th>Status</th>
+                  <th>Next Step</th>
                   <th>Deal</th>
                   <th>Property</th>
                   <th>Visits</th>
@@ -407,10 +593,23 @@ const createLead = async () => {
                   >
                     <td className="p-4 font-medium">
                       {lead.first_name} {lead.last_name}
+                      {lead.contact_id && dripByContact[lead.contact_id] && (
+                        <span className="ml-2 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium whitespace-nowrap">
+                          📧 {dripByContact[lead.contact_id].campaign_name} · Step{' '}
+                          {dripByContact[lead.contact_id].current_step}
+                          {dripByContact[lead.contact_id].total_steps
+                            ? ` of ${dripByContact[lead.contact_id].total_steps}`
+                            : ''}
+                        </span>
+                      )}
                     </td>
 
                     <td>
                       <StatusBadge status={lead.status} />
+                    </td>
+
+                    <td className="text-gray-600 pr-4">
+                      {nextStepFor(lead)}
                     </td>
 
                     <td className="capitalize text-gray-700">
@@ -526,6 +725,7 @@ function StatusBadge({ status }: { status: string }) {
     Contacted: 'bg-yellow-100 text-yellow-700',
     Hot: 'bg-red-100 text-red-700',
     Cold: 'bg-gray-200 text-gray-600',
+    Client: 'bg-emerald-100 text-emerald-700',
     Closed: 'bg-green-100 text-green-700',
     Lost: 'bg-black text-white',
   }

@@ -194,6 +194,113 @@ export async function POST(req: NextRequest) {
     const todayStr = torontoDateString(new Date());
     const cutoffStr = addDays(todayStr, -1);
 
+    // --- Drip personal check-ins --------------------------------------
+    // A lead on an active email drip who has not been contacted in 60+
+    // days gets a 'Personal check-in' task (source 'drip_checkin'), so
+    // the drip never runs for months without a human touch. Deduped per
+    // lead: no new check-in if one was created in the last 55 days.
+    // Best-effort: any failure here never breaks the milestone sync.
+    let dripCheckinsCreated = 0;
+    try {
+      const { data: ownerRow2 } = await supabase
+        .from('account_users')
+        .select('user_id')
+        .eq('account_id', ACCOUNT_ID)
+        .eq('role', 'owner')
+        .limit(1)
+        .maybeSingle();
+      const ownerFallback =
+        ownerRow2 && typeof ownerRow2.user_id === 'string' ? ownerRow2.user_id : null;
+
+      const { data: openLeads } = await supabase
+        .from('leads')
+        .select('id, first_name, last_name, contact_id, assigned_user_id, last_contacted_at, created_at')
+        .eq('account_id', ACCOUNT_ID)
+        .not('status', 'in', '("Client","Closed","Lost")');
+      const leadList = (openLeads || []).filter((l: any) => !!l.contact_id);
+      const cIds: string[] = [];
+      for (const l of leadList) {
+        if (cIds.indexOf(l.contact_id) < 0) cIds.push(l.contact_id);
+      }
+
+      if (cIds.length > 0) {
+        const { data: enrolls } = await supabase
+          .from('contact_campaigns')
+          .select('contact_id, campaign_id')
+          .in('contact_id', cIds)
+          .eq('status', 'active');
+        const campByContact = new Map<string, string>();
+        const campIds: string[] = [];
+        for (const e of enrolls || []) {
+          if (!campByContact.has(e.contact_id)) campByContact.set(e.contact_id, e.campaign_id);
+          if (campIds.indexOf(e.campaign_id) < 0) campIds.push(e.campaign_id);
+        }
+
+        const campNames = new Map<string, string>();
+        if (campIds.length > 0) {
+          const { data: camps } = await supabase
+            .from('email_campaigns')
+            .select('id, name')
+            .in('id', campIds);
+          for (const c of camps || []) campNames.set(c.id, c.name);
+        }
+
+        const since55 = addDays(todayStr, -55);
+        const { data: recentCheckins } = await supabase
+          .from('tasks')
+          .select('lead_id, created_at')
+          .eq('account_id', ACCOUNT_ID)
+          .eq('source', 'drip_checkin')
+          .gte('created_at', since55 + 'T00:00:00Z');
+        const recentSet = new Set<string>();
+        for (const t of recentCheckins || []) {
+          if (t.lead_id) recentSet.add(t.lead_id);
+        }
+
+        const checkins: any[] = [];
+        for (const l of leadList) {
+          const campId = campByContact.get(l.contact_id);
+          if (!campId) continue;
+          if (recentSet.has(l.id)) continue;
+          const lastTouch = String(l.last_contacted_at || l.created_at || '').slice(0, 10);
+          if (!lastTouch) continue;
+          const days = Math.floor(
+            (new Date(todayStr + 'T12:00:00Z').getTime() -
+              new Date(lastTouch + 'T12:00:00Z').getTime()) /
+              86400000
+          );
+          if (days <= 60) continue;
+          const assignee = l.assigned_user_id || ownerFallback;
+          if (!assignee) continue;
+          checkins.push({
+            account_id: ACCOUNT_ID,
+            title:
+              'Personal check-in — ' +
+              l.first_name +
+              ' ' +
+              l.last_name +
+              ' (on ' +
+              (campNames.get(campId) || 'email') +
+              ' drip)',
+            due_date: todayStr,
+            priority: 'medium',
+            status: 'pending',
+            assigned_user_id: assignee,
+            lead_id: l.id,
+            source: 'drip_checkin',
+            created_by: assignee,
+          });
+        }
+
+        if (checkins.length > 0) {
+          const { error: ciError } = await supabase.from('tasks').insert(checkins);
+          if (!ciError) dripCheckinsCreated = checkins.length;
+        }
+      }
+    } catch {
+      // Best-effort only.
+    }
+
     // Deals probe: closing_date may not exist on the deals table.
     const { data: dealData, error: dealError } = await supabase
       .from('deals')
@@ -228,6 +335,7 @@ export async function POST(req: NextRequest) {
         skipped_past: 0,
         deals_seen: 0,
         closing_date_available: true,
+        drip_checkins_created: dripCheckinsCreated,
       });
     }
 
@@ -352,6 +460,7 @@ export async function POST(req: NextRequest) {
       skipped_past: skippedPast,
       deals_seen: dealsSeen,
       closing_date_available: true,
+      drip_checkins_created: dripCheckinsCreated,
     });
   } catch (err: any) {
     return NextResponse.json(

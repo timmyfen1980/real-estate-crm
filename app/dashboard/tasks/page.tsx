@@ -23,6 +23,7 @@ export default function TasksPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [profiles, setProfiles] = useState<Record<string, string>>({})
   const [isOwner, setIsOwner] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -106,6 +107,23 @@ export default function TasksPage() {
 
     const { data: taskData } = await scopedTaskQuery
     setTasks(taskData || [])
+
+    // Assignee names so the list shows whose task each one is.
+    const assigneeIds = [
+      ...new Set((taskData || []).map((t: Task) => t.assigned_user_id).filter(Boolean)),
+    ] as string[]
+    if (assigneeIds.length > 0) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', assigneeIds)
+      const profileMap: Record<string, string> = {}
+      profileData?.forEach(p => {
+        profileMap[p.id] = p.full_name
+      })
+      setProfiles(profileMap)
+    }
+
     setLoading(false)
   }
 
@@ -257,7 +275,12 @@ export default function TasksPage() {
             )}
           </div>
 
-          <div className="text-sm text-gray-500">Due {formattedDate}</div>
+          <div className="text-sm text-gray-500">
+            Due {formattedDate}
+            {task.assigned_user_id && profiles[task.assigned_user_id]
+              ? ` · ${profiles[task.assigned_user_id]}`
+              : ''}
+          </div>
         </div>
 
         <div className="flex gap-2 items-center">

@@ -177,12 +177,27 @@ if (membership.role === 'owner') {
 const { count } = await query
 
       setOverdueCount(count || 0)
-// 🔴 NEW LEADS COUNT
+// 🔴 LEADS NEEDING ATTENTION COUNT (mirrors the Leads page category:
+// New, or follow-up due/overdue, or no follow-up date and older than
+// 14 days — excluding Client / Closed / Lost)
+const _parts = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Toronto',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).formatToParts(new Date())
+const _get = (t: string) => _parts.find(p => p.type === t)?.value || ''
+const _todayStr = `${_get('year')}-${_get('month')}-${_get('day')}`
+const _staleCutoff = new Date(Date.now() - 14 * 86400000).toISOString()
+
 const { count: newLeads } = await supabase
   .from('leads')
   .select('id', { count: 'exact', head: true })
   .eq('account_id', membership.account_id)
-  .eq('status', 'New')
+  .not('status', 'in', '("Client","Closed","Lost")')
+  .or(
+    `status.eq.New,next_followup_date.lte.${_todayStr},and(next_followup_date.is.null,created_at.lt.${_staleCutoff})`
+  )
 
 setNewLeadsCount(newLeads || 0)
 

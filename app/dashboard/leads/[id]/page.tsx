@@ -99,6 +99,12 @@ const [statusError, setStatusError] = useState<string | null>(null)
 const [assignmentSaved, setAssignmentSaved] = useState(false)
 const [assignmentError, setAssignmentError] = useState<string | null>(null)
 const [followupError, setFollowupError] = useState<string | null>(null)
+const [enrollments, setEnrollments] = useState<any[]>([])
+const [notLeadOpen, setNotLeadOpen] = useState(false)
+const [notLeadReason, setNotLeadReason] = useState('not_interested')
+const [pauseDrips, setPauseDrips] = useState(true)
+const [notLeadSaving, setNotLeadSaving] = useState(false)
+const [notLeadError, setNotLeadError] = useState<string | null>(null)
 const [taskModalOpen, setTaskModalOpen] = useState(false)
 const [convertModalOpen, setConvertModalOpen] = useState(false)
 const [convertType, setConvertType] = useState<'Buyer' | 'Seller'>('Buyer')
@@ -120,6 +126,41 @@ const [selectedTask, setSelectedTask] = useState<Task | null>(null)
     }
 
     setLead(leadData)
+
+// LOAD DRIP ENROLLMENTS FOR THIS CONTACT
+const { data: enrollData } = await supabase
+  .from('contact_campaigns')
+  .select('id, campaign_id, status, current_step, next_send_at')
+  .eq('contact_id', leadData.contact_id)
+
+if (enrollData && enrollData.length > 0) {
+  const campIds = [...new Set(enrollData.map(e => e.campaign_id))]
+  const { data: campData } = await supabase
+    .from('email_campaigns')
+    .select('id, name')
+    .in('id', campIds)
+  const campNames: Record<string, string> = {}
+  campData?.forEach(c => { campNames[c.id] = c.name })
+
+  const { data: seqData } = await supabase
+    .from('email_sequences')
+    .select('campaign_id, step_number')
+    .in('campaign_id', campIds)
+  const campTotals: Record<string, number> = {}
+  seqData?.forEach(s => {
+    campTotals[s.campaign_id] = Math.max(campTotals[s.campaign_id] || 0, s.step_number)
+  })
+
+  setEnrollments(
+    enrollData.map(e => ({
+      ...e,
+      campaign_name: campNames[e.campaign_id] || 'Email drip',
+      total_steps: campTotals[e.campaign_id] || null,
+    }))
+  )
+} else {
+  setEnrollments([])
+}
 
 // LOAD DEAL FOR THIS CONTACT
 const { data: dealData, error: dealError } = await supabase
@@ -281,6 +322,69 @@ setTimeout(() => {
     setActivities((prev) => [insertedActivity, ...prev])
   }
 }
+const NOT_LEAD_REASONS: Record<string, string> = {
+  became_client: 'Became a client',
+  not_interested: 'Not interested',
+  bad_fit: 'Bad fit',
+  duplicate: 'Duplicate',
+  other: 'Other',
+}
+
+const markNotLead = async () => {
+  if (!lead) return
+  setNotLeadSaving(true)
+  setNotLeadError(null)
+
+  const { data: userData } = await supabase.auth.getUser()
+  if (!userData.user) {
+    setNotLeadSaving(false)
+    setNotLeadError('Could not save — please try again.')
+    return
+  }
+
+  const newStatus = notLeadReason === 'became_client' ? 'Client' : 'Lost'
+
+  // Update the lead FIRST — only log activity if it worked.
+  const { error: updateError } = await supabase
+    .from('leads')
+    .update({ status: newStatus })
+    .eq('id', lead.id)
+
+  if (updateError) {
+    setNotLeadSaving(false)
+    setNotLeadError('Could not save — please try again.')
+    return
+  }
+
+  await supabase.from('lead_activity').insert([
+    {
+      lead_id: lead.id,
+      account_id: lead.account_id,
+      user_id: userData.user.id,
+      type: 'not_a_lead',
+      metadata: {
+        reason: notLeadReason,
+        reason_label: NOT_LEAD_REASONS[notLeadReason] || notLeadReason,
+        from: lead.status,
+        to: newStatus,
+        drips_paused: pauseDrips,
+      },
+    },
+  ])
+
+  if (pauseDrips && lead.contact_id) {
+    await supabase
+      .from('contact_campaigns')
+      .update({ status: 'paused' })
+      .eq('contact_id', lead.contact_id)
+      .eq('status', 'active')
+  }
+
+  setNotLeadSaving(false)
+  setNotLeadOpen(false)
+  router.push('/dashboard/leads')
+}
+
 // DEAL STATUS UPDATE
 const updateDealStatus = async (status: string) => {
   if (!deal) return
@@ -615,6 +719,13 @@ const { data: propertyData, error: propertyError } = await supabase
     + New Task
   </button>
 
+  <button
+    onClick={() => setNotLeadOpen(true)}
+    className="text-sm text-gray-500 underline hover:text-gray-700 text-left"
+  >
+    Not a lead anymore?
+  </button>
+
   {/* Convert moved to Deals page */}
 
   {deal && (
@@ -654,6 +765,20 @@ const { data: propertyData, error: propertyError } = await supabase
             <p><strong>Working With Realtor:</strong> {lead.working_with_realtor ? 'Yes' : 'No'}</p>
             <p><strong>Realtor Name:</strong> {lead.realtor_name || '-'}</p>
             <p><strong>Wants Feature Sheet:</strong> {lead.wants_feature_sheet ? 'Yes' : 'No'}</p>
+            {enrollments.length > 0 && (
+              <div className="pt-3 mt-3 border-t">
+                <p className="font-semibold mb-2">Email Drips</p>
+                {enrollments.map(e => (
+                  <p key={e.id} className="text-gray-700">
+                    📧 {e.campaign_name} — Step {e.current_step}
+                    {e.total_steps ? ` of ${e.total_steps}` : ''} · {e.status}
+                    {e.status === 'active' && e.next_send_at
+                      ? ` · next ${new Date(e.next_send_at).toLocaleDateString('en-CA')}`
+                      : ''}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl shadow p-8 space-y-3 text-sm">
@@ -786,7 +911,23 @@ const { data: propertyData, error: propertyError } = await supabase
               </>
             )}
 
-            {!['reassigned', 'status_changed'].includes(activity.type) && (
+            {activity.type === 'not_a_lead' && (
+              <>
+                Marked not a lead
+                {activity.metadata?.reason_label && (
+                  <> — <strong>{activity.metadata.reason_label}</strong></>
+                )}
+                {activity.metadata?.drips_paused ? ' · drips paused' : ''}
+              </>
+            )}
+
+            {activity.type === 'auto_converted' && (
+              <>
+                Moved to Clients — already has a deal or client file
+              </>
+            )}
+
+            {!['reassigned', 'status_changed', 'not_a_lead', 'auto_converted'].includes(activity.type) && (
               <>{activity.type}</>
             )}
           </div>
@@ -799,6 +940,65 @@ const { data: propertyData, error: propertyError } = await supabase
     })}
   </div>
 </div>
+
+{notLeadOpen && lead && (
+  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-lg w-full max-w-md space-y-4">
+      <h2 className="text-xl font-semibold">Not a lead anymore</h2>
+
+      <p className="text-sm text-gray-500">
+        {lead.first_name} {lead.last_name} will move out of your working
+        leads. You can bring them back anytime from the Clients or Archived
+        tab on the Leads page.
+      </p>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Reason</label>
+        <select
+          value={notLeadReason}
+          onChange={(e) => setNotLeadReason(e.target.value)}
+          className="w-full border p-2 rounded"
+        >
+          <option value="became_client">Became a client</option>
+          <option value="not_interested">Not interested</option>
+          <option value="bad_fit">Bad fit</option>
+          <option value="duplicate">Duplicate</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={pauseDrips}
+          onChange={(e) => setPauseDrips(e.target.checked)}
+        />
+        Also pause their email drips
+      </label>
+
+      {notLeadError && (
+        <p className="text-sm text-red-600">{notLeadError}</p>
+      )}
+
+      <div className="flex justify-between">
+        <button
+          onClick={() => setNotLeadOpen(false)}
+          className="px-4 py-2 border rounded"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={markNotLead}
+          disabled={notLeadSaving}
+          className="px-4 py-2 bg-black text-white rounded disabled:opacity-50"
+        >
+          {notLeadSaving ? 'Saving...' : 'Confirm'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
             {taskModalOpen && lead && (
   <TaskModal
