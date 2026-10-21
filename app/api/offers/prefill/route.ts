@@ -111,14 +111,15 @@ async function fromDLA(mls: string): Promise<any | null> {
 }
 
 async function fromIDX(mls: string): Promise<any | null> {
+  // Exact-key lookup only — never fall back to a "close" listing; a wrong
+  // prefill in an offer is worse than no prefill.
   const res = await fetch(
-    `https://www.thefcgroup.ca/api/idx?mode=search&q=${encodeURIComponent(mls)}`
+    `https://www.thefcgroup.ca/api/idx?mode=key&key=${encodeURIComponent(mls)}`
   ).catch(() => null);
   if (!res || !res.ok) return null;
   const data: any = await res.json().catch(() => null);
-  const rows: any[] = data?.listings || data?.results || data?.value || [];
-  const row = rows.find((r) => r.ListingKey === mls) || rows[0];
-  if (!row) return null;
+  const row = data?.listing;
+  if (!row || row.ListingKey !== mls) return null;
   const prefill: Record<string, any> = {};
   const addr = streetAddress(row);
   if (addr) prefill.address = addr;
