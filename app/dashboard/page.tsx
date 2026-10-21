@@ -338,6 +338,11 @@ export default function Dashboard() {
   // and untouched since creation more than 14 days ago.
   const staleCutoff = today.getTime() - 14 * 24 * 60 * 60 * 1000
   const staleLeadsCount = leads.filter(function (l) {
+    // Per-person (Tim, 2026-10-21): this flag prompts the signed-in
+    // user, so it counts only THEIR stale leads — and never hands-off
+    // working-with-realtor leads.
+    if (l.assigned_user_id !== currentUserId) return false
+    if ((l as any).working_with_realtor) return false
     if (ACTIVE_STATUSES.indexOf(l.status) < 0) return false
     if (l.next_followup_date) {
       return new Date(l.next_followup_date).getTime() < today.getTime()
