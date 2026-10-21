@@ -12,6 +12,13 @@ import library from '@/lib/clauseLibrary.json'
 
 const LIB = library as any
 const BROKERAGE = 'RE/MAX Hallmark First Group Realty Ltd.'
+// Team directory for the agent pickers — picking a name fills the
+// phone too, where we have it.
+const TEAM_AGENTS = [
+  { name: 'Tim Fennessey', phone: '905 493-7355' },
+  { name: 'Aidan Comeau', phone: '' },
+  { name: 'Beth Nickle', phone: '' },
+]
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -62,6 +69,9 @@ export default function PrepareOfferPage() {
   const [coopShare, setCoopShare] = useState('')
   const [coopBasis, setCoopBasis] = useState('of the purchase price')
   const pkgFileRef = useRef<HTMLInputElement>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedSig = useRef('')
+  const [saveState, setSaveState] = useState('')
   // MLS prefill
   const [mls, setMls] = useState('')
   const [prefilling, setPrefilling] = useState(false)
@@ -164,6 +174,9 @@ export default function PrepareOfferPage() {
     if (p.chattels) setChattelsText(String(p.chattels))
     if (p.exclusions) setExclusionsText(String(p.exclusions))
     if (p.listing_brokerage) setListingBrokerage(String(p.listing_brokerage))
+    if (p.listing_agent) setListingAgent(String(p.listing_agent))
+    if (p.listing_agent_phone) setListingPhone(String(p.listing_agent_phone))
+    if (p.coop_share) setCoopShare((prev) => prev || String(p.coop_share))
     if (p.street_name) setFrontageStreet((prev) => prev || String(p.street_name))
     if (p.street_side) setFrontageSide((prev) => prev || String(p.street_side))
     setCandidates([])
@@ -321,6 +334,7 @@ export default function PrepareOfferPage() {
       blank(exclusionsText, f.exclusions, setExclusionsText, 'exclusions')
       blank(listingBrokerage, f.listing_brokerage, setListingBrokerage, 'listing brokerage')
       blank(listingAgent, f.listing_agent, setListingAgent, 'listing agent')
+      blank(listingPhone, f.listing_phone, setListingPhone, 'listing phone')
       setSheetNote(
         filled.length
           ? `From the sheet, filled: ${filled.join(', ')}. Everything already entered was left untouched.`
@@ -705,6 +719,58 @@ export default function PrepareOfferPage() {
     if (data) surfaceFile(data)
   }
 
+  // Autosave — the answers are the package. Any change writes back to
+  // the package after a short pause, so leaving mid-offer (or losing
+  // the connection) loses nothing. The first signature seen after the
+  // package loads is the hydrated state itself and is absorbed, not
+  // saved.
+  const dealSignature = (() => {
+    try {
+      const b = buildDeal()
+      return JSON.stringify({
+        ...b.deal,
+        clause_codes: b.clauseCodes,
+        clause_blanks: b.clauseBlanks,
+      })
+    } catch {
+      return ''
+    }
+  })()
+
+  useEffect(() => {
+    if (!pkgLoaded || !packageId || !dealSignature) return
+    if (!lastSavedSig.current) {
+      lastSavedSig.current = dealSignature
+      return
+    }
+    if (dealSignature === lastSavedSig.current) return
+    setSaveState('Saving…')
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const b = buildDeal()
+        await pkgAct({
+          action: 'update_deal',
+          id: packageId,
+          deal: {
+            ...b.deal,
+            clause_codes: b.clauseCodes,
+            clause_blanks: b.clauseBlanks,
+          },
+        })
+        lastSavedSig.current = dealSignature
+        setSaveState(
+          `Autosaved ${new Date().toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}`
+        )
+      } catch {
+        setSaveState(
+          "Autosave couldn't reach the server — your work is still on this screen, and Save to package will store it."
+        )
+      }
+    }, 1500)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealSignature, pkgLoaded, packageId])
+
   const renderBlankInputs = (opt: any) => {
     const blanks: string[] = opt.blanks || []
     if (!blanks.length) return null
@@ -806,6 +872,7 @@ export default function PrepareOfferPage() {
             </p>
           )}
           {!pkgLoaded && <p className="text-sm text-gray-400 mt-1">Loading this package…</p>}
+          {saveState && <p className="text-xs text-gray-400 mt-1">{saveState}</p>}
         </div>
 
         {/* FORM TABS */}
@@ -1110,6 +1177,24 @@ export default function PrepareOfferPage() {
             <div>
               <label className={labelCls}>Listing agent</label>
               <input className={inputCls} value={listingAgent} onChange={(e) => setListingAgent(e.target.value)} />
+              <select
+                className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
+                value={TEAM_AGENTS.some((t) => t.name === listingAgent) ? listingAgent : ''}
+                onChange={(e) => {
+                  const t = TEAM_AGENTS.find((x) => x.name === e.target.value)
+                  if (t) {
+                    setListingAgent(t.name)
+                    if (t.phone) setListingPhone(t.phone)
+                  }
+                }}
+              >
+                <option value="">…or pick a team agent</option>
+                {TEAM_AGENTS.map((t) => (
+                  <option key={t.name} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelCls}>Listing phone</label>
@@ -1122,6 +1207,24 @@ export default function PrepareOfferPage() {
             <div>
               <label className={labelCls}>Selling agent</label>
               <input className={inputCls} value={sellingAgent} onChange={(e) => setSellingAgent(e.target.value)} />
+              <select
+                className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
+                value={TEAM_AGENTS.some((t) => t.name === sellingAgent) ? sellingAgent : ''}
+                onChange={(e) => {
+                  const t = TEAM_AGENTS.find((x) => x.name === e.target.value)
+                  if (t) {
+                    setSellingAgent(t.name)
+                    if (t.phone) setSellingPhone(t.phone)
+                  }
+                }}
+              >
+                <option value="">…or pick a team agent</option>
+                {TEAM_AGENTS.map((t) => (
+                  <option key={t.name} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelCls}>Selling phone</label>

@@ -16,6 +16,7 @@ import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
 import type { PDFFont, PDFForm, PDFPage } from "pdf-lib";
 import mapping100 from "./fieldMapping100.json";
 import mapping801 from "./fieldMapping801.json";
+import mapping320 from "./fieldMapping320.json";
 
 const PAGE_H = 792;
 
@@ -589,4 +590,92 @@ export async function buildForm801(
   form.updateFieldAppearances(helvetica);
   const bytes = await doc.save();
   return { bytes, pages: 1 };
+}
+
+// ---------------------------------------------------------------------------
+// Forms 320 / 324 — Confirmation of Co-operation and Representation.
+// Identical field geometry (verified against both blanks, 2026-10-21),
+// so one core fills both; the deal shape is the same (for the 324 the
+// "buyers" are the tenants and the "sellers" are the landlords).
+// ---------------------------------------------------------------------------
+
+export function validate320(deal: any): string[] {
+  const missing: string[] = [];
+  req(deal, "buyers", missing);
+  req(deal, "sellers", missing);
+  req(deal, "property.address", missing);
+  req(deal, "selling_brokerage.brokerage", missing);
+  req(deal, "listing_brokerage.brokerage", missing);
+  return missing;
+}
+
+async function buildCoopForm(
+  deal: any,
+  templateBytes: Uint8Array,
+  tag: string
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  createdCount = 0;
+  const fields = (mapping320 as any).form320_confirmation.fields as Record<
+    string,
+    { rect: number[]; page: number }
+  >;
+  const doc = await PDFDocument.load(templateBytes);
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const form = doc.getForm();
+  const prop = deal.property || {};
+
+  const D = (sem: string, text?: string, size = 10) => {
+    const info = fields[sem];
+    if (!info || !text) return;
+    createField(doc, form, doc.getPage(info.page || 0), `${tag}_${sem}`, info.rect, text, {
+      size,
+    });
+  };
+  const join = (arr: string[]) => (arr || []).join(" and ");
+
+  D("buyers", join(deal.buyers));
+  D("sellers", join(deal.sellers));
+  D("property", [prop.address, prop.city].filter(Boolean).join(", "));
+
+  // Section 4 — the co-operating brokerage side is OUR side in this
+  // workspace: it represents the buyer/tenant (4a-1) and is paid the
+  // MLS-indicated commission by the seller brokerage (4b-1). The
+  // seller brokerage's own declaration sections (1 and 2) are left for
+  // that brokerage — the PDF stays editable.
+  D("check_4a1", "X", 8);
+  D("check_4b1", "X", 8);
+  const coop = deal.coop || {};
+  const share = String(coop.share || "").trim();
+  if (share) {
+    const pct = share.includes("%") ? share : `${share}%`;
+    const basis = String(coop.basis || "of the purchase price").trim();
+    D("commission_amount", `${pct} ${basis}, plus HST`);
+  }
+
+  const sb = deal.selling_brokerage || {};
+  const lb = deal.listing_brokerage || {};
+  D("coop_brokerage", sb.brokerage);
+  D("coop_tel", sb.phone);
+  D("coop_print_name", sb.agent);
+  D("seller_brokerage", lb.brokerage);
+  D("seller_tel", lb.phone);
+  D("seller_print_name", lb.agent);
+
+  form.updateFieldAppearances(helvetica);
+  const bytes = await doc.save();
+  return { bytes, pages: 2 };
+}
+
+export async function buildForm320(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildCoopForm(deal, templateBytes, "f320");
+}
+
+export async function buildForm324(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildCoopForm(deal, templateBytes, "f324");
 }

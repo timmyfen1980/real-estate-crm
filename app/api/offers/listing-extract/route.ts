@@ -64,7 +64,8 @@ const PROMPT = `You are reading an Ontario MLS listing sheet (REALM/Matrix style
   "chattels_inclusions": string — inclusions/chattels text as printed,
   "exclusions": string,
   "listing_brokerage": string,
-  "listing_agent": string
+  "listing_agent": string — the listing salesperson's name if printed,
+  "listing_phone": string — the listing agent's or brokerage's phone number if printed
 }
 Return the JSON object only, no other text.`;
 

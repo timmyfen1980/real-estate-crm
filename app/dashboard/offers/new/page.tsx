@@ -55,6 +55,9 @@ export default function StartOfferPage() {
   const [chattelsText, setChattelsText] = useState('')
   const [exclusionsText, setExclusionsText] = useState('')
   const [listingBrokerage, setListingBrokerage] = useState('')
+  const [listingAgent, setListingAgent] = useState('')
+  const [listingPhone, setListingPhone] = useState('')
+  const [coopShare, setCoopShare] = useState('')
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sheet upload
@@ -123,6 +126,9 @@ export default function StartOfferPage() {
     if (p.chattels) setChattelsText(String(p.chattels))
     if (p.exclusions) setExclusionsText(String(p.exclusions))
     if (p.listing_brokerage) setListingBrokerage(String(p.listing_brokerage))
+    if (p.listing_agent) setListingAgent((prev) => prev || String(p.listing_agent))
+    if (p.listing_agent_phone) setListingPhone((prev) => prev || String(p.listing_agent_phone))
+    if (p.coop_share) setCoopShare((prev) => prev || String(p.coop_share))
     if (p.street_name) setFrontageStreet((prev) => prev || String(p.street_name))
     if (p.street_side) setFrontageSide((prev) => prev || String(p.street_side))
     setCandidates([])
@@ -263,6 +269,8 @@ export default function StartOfferPage() {
       blank(chattelsText, f.chattels_inclusions, setChattelsText, 'inclusions')
       blank(exclusionsText, f.exclusions, setExclusionsText, 'exclusions')
       blank(listingBrokerage, f.listing_brokerage, setListingBrokerage, 'listing brokerage')
+      blank(listingAgent, f.listing_agent, setListingAgent, 'listing agent')
+      blank(listingPhone, f.listing_phone, setListingPhone, 'listing phone')
       setSheetNote(
         filled.length
           ? `From the sheet: ${filled.join(', ')}. It all carries into the package.`
@@ -298,7 +306,16 @@ export default function StartOfferPage() {
         },
         chattels: lines(chattelsText),
         exclusions: lines(exclusionsText),
-        listing_brokerage: listingBrokerage ? { brokerage: listingBrokerage } : undefined,
+        listing_brokerage: listingBrokerage
+          ? {
+              brokerage: listingBrokerage,
+              agent: listingAgent || undefined,
+              phone: listingPhone || undefined,
+            }
+          : undefined,
+        coop: coopShare
+          ? { total: '', share: coopShare, basis: 'of the purchase price' }
+          : undefined,
         client: client
           ? {
               contact_id: client.contact_id,

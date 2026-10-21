@@ -154,6 +154,28 @@ async function fromDLA(mls: string): Promise<any | null> {
   if (excl) prefill.exclusions = excl;
   const office = first(row, ["ListOfficeName"]);
   if (office) prefill.listing_brokerage = office;
+  // The DLA also knows WHO is listing it and what co-op commission is
+  // offered — gold for the 801 and the Confirmation (320).
+  const cleanAgent = (raw: any): string | undefined => {
+    if (!raw) return undefined;
+    let name = String(raw).split(",")[0].trim();
+    if (!name) return undefined;
+    if (name === name.toUpperCase()) {
+      name = name
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+    return name;
+  };
+  const listAgent = cleanAgent(first(row, ["ListAgentFullName"]));
+  if (listAgent) prefill.listing_agent = listAgent;
+  const listPhone = first(row, ["ListAgentDirectPhone", "CoListOfficePhone"]);
+  if (listPhone) prefill.listing_agent_phone = String(listPhone);
+  const comp = first(row, ["TransactionBrokerCompensation"]);
+  if (comp) {
+    const pct = String(comp).replace("%", "").trim();
+    if (pct) prefill.coop_share = pct;
+  }
   return prefill;
 }
 
