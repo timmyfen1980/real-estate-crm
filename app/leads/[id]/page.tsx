@@ -81,10 +81,16 @@ export default function LeadDetailPage() {
   }
 
   const updateStatus = async (status: string) => {
-    await supabase
+    const { error } = await supabase
       .from('leads')
       .update({ status })
       .eq('id', leadId)
+
+    if (error) {
+      console.error('LEAD STATUS ERROR:', error)
+      alert('Failed to update status — please try again')
+      return
+    }
 
     loadLead()
   }
@@ -119,13 +125,19 @@ const convertToDeal = async (dealType: 'Buyer' | 'Seller') => {
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
 
-    await supabase.from('notes').insert([
+    const { error } = await supabase.from('notes').insert([
       {
         lead_id: leadId,
         user_id: userData.user.id,
         content: newNote,
       },
     ])
+
+    if (error) {
+      console.error('NOTE INSERT ERROR:', error)
+      alert('Failed to save note — please try again')
+      return
+    }
 
     setNewNote('')
     loadNotes()
