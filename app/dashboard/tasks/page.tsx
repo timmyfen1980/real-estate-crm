@@ -223,7 +223,29 @@ export default function TasksPage() {
       return !prev
     })
   }
-  const pendingTasksCount = pendingTasks.length
+  // Tim's rule (2026-10-21): the counted list is tasks due within the
+  // next 3 days or overdue. Anything further out is "Upcoming" — shown
+  // below, but never counted, so the number stays actionable.
+  const _tp = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const _tg = (t: string) => _tp.find(p => p.type === t)?.value || ''
+  const _todayStr = `${_tg('year')}-${_tg('month')}-${_tg('day')}`
+  const _cutoffDate = new Date(_todayStr + 'T12:00:00')
+  _cutoffDate.setDate(_cutoffDate.getDate() + 3)
+  const _dueCutoffStr = `${_cutoffDate.getFullYear()}-${String(
+    _cutoffDate.getMonth() + 1
+  ).padStart(2, '0')}-${String(_cutoffDate.getDate()).padStart(2, '0')}`
+  const dueTasks = pendingTasks.filter(function (t) {
+    return (t.due_date || '') <= _dueCutoffStr
+  })
+  const upcomingTasks = pendingTasks.filter(function (t) {
+    return (t.due_date || '') > _dueCutoffStr
+  })
+  const pendingTasksCount = dueTasks.length
   const tasksDisplayCount = pendingTasksCount + (newsletterTask ? 1 : 0)
   const overdueTasksCount = pendingTasks.filter(function (t) {
     return new Date(t.due_date) < new Date()
@@ -397,10 +419,23 @@ export default function TasksPage() {
                   </span>
                 </Link>
               )}
-              {pendingTasks.map(renderPendingTask)}
+              {dueTasks.map(renderPendingTask)}
             </div>
           )}
         </div>
+
+        {upcomingTasks.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-200">
+            <div className="text-lg font-semibold mb-2">Upcoming</div>
+            <p className="text-sm text-gray-400 mb-2">
+              Further out — not counted above. They move up automatically as
+              their dates get close.
+            </p>
+            <div className="divide-y divide-gray-100">
+              {upcomingTasks.map(renderPendingTask)}
+            </div>
+          </div>
+        )}
 
         {completedTasks.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-200">

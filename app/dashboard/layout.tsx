@@ -201,10 +201,17 @@ const { count: newLeads } = await supabase
 
 setNewLeadsCount(newLeads || 0)
 
-      // 🔹 Outstanding Tasks Count (sidebar badge — mirrors the dashboard
-      // Tasks card: pending tasks in the card's scope, plus the owner's
-      // newsletter smart task when the approval rule fires). Fail-quiet:
-      // any error leaves the badge on the plain outstanding count or hidden.
+      // 🔹 Due Tasks Count (sidebar badge — Tim's rule, 2026-10-21: only
+      // tasks due within the next 3 days or overdue are counted, so the
+      // number prompts action instead of overwhelming; future tasks are
+      // listed on the Tasks page under Upcoming but never counted. Plus
+      // the owner's newsletter smart task when the approval rule fires).
+      // Fail-quiet: any error leaves the badge on the count or hidden.
+      const _plus3Date = new Date(_todayStr + 'T12:00:00')
+      _plus3Date.setDate(_plus3Date.getDate() + 3)
+      const _dueCutoffStr = `${_plus3Date.getFullYear()}-${String(
+        _plus3Date.getMonth() + 1
+      ).padStart(2, '0')}-${String(_plus3Date.getDate()).padStart(2, '0')}`
       let outstandingTasks = 0
       try {
         let pendingQuery = supabase
@@ -212,6 +219,7 @@ setNewLeadsCount(newLeads || 0)
           .select('id', { count: 'exact', head: true })
           .eq('account_id', membership.account_id)
           .eq('status', 'pending')
+          .lte('due_date', _dueCutoffStr)
 
         if (membership.role !== 'owner') {
           pendingQuery = pendingQuery.eq('assigned_user_id', user.id)
