@@ -22,7 +22,6 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
-import { getDocumentProxy } from "unpdf";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -81,8 +80,6 @@ function ordinal(n: number): string {
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
-
-type Item = { str: string; x: number; y: number; width: number };
 
 export async function POST(req: NextRequest) {
   try {
@@ -174,21 +171,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Text items per page (empty for scans).
-    const pdf = await getDocumentProxy(bytes);
-    const itemsByPage = new Map<number, Item[]>();
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p);
-      const tc: any = await page.getTextContent();
-      const items: Item[] = [];
-      for (const it of tc.items || []) {
-        if (!it.str || !it.transform) continue;
-        items.push({ str: it.str, x: it.transform[4], y: it.transform[5], width: it.width || 0 });
-      }
-      itemsByPage.set(p, items);
+    // No text extraction: real Schedule Bs are scans, and this form's
+    // header sits in the same place on every copy (measured). One
+    // parser (pdf-lib) keeps this dependable.
+    let doc: PDFDocument;
+    try {
+      doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    } catch (e: any) {
+      const head = Buffer.from(bytes.slice(0, 16)).toString("hex");
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `The stored Schedule B could not be parsed as a PDF (${bytes.length} bytes, head ${head}): ${e?.message || e}`,
+        },
+        { status: 400 }
+      );
     }
-
-    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     const helvetica = await doc.embedFont(StandardFonts.Helvetica);
     const form = doc.getForm();
     const placed = new Set<string>();
@@ -219,31 +217,12 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    const labelFor: Record<string, RegExp> = {
-      buyers: /^(buyer|purchaser)\b/i,
-      sellers: /^(seller|vendor)\b/i,
-      property: /^(for the property known as|property|address|known as)\b/i,
-    };
 
-    for (let p = 1; p <= pdf.numPages; p++) {
+    const numPages = doc.getPageCount();
+    for (let p = 1; p <= numPages; p++) {
       const page = doc.getPage(p - 1);
       const { width: W, height: H } = page.getSize();
-      const items = itemsByPage.get(p) || [];
-      if (items.length > 0) {
-        // Text layer: place after each matching label, on every page.
-        for (const key of ["buyers", "sellers", "property"] as const) {
-          const value = values[key];
-          if (!value) continue;
-          const label = items.find((it) => labelFor[key].test(it.str.trim()));
-          if (!label) continue;
-          const x = label.x + label.width + 4;
-          const width = Math.max(50, W * 0.93 - x);
-          addField(p - 1, `sb_${key}_p${p}`, x, label.y - 3, width, value);
-          placed.add(key);
-        }
-        continue;
-      }
-      // No text layer (scan): measured Form 105 header positions.
+      // Measured Form 105 header positions — identical on every page.
       for (const key of Object.keys(FORM105)) {
         const value = values[key];
         if (!value) continue;
