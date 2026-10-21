@@ -114,11 +114,17 @@ if (openHouseData) {
   }, [])
 const removeSeller = async (contactId: string) => {
 
-  await supabase
+  const { error } = await supabase
     .from('property_contacts')
     .delete()
     .eq('property_id', propertyId)
     .eq('contact_id', contactId)
+
+  if (error) {
+    console.log('REMOVE SELLER ERROR:', error)
+    alert('Failed to remove — please try again')
+    return
+  }
 
   setSellers(prev => prev.filter(s => s.id !== contactId))
 
@@ -212,18 +218,32 @@ if (updateError) {
         .split('.')
         .pop()}`
 
-      await supabase.storage
+      const { error: imageUploadError } = await supabase.storage
         .from('property-images')
         .upload(imagePath, newImage, { upsert: true })
+
+      if (imageUploadError) {
+        console.log('IMAGE UPLOAD ERROR:', imageUploadError)
+        alert('Failed to upload image — your other changes were saved')
+        setSaving(false)
+        return
+      }
 
       const { data } = supabase.storage
         .from('property-images')
         .getPublicUrl(imagePath)
 
-      await supabase
+      const { error: imageUrlError } = await supabase
         .from('properties')
         .update({ image_url: data.publicUrl })
         .eq('id', property.id)
+
+      if (imageUrlError) {
+        console.log('IMAGE URL UPDATE ERROR:', imageUrlError)
+        alert('Image uploaded, but the property record could not be updated — please try again')
+        setSaving(false)
+        return
+      }
     }
 
     if (newFeature) {
@@ -231,18 +251,32 @@ if (updateError) {
         .split('.')
         .pop()}`
 
-      await supabase.storage
+      const { error: docUploadError } = await supabase.storage
         .from('property-documents')
         .upload(docPath, newFeature, { upsert: true })
+
+      if (docUploadError) {
+        console.log('FEATURE SHEET UPLOAD ERROR:', docUploadError)
+        alert('Failed to upload feature sheet — your other changes were saved')
+        setSaving(false)
+        return
+      }
 
       const { data } = supabase.storage
         .from('property-documents')
         .getPublicUrl(docPath)
 
-      await supabase
+      const { error: docUrlError } = await supabase
         .from('properties')
         .update({ feature_sheet_url: data.publicUrl })
         .eq('id', property.id)
+
+      if (docUrlError) {
+        console.log('FEATURE SHEET URL UPDATE ERROR:', docUrlError)
+        alert('Feature sheet uploaded, but the property record could not be updated — please try again')
+        setSaving(false)
+        return
+      }
     }
 
     await loadData()
