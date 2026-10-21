@@ -112,12 +112,22 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       action?: string;
       contact_id?: string;
+      name?: string;
+      deal_id?: string;
     };
-    if (body.action === 'lookup' && body.contact_id) {
-      const { data: files, error: filesError } = await supabase
+    if (
+      body.action === 'lookup' &&
+      (body.contact_id || body.name || body.deal_id)
+    ) {
+      let query = supabase
         .from('client_files')
-        .select('id, account_id, checklist_types, client_names, property_address')
-        .eq('crm_contact_id', body.contact_id);
+        .select(
+          'id, account_id, checklist_types, client_names, property_address, crm_contact_id, crm_deal_id'
+        );
+      if (body.contact_id) query = query.eq('crm_contact_id', body.contact_id);
+      if (body.deal_id) query = query.eq('crm_deal_id', body.deal_id);
+      if (body.name) query = query.ilike('client_names', `%${body.name}%`);
+      const { data: files, error: filesError } = await query;
       if (filesError) throw filesError;
 
       const fileIds = (files || []).map((f) => f.id);
