@@ -524,7 +524,7 @@ export default function PrepareOfferPage() {
       })
       const data = await res.json()
       if (!data.ok) throw new Error(data.error || 'Fill failed')
-      await refreshDocs()
+      await refreshPkg()
       const placed = (data.placed || [])
         .map((k: string) =>
           k === 'buyers'
