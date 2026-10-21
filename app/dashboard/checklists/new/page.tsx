@@ -242,7 +242,7 @@ export default function NewClientFilePage() {
 
       // If linking an existing contact and licence info was entered, update it
       if (contactId && (licenceNumber.trim() || occupation.trim())) {
-        await supabase
+        const { error: licenceUpdateError } = await supabase
           .from('contacts')
           .update({
             ...(licenceNumber.trim() && { licence_number: licenceNumber.trim() }),
@@ -252,6 +252,8 @@ export default function NewClientFilePage() {
             ...(occupation.trim() && { occupation: occupation.trim() }),
           })
           .eq('id', contactId);
+
+        if (licenceUpdateError) throw new Error('Could not save licence details: ' + licenceUpdateError.message);
       }
 
       // If no contact linked, create one from the form data
