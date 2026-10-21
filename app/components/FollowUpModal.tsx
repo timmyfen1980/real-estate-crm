@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
-type TemplateKey = 'open_house' | 'drip' | 'intro' | 'general' | 'price_change'
+type TemplateKey =
+  | 'open_house'
+  | 'drip'
+  | 'intro'
+  | 'general'
+  | 'price_change'
+  | 'new_listing'
+  | 'seller_update'
 
 const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   open_house: 'Open house follow-up',
@@ -11,6 +18,8 @@ const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   intro: 'Intro',
   general: 'General check-in',
   price_change: 'Price change',
+  new_listing: 'New listing match',
+  seller_update: 'Seller area update',
 }
 
 type LeadInfo = {
@@ -33,14 +42,34 @@ function buildTemplate(
 ): { subject: string; body: string } {
   switch (key) {
     case 'open_house': {
-      const place = address || 'the open house'
+      // Deliberately personal (Tim, 2026-10-21): no mention of the visit —
+      // they've already had 1-2 automated emails; this one must read like
+      // Tim typed it himself, and its job is to win them as a client.
       return {
-        subject: `Thanks for visiting ${place}`,
-        body: `Thanks for stopping by ${place} — it was great to meet you.
+        subject: 'Helping you find the right home',
+        body: `I just wanted to reach out personally — I'd like to help you find the right home.
 
-If you'd like, I can send you the full feature sheet with all the details on the home, and I can also keep an eye out for similar places coming up in the area.
+Scrolling through listings can be a grind, and half of them aren't what they look like online. Tell me what matters most to you — area, size, budget, the must-haves — and I'll do the hunting. I watch new listings as they come up, and I'll only send you the ones that are genuinely worth a look.
 
-Worth a quick chat this week about what you're looking for? No pressure at all — happy to help however I can.`,
+And there's no pressure or obligation. If you just want honest advice on where the market's heading or what a home is really worth, I'm happy to be a resource.
+
+What does the right home look like for you?`,
+      }
+    }
+    case 'new_listing': {
+      return {
+        subject: 'This one made me think of you',
+        body: `Came across a new listing and you were the first person I thought of — [address/link].
+
+From what you told me you're looking for, it checks a lot of the boxes. Want me to send you the details, or set up a time to go see it?`,
+      }
+    }
+    case 'seller_update': {
+      return {
+        subject: 'Homes near you are moving',
+        body: `Quick note — there's been some real activity in your area lately, and homes like yours are getting a lot of attention.
+
+If you've thought about selling at all, even just curiosity about what yours would go for in this market, I'm happy to put an updated number together for you. No obligation, just information.`,
       }
     }
     case 'drip': {
@@ -166,6 +195,8 @@ export default function FollowUpModal({
       else if (attendances && attendances.length > 0) key = 'open_house'
       else if (hasDrip) key = 'drip'
       else if (info.status === 'New') key = 'intro'
+      else if ((info.deal_type || '').toLowerCase() === 'seller')
+        key = 'seller_update'
 
       setSuggestedKey(key)
       setTemplateKey(key)
