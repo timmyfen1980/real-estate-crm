@@ -79,6 +79,16 @@ export default function PrepareOfferPage() {
   const pkgFileRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedSig = useRef('')
+  // PDF autosave (Tim, 2026-10-21): the answers autosaved, but a form's
+  // PDF only entered the package on an explicit Save — so a package
+  // could show Schedule B and the 320 yet no Form 100. Now the current
+  // form's PDF saves itself too: on tab switch, when the page is
+  // hidden/left, and at most every ~45s while editing.
+  const pdfSig = useRef<Record<string, string>>({})
+  const pdfLastAt = useRef<Record<string, number>>({})
+  const pdfBusy = useRef(false)
+  const sigRef = useRef('')
+  const tabRef = useRef(tab)
   const [saveState, setSaveState] = useState('')
   // MLS prefill
 
@@ -799,6 +809,12 @@ export default function PrepareOfferPage() {
     if (!pkgLoaded || !packageId || !dealSignature) return
     if (!lastSavedSig.current) {
       lastSavedSig.current = dealSignature
+      // Forms whose PDF is already in the package count as saved at
+      // the hydrated signature — no need to regenerate them untouched.
+      const have = new Set(pkgDocs.map((d: any) => String(d.form)))
+      for (const f of ['100', '801', '320']) {
+        if (have.has(f)) pdfSig.current[f] = dealSignature
+      }
       return
     }
     if (dealSignature === lastSavedSig.current) return
@@ -820,6 +836,8 @@ export default function PrepareOfferPage() {
         setSaveState(
           `Autosaved ${new Date().toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}`
         )
+        const f = formForTab()
+        if (f) void silentSavePdf(f, dealSignature)
       } catch {
         setSaveState(
           "Autosave couldn't reach the server — your work is still on this screen, and Save to package will store it."
@@ -828,6 +846,52 @@ export default function PrepareOfferPage() {
     }, 1500)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealSignature, pkgLoaded, packageId])
+
+  // Silently (re)generate + save a form's PDF into the package when its
+  // answers have moved on. Partial drafts are fine — the package marks
+  // them as such. Failures are quiet; the next switch/leave retries.
+  const silentSavePdf = async (form: string, sig: string, force = false) => {
+    if (!packageId || pdfBusy.current) return
+    if (pdfSig.current[form] === sig) return
+    if (!force && Date.now() - (pdfLastAt.current[form] || 0) < 45000) return
+    const b = buildDeal()
+    if (!b.deal?.property?.address) return
+    pdfBusy.current = true
+    try {
+      const res = await fetch('/api/offers/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...b, forms: [form], allow_partial: true, package_id: packageId }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        pdfSig.current[form] = sig
+        pdfLastAt.current[form] = Date.now()
+        await refreshPkg()
+        setSaveState(
+          `Autosaved ${new Date().toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })} · Form ${form} PDF updated in the package`
+        )
+      }
+    } catch {
+      /* retried on the next change, tab switch, or page hide */
+    }
+    pdfBusy.current = false
+  }
+
+  sigRef.current = dealSignature
+  tabRef.current = tab
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'hidden') return
+      const t = tabRef.current
+      const f = t === 'offer' ? '100' : t === '801' ? '801' : t === 'coop' ? '320' : null
+      if (f) void silentSavePdf(f, sigRef.current, true)
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packageId])
 
   // Live preview of a standard condition clause with the deadline
   // answers applied — the same edit the generator makes.
@@ -967,6 +1031,11 @@ export default function PrepareOfferPage() {
             <button
               key={key}
               onClick={() => {
+                // Leaving a form tab saves its PDF into the package
+                // first, so the package never lacks a form you've
+                // been working on.
+                const leaving = formForTab()
+                if (leaving && key !== tab) void silentSavePdf(leaving, dealSignature, true)
                 setTab(key as any)
                 // A preview belongs to its form — switching tabs clears it,
                 // so a Form 100 preview never lingers on the 801 tab.
@@ -1658,6 +1727,11 @@ export default function PrepareOfferPage() {
           <p className="text-sm text-gray-600">
             Everything in this package, signed kept apart from unsigned — so the whole
             unsigned set can go out together when iinked Sign connects.
+          </p>
+          <p className="text-xs text-gray-400">
+            A form's PDF saves itself into the package as you work — when you switch tabs,
+            step away, or every minute or so while editing. If a form is missing here, its
+            tab's “Save to package” button adds it on the spot.
           </p>
           <div className="grid md:grid-cols-2 gap-4">
             {(['Unsigned', 'Signed'] as const).map((group) => {
