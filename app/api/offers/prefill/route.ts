@@ -89,7 +89,7 @@ async function fromDLA(mls: string): Promise<any | null> {
   if (addr) prefill.address = addr;
   const city = first(row, ["City"]);
   if (city) prefill.city = city;
-  const legal = first(row, ["LegalDescription", "LegalDesc"]);
+  const legal = first(row, ["TaxLegalDescription", "LegalDescription", "LegalDesc"]);
   if (legal) prefill.legal_description = legal;
   const pin = first(row, ["ParcelNumber", "PIN", "PinNumber", "TaxId"]);
   if (pin) prefill.pin = pin;
