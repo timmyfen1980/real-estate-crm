@@ -317,6 +317,77 @@ export async function POST(req: NextRequest) {
       // Best-effort only.
     }
 
+    // --- Lead follow-ups (Tim's 7-day rule, 2026-10-21) ----------------
+    // Any open lead whose last contact (or creation, if never contacted)
+    // is more than 7 days ago gets a 'Follow up — {name}' task due
+    // today, assigned to the lead's agent. Skipped when the lead already
+    // has an open follow-up or drip check-in task, so nobody gets
+    // double-nagged. Sending a follow-up email or adding a note stamps
+    // last_contacted_at and completes these, restarting the clock.
+    let leadFollowupsCreated = 0;
+    try {
+      const { data: ownerRow3 } = await supabase
+        .from('account_users')
+        .select('user_id')
+        .eq('account_id', ACCOUNT_ID)
+        .eq('role', 'owner')
+        .limit(1)
+        .maybeSingle();
+      const owner3 =
+        ownerRow3 && typeof ownerRow3.user_id === 'string' ? ownerRow3.user_id : null;
+
+      const { data: openLeads2 } = await supabase
+        .from('leads')
+        .select('id, first_name, last_name, assigned_user_id, last_contacted_at, created_at')
+        .eq('account_id', ACCOUNT_ID)
+        .not('status', 'in', '("Client","Closed","Lost")');
+
+      const { data: busyTasks } = await supabase
+        .from('tasks')
+        .select('lead_id')
+        .eq('account_id', ACCOUNT_ID)
+        .eq('status', 'pending')
+        .in('source', ['lead_followup', 'drip_checkin'])
+        .not('lead_id', 'is', null);
+      const busyLeads = new Set<string>();
+      for (const t of busyTasks || []) {
+        if (t.lead_id) busyLeads.add(t.lead_id);
+      }
+
+      const followups: any[] = [];
+      for (const l of openLeads2 || []) {
+        if (busyLeads.has(l.id)) continue;
+        const lastTouch = String(l.last_contacted_at || l.created_at || '').slice(0, 10);
+        if (!lastTouch) continue;
+        const days = Math.floor(
+          (new Date(todayStr + 'T12:00:00Z').getTime() -
+            new Date(lastTouch + 'T12:00:00Z').getTime()) /
+            86400000
+        );
+        if (days <= 7) continue;
+        const assignee = l.assigned_user_id || owner3;
+        if (!assignee) continue;
+        followups.push({
+          account_id: ACCOUNT_ID,
+          title: 'Follow up — ' + l.first_name + ' ' + l.last_name,
+          due_date: todayStr,
+          priority: 'medium',
+          status: 'pending',
+          assigned_user_id: assignee,
+          lead_id: l.id,
+          source: 'lead_followup',
+          created_by: assignee,
+        });
+      }
+
+      if (followups.length > 0) {
+        const { error: fuError } = await supabase.from('tasks').insert(followups);
+        if (!fuError) leadFollowupsCreated = followups.length;
+      }
+    } catch {
+      // Best-effort only.
+    }
+
     // Deals probe: closing_date may not exist on the deals table.
     const { data: dealData, error: dealError } = await supabase
       .from('deals')
@@ -352,6 +423,7 @@ export async function POST(req: NextRequest) {
         deals_seen: 0,
         closing_date_available: true,
         drip_checkins_created: dripCheckinsCreated,
+        lead_followups_created: leadFollowupsCreated,
       });
     }
 
@@ -477,6 +549,7 @@ export async function POST(req: NextRequest) {
       deals_seen: dealsSeen,
       closing_date_available: true,
       drip_checkins_created: dripCheckinsCreated,
+      lead_followups_created: leadFollowupsCreated,
     });
   } catch (err: any) {
     return NextResponse.json(

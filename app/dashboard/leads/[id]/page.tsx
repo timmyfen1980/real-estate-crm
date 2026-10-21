@@ -101,6 +101,8 @@ const [assignmentSaved, setAssignmentSaved] = useState(false)
 const [assignmentError, setAssignmentError] = useState<string | null>(null)
 const [followupError, setFollowupError] = useState<string | null>(null)
 const [enrollments, setEnrollments] = useState<any[]>([])
+const [leadTasks, setLeadTasks] = useState<Task[]>([])
+const [clientFileId, setClientFileId] = useState<string | null>(null)
 const [notLeadOpen, setNotLeadOpen] = useState(false)
 const [notLeadReason, setNotLeadReason] = useState('not_interested')
 const [pauseDrips, setPauseDrips] = useState(true)
@@ -256,6 +258,26 @@ console.log('ACCOUNT USERS ERROR:', accountUsersError)
   .order('created_at', { ascending: false })
 
 setActivities(activityData || [])
+
+    const { data: leadTaskData } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('lead_id', leadId)
+      .neq('status', 'completed')
+      .order('due_date', { ascending: true })
+
+    setLeadTasks(leadTaskData || [])
+
+    if (leadData.contact_id) {
+      const { data: fileData } = await supabase
+        .from('client_files')
+        .select('id')
+        .eq('crm_contact_id', leadData.contact_id)
+        .limit(1)
+        .maybeSingle()
+
+      setClientFileId(fileData?.id || null)
+    }
 
     setLoading(false)
   }
@@ -574,10 +596,45 @@ const { data: propertyData, error: propertyError } = await supabase
           completed_at: new Date().toISOString(),
         })
         .eq('lead_id', lead.id)
-        .eq('source', 'drip_checkin')
+        .in('source', ['drip_checkin', 'lead_followup'])
         .eq('status', 'pending')
     }
   }
+
+const completeLeadTask = async (task: Task) => {
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', task.id)
+
+  if (error) {
+    alert('Could not complete the task — please try again.')
+    return
+  }
+
+  setLeadTasks(prev => prev.filter(t => t.id !== task.id))
+}
+
+const toggleEnrollment = async (enrollment: any) => {
+  const next = enrollment.status === 'active' ? 'paused' : 'active'
+
+  const { error } = await supabase
+    .from('contact_campaigns')
+    .update({ status: next })
+    .eq('id', enrollment.id)
+
+  if (error) {
+    alert('Could not update that campaign — please try again.')
+    return
+  }
+
+  setEnrollments(prev =>
+    prev.map(x => (x.id === enrollment.id ? { ...x, status: next } : x))
+  )
+}
 
   if (loading || !lead) {
   return (
@@ -586,6 +643,14 @@ const { data: propertyData, error: propertyError } = await supabase
     </div>
   )
 }
+
+  const lastTouchStr = ((lead as any).last_contacted_at || lead.created_at || '') as string
+  const daysSinceContact = lastTouchStr
+    ? Math.floor((Date.now() - new Date(lastTouchStr).getTime()) / 86400000)
+    : null
+  const needsFollowup =
+    !['Client', 'Closed', 'Lost'].includes(lead.status) &&
+    (lead.status === 'New' || (daysSinceContact !== null && daysSinceContact > 7))
 
   return (
     <div className="min-h-screen bg-gray-50 p-10">
@@ -780,6 +845,28 @@ const { data: propertyData, error: propertyError } = await supabase
 </div>
 </div>
 </div>
+        {needsFollowup && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-wrap justify-between items-center gap-4">
+            <div>
+              <div className="font-semibold text-amber-900">
+                {lead.status === 'New'
+                  ? 'This lead has not been contacted yet'
+                  : `No contact in ${daysSinceContact} days`}
+              </div>
+              <div className="text-sm text-amber-700">
+                Suggested next step: send a follow-up email — it takes under
+                a minute and resets the clock.
+              </div>
+            </div>
+            <button
+              onClick={() => setFollowUpOpen(true)}
+              className="bg-[#0f2a44] text-white px-5 py-2 rounded-lg hover:opacity-90 transition whitespace-nowrap"
+            >
+              ✉ Follow up now
+            </button>
+          </div>
+        )}
+
         <div className="grid md:grid-cols-2 gap-8">
 
           <div className="bg-white rounded-2xl shadow p-8 space-y-3 text-sm">
@@ -795,15 +882,35 @@ const { data: propertyData, error: propertyError } = await supabase
               <div className="pt-3 mt-3 border-t">
                 <p className="font-semibold mb-2">Email Drips</p>
                 {enrollments.map(e => (
-                  <p key={e.id} className="text-gray-700">
-                    📧 {e.campaign_name} — Step {e.current_step}
-                    {e.total_steps ? ` of ${e.total_steps}` : ''} · {e.status}
-                    {e.status === 'active' && e.next_send_at
-                      ? ` · next ${new Date(e.next_send_at).toLocaleDateString('en-CA')}`
-                      : ''}
+                  <p key={e.id} className="text-gray-700 flex items-center gap-2 flex-wrap mb-1">
+                    <span>
+                      📧 {e.campaign_name} — Step {e.current_step}
+                      {e.total_steps ? ` of ${e.total_steps}` : ''} · {e.status}
+                      {e.status === 'active' && e.next_send_at
+                        ? ` · next ${new Date(e.next_send_at).toLocaleDateString('en-CA')}`
+                        : ''}
+                    </span>
+                    {(e.status === 'active' || e.status === 'paused') && (
+                      <button
+                        onClick={() => toggleEnrollment(e)}
+                        className="text-xs px-2 py-0.5 border rounded-full hover:bg-gray-50"
+                      >
+                        {e.status === 'active' ? 'Pause' : 'Resume'}
+                      </button>
+                    )}
                   </p>
                 ))}
               </div>
+            )}
+            {clientFileId && (
+              <p className="pt-2">
+                <a
+                  href={`/dashboard/checklists/${clientFileId}`}
+                  className="text-[#0f2a44] underline"
+                >
+                  Open client checklist →
+                </a>
+              </p>
             )}
           </div>
 
@@ -830,6 +937,48 @@ const { data: propertyData, error: propertyError } = await supabase
           </div>
 
         </div>
+
+        {leadTasks.length > 0 && (
+          <div className="bg-white rounded-2xl shadow p-8">
+            <h3 className="font-semibold text-lg mb-4">
+              Open Tasks for {lead.first_name}
+            </h3>
+            <div className="divide-y divide-gray-100">
+              {leadTasks.map(t => (
+                <div
+                  key={t.id}
+                  className="py-3 flex justify-between items-center gap-4"
+                >
+                  <div>
+                    <div className="font-medium text-gray-900">{t.title}</div>
+                    <div className="text-sm text-gray-500">
+                      Due{' '}
+                      {new Date(
+                        String(t.due_date).slice(0, 10) + 'T12:00:00'
+                      ).toLocaleDateString('en-CA', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                      {t.assigned_user_id
+                        ? ` · ${
+                            teamMembers.find(m => m.id === t.assigned_user_id)
+                              ?.full_name || ''
+                          }`
+                        : ''}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => completeLeadTask(t)}
+                    className="text-sm px-3 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 transition whitespace-nowrap"
+                  >
+                    Complete
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow p-8">
           <h3 className="font-semibold text-lg mb-4">Notes</h3>

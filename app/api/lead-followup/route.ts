@@ -298,7 +298,7 @@ export async function POST(req: NextRequest) {
       .from('tasks')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('lead_id', lead.id)
-      .eq('source', 'drip_checkin')
+      .in('source', ['drip_checkin', 'lead_followup'])
       .eq('status', 'pending');
 
     return NextResponse.json({ ok: true, next_followup_date: nextFollowup });
