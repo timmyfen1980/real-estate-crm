@@ -108,6 +108,19 @@ export default function PrepareOfferPage() {
 
   const [candidates, setCandidates] = useState<any[]>([])
 
+  const STANDARD_CHATTELS_TEXT =
+    'All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.'
+
+  const insertStandardChattels = () => {
+    setChattelsText((prev) =>
+      prev.includes('All existing light fixtures')
+        ? prev
+        : prev.trim()
+          ? `${prev.trim()} ${STANDARD_CHATTELS_TEXT}`
+          : STANDARD_CHATTELS_TEXT
+    )
+  }
+
   const applyPrefill = (p: any, source: string) => {
     if (p.address) setAddress(p.address)
     if (p.city) setCity(p.city)
@@ -570,6 +583,13 @@ export default function PrepareOfferPage() {
             <div>
               <label className={labelCls}>Chattels included (comma or one per line)</label>
               <textarea className={inputCls} rows={3} value={chattelsText} onChange={(e) => setChattelsText(e.target.value)} />
+              <button
+                type="button"
+                onClick={insertStandardChattels}
+                className="text-sm border px-3 py-1 rounded-md hover:bg-gray-100 transition mt-2"
+              >
+                Insert standard chattels
+              </button>
             </div>
             <div>
               <label className={labelCls}>Exclusions</label>

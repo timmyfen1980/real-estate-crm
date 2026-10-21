@@ -71,6 +71,54 @@ function streetAddress(row: any): string | undefined {
   return parts.length ? parts.join(" ") : undefined;
 }
 
+// Tim's standard chattels paragraph (dictated 2026-10-21). Every offer
+// starts with it; anything the MLS listing includes beyond the standard
+// list (pool, gazebo, shed, hot tub, stair lift…) is appended.
+const STANDARD_CHATTELS =
+  "All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.";
+
+const COVERED_CHATTEL_PATTERNS: RegExp[] = [
+  /light fixture/,
+  /broadloom/,
+  /window covering|blinds|curtain|drape/,
+  /fridge|refrigerator/,
+  /stove|range|cooktop|oven/,
+  /dishwasher/,
+  /washer/,
+  /dryer/,
+  /air condition|central air|\ba\/c\b/,
+  /furnace|heating|hvac/,
+];
+
+function composeChattels(row: any): string {
+  const incl = String(first(row, ["Inclusions", "ChattelsIncluded"]) || "");
+  const extras: string[] = [];
+  const push = (s: string) => {
+    const t = s.trim();
+    if (t && !extras.some((e) => e.toLowerCase() === t.toLowerCase())) extras.push(t);
+  };
+  if (incl) {
+    for (const piece of incl.split(/[.,;]/)) {
+      const item = piece.trim();
+      if (!item) continue;
+      if (COVERED_CHATTEL_PATTERNS.some((re) => re.test(item.toLowerCase()))) continue;
+      push(item);
+    }
+  }
+  const pool = first(row, ["PoolFeatures"]);
+  if (
+    Array.isArray(pool) &&
+    pool.length > 0 &&
+    !pool.every((p: any) => /^none$/i.test(String(p))) &&
+    !extras.some((e) => /pool/i.test(e))
+  ) {
+    push("pool");
+  }
+  return extras.length
+    ? `${STANDARD_CHATTELS} Also included: ${extras.join(", ")}.`
+    : STANDARD_CHATTELS;
+}
+
 async function fromDLA(mls: string): Promise<any | null> {
   const token = process.env.PROPTX_DLA_TOKEN;
   if (!token) return null;
@@ -101,8 +149,7 @@ async function fromDLA(mls: string): Promise<any | null> {
   if (price) prefill.list_price = price;
   const taxes = first(row, ["TaxAnnualAmount", "TaxTotalAmount"]);
   if (taxes) prefill.taxes = taxes;
-  const incl = first(row, ["Inclusions", "ChattelsIncluded"]);
-  if (incl) prefill.chattels = incl;
+  prefill.chattels = composeChattels(row);
   const excl = first(row, ["Exclusions"]);
   if (excl) prefill.exclusions = excl;
   const office = first(row, ["ListOfficeName"]);
@@ -154,17 +201,30 @@ async function searchCandidates(query: string): Promise<any[]> {
   const wordToken = tokens
     .filter((t) => /[a-zA-Z]/.test(t))
     .sort((a, b) => b.length - a.length)[0];
-  const probe = numToken || wordToken || query;
-  const params = new URLSearchParams({
-    mode: "search",
-    scope: "local",
-    q: probe,
-    top: "25",
-  });
-  const res = await fetch(`https://www.thefcgroup.ca/api/idx?${params}`).catch(() => null);
-  if (!res || !res.ok) return [];
-  const data: any = await res.json().catch(() => null);
-  const rows: any[] = data?.listings || [];
+  // Probe with BOTH the street number and the longest word, then merge —
+  // a number-only probe ("8") drowns in matches, a word-only probe can
+  // miss; together they reliably surface the right house.
+  const probes = Array.from(
+    new Set([numToken, wordToken, query].filter(Boolean) as string[])
+  );
+  const byKey = new Map<string, any>();
+  for (const probe of probes) {
+    const params = new URLSearchParams({
+      mode: "search",
+      scope: "local",
+      q: probe,
+      top: "25",
+    });
+    const res = await fetch(`https://www.thefcgroup.ca/api/idx?${params}`).catch(
+      () => null
+    );
+    if (!res || !res.ok) continue;
+    const data: any = await res.json().catch(() => null);
+    for (const l of data?.listings || []) {
+      if (!byKey.has(l.ListingKey)) byKey.set(l.ListingKey, l);
+    }
+  }
+  const rows: any[] = Array.from(byKey.values());
   const nq = normText(query);
   const scored = rows
     .map((l: any) => {
