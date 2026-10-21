@@ -147,6 +147,7 @@ export default function ContactDetailPage() {
 const [newTask, setNewTask] = useState('')
   const [newNote, setNewNote] = useState('')
 const [noteError, setNoteError] = useState<string | null>(null)
+const [taskError, setTaskError] = useState<string | null>(null)
 
   const [isOwner, setIsOwner] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -540,7 +541,7 @@ const addTask = async () => {
 
   if (!membership) return
 
-  const { data } = await supabase
+  const { data, error: insertError } = await supabase
     .from('tasks')
     .insert([
       {
@@ -555,7 +556,13 @@ const addTask = async () => {
     .select()
     .single()
 
+  if (insertError) {
+    setTaskError('Could not save your task. Please try again.')
+    return
+  }
+
   if (data) {
+    setTaskError(null)
     setTasks(prev => [data, ...prev])
     setNewTask('')
   }
@@ -1377,6 +1384,10 @@ const handleSave = async () => {
     </button>
 
   </div>
+
+  {taskError && (
+    <p className="text-sm text-red-600 mb-4">{taskError}</p>
+  )}
 
   {tasks.length === 0 && (
     <p className="text-sm text-gray-500">
