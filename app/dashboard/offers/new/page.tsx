@@ -22,6 +22,10 @@ export default function StartOfferPage() {
   const [clientQuery, setClientQuery] = useState('')
   const [clientMatches, setClientMatches] = useState<any[]>([])
   const [client, setClient] = useState<any>(null)
+  // The name the picker itself last placed in the buyer boxes — a
+  // re-pick replaces that name (correcting a wrong pick just works),
+  // while anything typed or edited by hand is never overwritten.
+  const [clientFilledName, setClientFilledName] = useState('')
   const clientTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Buyers / sellers (sellers usually arrive from the listing sheet)
@@ -84,12 +88,29 @@ export default function StartOfferPage() {
     setClient(c)
     setClientMatches([])
     setClientQuery(c.name)
-    setBuyers((prev) => {
-      if (prev.some((b) => b.trim())) return prev
-      const next = [...prev]
+    const next = [...buyers]
+    // Drop the name the picker itself placed earlier, wherever it
+    // sits — but only if it's still exactly that name (a hand edit
+    // of it is the agent's name now, and stays).
+    if (clientFilledName) {
+      const at = next.indexOf(clientFilledName)
+      if (at !== -1) next[at] = ''
+    }
+    if (!next[0].trim()) {
       next[0] = c.name
-      return next
-    })
+      setClientFilledName(c.name)
+    } else {
+      const slot = next.findIndex((b) => !b.trim())
+      if (slot === -1) {
+        // All four boxes hold hand-typed names — leave them; the
+        // client link itself is still recorded on the package.
+        setClientFilledName('')
+      } else {
+        next[slot] = c.name
+        setClientFilledName(c.name)
+      }
+    }
+    setBuyers(next)
   }
 
   const applyPrefill = (p: any, source: string) => {
