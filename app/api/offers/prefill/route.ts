@@ -138,22 +138,66 @@ async function byKey(key: string): Promise<any | null> {
   return null;
 }
 
-async function fromIDXSearch(query: string): Promise<any[]> {
-  // Address search over the public feed (Durham + Kawarthas scope).
-  // Returns candidates for the agent to pick from — an offer prefill
-  // must never silently land on a "close" house.
+function normText(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+async function searchCandidates(query: string): Promise<any[]> {
+  // Address suggestions from the MLS feed (Durham + Kawarthas scope).
+  // The feed search needs an exact substring, so probe with the most
+  // reliable token (street number first, else the longest word), pull a
+  // wider net, then rank loosely in code — spaces and small typos in
+  // what the agent typed ("928 Blackcherry Drive") still surface the
+  // right house ("928 Black Cherry Drive").
+  const tokens = query.split(/\s+/).filter(Boolean);
+  const numToken = tokens.find((t) => /^\d+$/.test(t));
+  const wordToken = tokens
+    .filter((t) => /[a-zA-Z]/.test(t))
+    .sort((a, b) => b.length - a.length)[0];
+  const probe = numToken || wordToken || query;
   const params = new URLSearchParams({
     mode: "search",
     scope: "local",
-    q: query,
-    top: "5",
+    q: probe,
+    top: "25",
   });
   const res = await fetch(`https://www.thefcgroup.ca/api/idx?${params}`).catch(() => null);
   if (!res || !res.ok) return [];
   const data: any = await res.json().catch(() => null);
-  return (data?.listings || []).map((l: any) => ({
+  const rows: any[] = data?.listings || [];
+  const nq = normText(query);
+  const scored = rows
+    .map((l: any) => {
+      const addr = streetAddress(l) || "";
+      const na = normText(`${addr} ${l.City || ""}`);
+      let score = 0;
+      if (nq.length >= 3 && na.startsWith(nq)) score += 100;
+      else if (nq.length >= 3 && na.includes(nq)) score += 60;
+      for (const t of tokens) {
+        const nt = normText(t);
+        if (nt.length < 3) continue;
+        if (na.includes(nt)) {
+          score += 10;
+        } else {
+          const words = `${addr} ${l.City || ""}`.split(/\s+/).map(normText);
+          if (
+            words.some(
+              (w) => w.startsWith(nt.slice(0, 4)) || nt.startsWith(w.slice(0, 4))
+            )
+          ) {
+            score += 4;
+          }
+        }
+      }
+      if (numToken && !addr.startsWith(numToken)) score -= 15;
+      return { l, addr, score };
+    })
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+  return scored.map(({ l, addr }) => ({
     key: l.ListingKey,
-    address: streetAddress(l),
+    address: addr,
     city: l.City,
     list_price: l.ListPrice,
     beds: l.BedroomsTotal,
@@ -177,6 +221,10 @@ export async function POST(req: NextRequest) {
         error: `No listing found for MLS# ${mls}. You can still fill the form in manually.`,
       });
     }
+    const suggest = String(body.suggest || "").trim();
+    if (suggest) {
+      return NextResponse.json({ ok: true, candidates: await searchCandidates(suggest) });
+    }
     const query = String(body.query || "").trim();
     if (query) {
       // A bare token with no spaces might be an MLS# typed in the
@@ -185,7 +233,7 @@ export async function POST(req: NextRequest) {
         const hit = await byKey(query.toUpperCase());
         if (hit) return NextResponse.json(hit);
       }
-      const candidates = await fromIDXSearch(query);
+      const candidates = await searchCandidates(query);
       if (candidates.length) return NextResponse.json({ ok: true, candidates });
       return NextResponse.json({
         ok: false,

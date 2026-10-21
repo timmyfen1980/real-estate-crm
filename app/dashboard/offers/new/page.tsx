@@ -6,7 +6,7 @@
 // from Tim's library (the Standard Offer Clauses always go in), and
 // generates EDITABLE Form 100 + Form 801 PDFs via /api/offers/generate.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import library from '@/lib/clauseLibrary.json'
 
 const LIB = library as any
@@ -158,6 +158,37 @@ export default function PrepareOfferPage() {
     } finally {
       setPrefilling(false)
     }
+  }
+
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suggestSeq = useRef(0)
+
+  // As-you-type address suggestions from the MLS feed. Debounced, and
+  // only the latest response is allowed to land.
+  const onLookupChange = (v: string) => {
+    setMls(v)
+    if (suggestTimer.current) clearTimeout(suggestTimer.current)
+    const q = v.trim()
+    if (q.length < 3) {
+      setCandidates([])
+      return
+    }
+    suggestTimer.current = setTimeout(async () => {
+      const seq = ++suggestSeq.current
+      try {
+        const res = await fetch('/api/offers/prefill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ suggest: q }),
+        })
+        const data = await res.json()
+        if (seq === suggestSeq.current && data.ok) {
+          setCandidates(data.candidates || [])
+        }
+      } catch {
+        // Suggestions are a nicety — the Pre-fill button still works.
+      }
+    }, 350)
   }
 
   const pickCandidate = async (key: string) => {
@@ -370,9 +401,9 @@ export default function PrepareOfferPage() {
           <div className="flex gap-2">
             <input
               className={inputCls}
-              placeholder="MLS# (E14083510) or address (8 Calais Street)"
+              placeholder="Start typing an address (928 Black Cherry…) or paste an MLS#"
               value={mls}
-              onChange={(e) => setMls(e.target.value)}
+              onChange={(e) => onLookupChange(e.target.value)}
             />
             <button
               onClick={runPrefill}
