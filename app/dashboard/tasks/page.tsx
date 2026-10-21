@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import TaskModal from '@/app/components/TaskModal'
+import FollowUpModal from '@/app/components/FollowUpModal'
 import { MailWarning } from 'lucide-react'
 
 type Task = {
@@ -32,6 +33,7 @@ export default function TasksPage() {
   const [newsletterTask, setNewsletterTask] = useState<string | null>(null)
   const [showAllCompleted, setShowAllCompleted] = useState(false)
   const [viewScope, setViewScope] = useState<'mine' | 'team'>('mine')
+  const [followUpLeadId, setFollowUpLeadId] = useState<string | null>(null)
 
   const loadTasks = async () => {
     const {
@@ -327,6 +329,17 @@ export default function TasksPage() {
         </div>
 
         <div className="flex gap-2 items-center">
+          {task.lead_id && (
+            <button
+              onClick={function () {
+                setFollowUpLeadId(task.lead_id)
+              }}
+              className="text-sm px-3 py-1 rounded-lg bg-[#0f2a44] text-white hover:opacity-90 transition whitespace-nowrap"
+            >
+              ✉ Follow up
+            </button>
+          )}
+
           <button
             onClick={onEdit}
             className="text-sm px-3 py-1 rounded-lg border border-gray-300 hover:bg-gray-100 transition"
@@ -512,6 +525,17 @@ export default function TasksPage() {
               {visibleCompletedTasks.map(renderCompletedTask)}
             </div>
           </div>
+        )}
+
+        {followUpLeadId && (
+          <FollowUpModal
+            leadId={followUpLeadId}
+            onClose={() => setFollowUpLeadId(null)}
+            onSent={() => {
+              setFollowUpLeadId(null)
+              loadTasks()
+            }}
+          />
         )}
 
         {taskModalOpen && (

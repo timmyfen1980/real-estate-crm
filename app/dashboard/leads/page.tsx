@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
+import FollowUpModal from '@/app/components/FollowUpModal'
 
 type Lead = {
   id: string
@@ -38,6 +39,7 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<'attention' | 'working' | 'nurturing' | 'clients' | 'archived' | 'all'>('attention')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [followUpLeadId, setFollowUpLeadId] = useState<string | null>(null)
 
 const [newLead, setNewLead] = useState({
   first_name: '',
@@ -580,6 +582,7 @@ const createLead = async () => {
                   <th>Visits</th>
                   <th>Assigned</th>
                   <th>Date</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -633,6 +636,18 @@ const createLead = async () => {
                     <td className="text-gray-500">
                       {new Date(lead.created_at).toLocaleDateString()}
                     </td>
+
+                    <td className="pr-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setFollowUpLeadId(lead.id)
+                        }}
+                        className="px-3 py-1.5 bg-[#0f2a44] text-white text-xs rounded-lg hover:opacity-90 whitespace-nowrap"
+                      >
+                        ✉ Follow up
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -662,6 +677,16 @@ const createLead = async () => {
           </>
         )}
       </div>
+      {followUpLeadId && (
+        <FollowUpModal
+          leadId={followUpLeadId}
+          onClose={() => setFollowUpLeadId(null)}
+          onSent={() => {
+            setFollowUpLeadId(null)
+            loadData()
+          }}
+        />
+      )}
       {showModal && (
   <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
     <div className="bg-white p-6 rounded-lg w-full max-w-md space-y-4">

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import TaskModal from '@/app/components/TaskModal'
+import FollowUpModal from '@/app/components/FollowUpModal'
 
 type Lead = {
   id: string
@@ -106,6 +107,7 @@ const [pauseDrips, setPauseDrips] = useState(true)
 const [notLeadSaving, setNotLeadSaving] = useState(false)
 const [notLeadError, setNotLeadError] = useState<string | null>(null)
 const [taskModalOpen, setTaskModalOpen] = useState(false)
+const [followUpOpen, setFollowUpOpen] = useState(false)
 const [convertModalOpen, setConvertModalOpen] = useState(false)
 const [convertType, setConvertType] = useState<'Buyer' | 'Seller'>('Buyer')
 const [convertAddress, setConvertAddress] = useState('')
@@ -598,6 +600,12 @@ const { data: propertyData, error: propertyError } = await supabase
       <p className="text-gray-500 mt-1">
         Created {new Date(lead.created_at).toLocaleString()}
       </p>
+      <button
+        onClick={() => setFollowUpOpen(true)}
+        className="mt-3 bg-[#0f2a44] text-white px-5 py-2 rounded-lg hover:opacity-90 transition"
+      >
+        ✉ Follow up
+      </button>
     </div>
 
     <div className="flex gap-6 items-start">
@@ -945,7 +953,16 @@ const { data: propertyData, error: propertyError } = await supabase
               </>
             )}
 
-            {!['reassigned', 'status_changed', 'not_a_lead', 'auto_converted'].includes(activity.type) && (
+            {activity.type === 'email_sent' && (
+              <>
+                Follow-up email sent
+                {activity.metadata?.subject && (
+                  <> — <strong>{activity.metadata.subject}</strong></>
+                )}
+              </>
+            )}
+
+            {!['reassigned', 'status_changed', 'not_a_lead', 'auto_converted', 'email_sent'].includes(activity.type) && (
               <>{activity.type}</>
             )}
           </div>
@@ -958,6 +975,17 @@ const { data: propertyData, error: propertyError } = await supabase
     })}
   </div>
 </div>
+
+{followUpOpen && lead && (
+  <FollowUpModal
+    leadId={lead.id}
+    onClose={() => setFollowUpOpen(false)}
+    onSent={() => {
+      setFollowUpOpen(false)
+      loadData()
+    }}
+  />
+)}
 
 {notLeadOpen && lead && (
   <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
