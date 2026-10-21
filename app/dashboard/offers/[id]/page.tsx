@@ -171,6 +171,8 @@ export default function PrepareOfferPage() {
 
   const [sheetBusy, setSheetBusy] = useState(false)
   const [sheetNote, setSheetNote] = useState('')
+  const [schedBFillBusy, setSchedBFillBusy] = useState(false)
+  const [schedBFillNote, setSchedBFillNote] = useState('')
   const [partialNote, setPartialNote] = useState('')
   const [packageNote, setPackageNote] = useState('')
 
@@ -498,6 +500,36 @@ export default function PrepareOfferPage() {
     }
   }
 
+  const onFillSchedB = async () => {
+    if (!packageId) return
+    setSchedBFillBusy(true)
+    setSchedBFillNote('')
+    try {
+      // Make sure the latest names/address are saved before filling.
+      await pkgAct({ action: 'update_deal', id: packageId, deal: buildDeal().deal })
+      const res = await fetch('/api/offers/schedule-b-fill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package_id: packageId }),
+      })
+      const data = await res.json()
+      if (!data.ok) throw new Error(data.error || 'Fill failed')
+      await refreshDocs()
+      const placed = (data.placed || [])
+        .map((k: string) => (k === 'buyers' ? 'buyer names' : k === 'sellers' ? 'seller names' : 'property'))
+        .join(', ')
+      const missed =
+        Array.isArray(data.missing) && data.missing.length
+          ? ` Couldn't place: ${data.missing.join(', ')} — check the filled copy.`
+          : ''
+      setSchedBFillNote(`Added "Schedule B (names filled).pdf" to the package — filled ${placed}.${missed}`)
+    } catch (e: any) {
+      setSchedBFillNote(e.message)
+    } finally {
+      setSchedBFillBusy(false)
+    }
+  }
+
   const loadLibrary = async () => {
     if (libLoaded) return
     try {
@@ -652,25 +684,6 @@ export default function PrepareOfferPage() {
   }): Promise<any | null> => {
     const form = formForTab()
     if (!form) return null
-    if (form === '320') {
-      // The 320's answers are captured in the package now; its PDF
-      // generator lights up when the blank reaches the template store.
-      if (opts.save) {
-        try {
-          await pkgAct({ action: 'update_deal', id: packageId, deal: buildDeal().deal })
-          setActionNote(
-            'Your 320 answers are saved in this package. The Confirmation PDF itself generates as soon as the Form 320 blank is added to the template store — send the blank to Rea (pull it from PropTx/WebForms) and she will wire it up.'
-          )
-        } catch (e: any) {
-          setGenError(e.message)
-        }
-      } else {
-        setActionNote(
-          'Preview needs the Form 320 blank in the template store. Your answers on this tab are saved with the package — send the blank to Rea and the preview lights up.'
-        )
-      }
-      return null
-    }
     setGenerating(true)
     setMissing([])
     setGenError('')
@@ -990,6 +1003,22 @@ export default function PrepareOfferPage() {
                 />
               </label>
             </div>
+            {pkgDocs.some((d: any) => d.form === 'schedule_b') && (
+              <div className="flex items-center gap-3 mt-3">
+                <button
+                  onClick={onFillSchedB}
+                  disabled={schedBFillBusy}
+                  className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100 transition disabled:opacity-50 whitespace-nowrap"
+                >
+                  {schedBFillBusy ? 'Filling…' : 'Fill names & address onto the Schedule B'}
+                </button>
+                {schedBFillNote && <span className="text-sm text-gray-600">{schedBFillNote}</span>}
+              </div>
+            )}
+            <p className="text-xs text-gray-400 mt-2">
+              The fill adds the buyers, sellers and property from this package onto a copy of
+              the flattened Schedule B (still editable) — the original stays untouched.
+            </p>
           </div>
         </div>
 
