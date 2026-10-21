@@ -556,6 +556,24 @@ const { data: propertyData, error: propertyError } = await supabase
       setNoteError(null)
       setNotes(prev => [data, ...prev])
       setNewNote('')
+
+      // A note usually means you just touched base with this lead:
+      // stamp the last-contact time, and clear any open drip check-in
+      // task for them so it doesn't sit there asking again.
+      await supabase
+        .from('leads')
+        .update({ last_contacted_at: new Date().toISOString() })
+        .eq('id', lead.id)
+
+      await supabase
+        .from('tasks')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('lead_id', lead.id)
+        .eq('source', 'drip_checkin')
+        .eq('status', 'pending')
     }
   }
 

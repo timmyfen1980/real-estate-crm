@@ -194,6 +194,7 @@ const { count: newLeads } = await supabase
   .from('leads')
   .select('id', { count: 'exact', head: true })
   .eq('account_id', membership.account_id)
+  .eq('assigned_user_id', user.id)
   .not('status', 'in', '("Client","Closed","Lost")')
   .or(
     `status.eq.New,next_followup_date.lte.${_todayStr},and(next_followup_date.is.null,created_at.lt.${_staleCutoff})`
@@ -221,9 +222,10 @@ setNewLeadsCount(newLeads || 0)
           .eq('status', 'pending')
           .lte('due_date', _dueCutoffStr)
 
-        if (membership.role !== 'owner') {
-          pendingQuery = pendingQuery.eq('assigned_user_id', user.id)
-        }
+        // Per-person (Tim, 2026-10-21): the badge counts the signed-in
+        // user's OWN due tasks, owner included — the Tasks page itself
+        // still shows the whole team with names.
+        pendingQuery = pendingQuery.eq('assigned_user_id', user.id)
 
         const { count: pendingTasks } = await pendingQuery
         outstandingTasks = pendingTasks || 0

@@ -284,7 +284,16 @@ export default function TasksPage() {
       >
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <span className="font-medium text-gray-900">{task.title}</span>
+            {task.lead_id ? (
+              <Link
+                href={`/dashboard/leads/${task.lead_id}`}
+                className="font-medium text-gray-900 hover:underline"
+              >
+                {task.title}
+              </Link>
+            ) : (
+              <span className="font-medium text-gray-900">{task.title}</span>
+            )}
 
             <span className={`text-xs px-2 py-1 rounded-full ${priorityColor}`}>
               {task.priority}
