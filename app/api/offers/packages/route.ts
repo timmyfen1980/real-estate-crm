@@ -386,6 +386,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, documents: docs });
     }
 
+    if (body.action === "delete_doc") {
+      // Remove ONE file from the package: its documents entry and the
+      // stored object both go. (Tim, 2026-10-21.)
+      const { data: pkg, error } = await supabase
+        .from("offer_packages")
+        .select("id,documents")
+        .eq("account_id", FC_ACCOUNT_ID)
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!pkg) return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
+      const docs = (Array.isArray(pkg.documents) ? pkg.documents : []).filter(
+        (d: any) => d.path !== body.path
+      );
+      if (body.path) {
+        await supabase.storage.from(BUCKET).remove([String(body.path)]);
+      }
+      const { error: updErr } = await supabase
+        .from("offer_packages")
+        .update({ documents: docs })
+        .eq("id", id);
+      if (updErr) throw new Error(updErr.message);
+      return NextResponse.json({ ok: true, documents: docs });
+    }
+
     if (body.action === "delete") {
       const { data: pkg } = await supabase
         .from("offer_packages")

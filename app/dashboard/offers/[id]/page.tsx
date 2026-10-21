@@ -69,6 +69,7 @@ export default function PrepareOfferPage() {
   const [previewUrl, setPreviewUrl] = useState('')
   const [previewName, setPreviewName] = useState('')
   const [actionNote, setActionNote] = useState('')
+  const [confirmRemove, setConfirmRemove] = useState('')
   const [libFiles, setLibFiles] = useState<any[]>([])
   const [libLoaded, setLibLoaded] = useState(false)
   const [coopRepresentation, setCoopRepresentation] = useState('coop')
@@ -1803,6 +1804,33 @@ export default function PrepareOfferPage() {
                           className="ml-auto text-xs border rounded-md px-2 py-1 hover:bg-gray-100 transition whitespace-nowrap"
                         >
                           {doc.signed ? 'Move to unsigned' : 'Mark signed'}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirmRemove !== doc.path) {
+                              setConfirmRemove(doc.path)
+                              return
+                            }
+                            try {
+                              const data = await pkgAct({
+                                action: 'delete_doc',
+                                id: packageId,
+                                path: doc.path,
+                              })
+                              setPkgDocs(data.documents || [])
+                              setConfirmRemove('')
+                              setActionNote(`Removed ${doc.filename} from the package.`)
+                            } catch (e: any) {
+                              setActionNote(e.message)
+                            }
+                          }}
+                          className={
+                            confirmRemove === doc.path
+                              ? 'text-xs border border-red-300 bg-red-50 text-red-700 rounded-md px-2 py-1 transition whitespace-nowrap'
+                              : 'text-xs border rounded-md px-2 py-1 text-gray-500 hover:bg-red-50 hover:text-red-700 transition whitespace-nowrap'
+                          }
+                        >
+                          {confirmRemove === doc.path ? 'Sure? Remove it' : 'Remove'}
                         </button>
                       </div>
                     ))}
