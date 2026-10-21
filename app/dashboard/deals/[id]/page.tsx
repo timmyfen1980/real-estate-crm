@@ -140,13 +140,22 @@ if (!error && deal.deal_type === 'Seller') {
   }
 
   if (newPropertyStatus && deal.property_id) {
-    await supabase
+    // Sync the property status — if this fails, tell Tim instead of silently
+    // leaving the property list stale; keep him on the page so he can retry.
+    const { error: syncError } = await supabase
       .from('properties')
       .update({
         status: newPropertyStatus
       })
       .eq('id', deal.property_id)
       .eq('account_id', membership.account_id)
+
+    if (syncError) {
+      console.log('PROPERTY SYNC ERROR:', syncError)
+      alert('Deal saved, but the property status could not be synced. Please update the property manually.')
+      setSaving(false)
+      return
+    }
   }
 }
     if (error) {
