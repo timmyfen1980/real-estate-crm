@@ -83,104 +83,121 @@ export async function POST(req: NextRequest) {
     const supabase = db();
     const nowIso = new Date().toISOString();
 
-    // Which of the incoming message_ids are dismissed? Those are skipped
-    // entirely — a dismissal is the owner's final word on that email.
-    const incomingIds = rawOpenItems
-      .map((item: any) => cleanString(item?.message_id))
-      .filter((id: string | null): id is string => !!id);
+    // Identity matching (fixed 2026-10-21): Outlook hands the scanner the
+    // same email under two different message-id formats (a 120-char and a
+    // 152-char form), and exact-id matching let both live as separate open
+    // rows — the dashboard showed the REMAX dues email twice. An incoming
+    // item now matches an existing row when the message_id matches OR the
+    // (sender_email, subject, received_at) triple matches. Matches collapse
+    // to one keeper row (extras deleted), a dismissal on ANY matching row
+    // skips the item (dismissals are final), and the keeper adopts the
+    // incoming message_id.
+    const { data: allRows, error: allRowsError } = await supabase
+      .from('email_followups')
+      .select(
+        'id, message_id, sender_email, subject, received_at, status, first_seen_at'
+      )
+      .eq('account_id', ACCOUNT_ID)
+      .in('status', ['open', 'dismissed'])
+      .order('first_seen_at', { ascending: true });
+    if (allRowsError) throw allRowsError;
+    const existing: any[] = allRows || [];
 
-    const dismissedSet = new Set<string>();
-    if (incomingIds.length > 0) {
-      const { data: dismissedRows, error: dismissedError } = await supabase
-        .from('email_followups')
-        .select('message_id')
-        .eq('account_id', ACCOUNT_ID)
-        .eq('status', 'dismissed')
-        .in('message_id', incomingIds);
-      if (dismissedError) throw dismissedError;
-      for (const row of dismissedRows || []) {
-        dismissedSet.add(row.message_id);
-      }
-    }
+    const tripleOf = (
+      sender: string | null,
+      subject: string | null,
+      received: string | null
+    ) =>
+      (sender || '').toLowerCase() +
+      '|' +
+      (subject || '') +
+      '|' +
+      (received || '');
 
-    const upsertRows: any[] = [];
     let skippedDismissed = 0;
+    let deduped = 0;
+    let written = 0;
+
     for (const item of rawOpenItems) {
       const messageId = cleanString(item?.message_id);
       if (!messageId) continue;
-      if (dismissedSet.has(messageId)) {
+      const senderEmail = cleanString(item?.sender_email);
+      const subject = cleanString(item?.subject);
+      const receivedAt = cleanString(item?.received_at);
+      const triple = tripleOf(senderEmail, subject, receivedAt);
+
+      const matches = existing.filter(
+        (row: any) =>
+          row.message_id === messageId ||
+          tripleOf(row.sender_email, row.subject, row.received_at) === triple
+      );
+      if (matches.some((row: any) => row.status === 'dismissed')) {
         skippedDismissed++;
         continue;
       }
-      upsertRows.push({
-        account_id: ACCOUNT_ID,
-        message_id: messageId,
-        sender_name: cleanString(item?.sender_name),
-        sender_email: cleanString(item?.sender_email),
-        subject: cleanString(item?.subject),
-        snippet: cleanString(item?.snippet),
-        received_at: cleanString(item?.received_at),
-        status: 'open',
-        last_seen_at: nowIso,
-      });
-    }
+      const openMatches = matches.filter((row: any) => row.status === 'open');
+      const keeper =
+        openMatches.find((row: any) => row.message_id === messageId) ||
+        openMatches[0];
 
-    // Dedupe-safe sync (fixed 2026-10-21): plain upserts created duplicate
-    // open rows for the same message_id, so this route now collapses any
-    // existing duplicate open rows (keeping the earliest first_seen), then
-    // UPDATEs the surviving row when one exists and INSERTs only when the
-    // message has no open row yet.
-    let deduped = 0;
-    let written = 0;
-    if (upsertRows.length > 0) {
-      const syncIds = upsertRows.map((row: any) => row.message_id as string);
-      const { data: existingRows, error: existingError } = await supabase
-        .from('email_followups')
-        .select('id, message_id, status, first_seen_at')
-        .eq('account_id', ACCOUNT_ID)
-        .in('message_id', syncIds)
-        .order('first_seen_at', { ascending: true });
-      if (existingError) throw existingError;
-
-      const openByMessage = new Map<string, string>();
-      const extraOpenIds: string[] = [];
-      for (const row of existingRows || []) {
-        if (row.status !== 'open') continue;
-        if (openByMessage.has(row.message_id)) extraOpenIds.push(row.id);
-        else openByMessage.set(row.message_id, row.id);
-      }
-      if (extraOpenIds.length > 0) {
-        const { error: dedupeError } = await supabase
-          .from('email_followups')
-          .delete()
-          .in('id', extraOpenIds);
-        if (dedupeError) throw dedupeError;
-        deduped = extraOpenIds.length;
-      }
-
-      for (const row of upsertRows) {
-        const keeperId = openByMessage.get(row.message_id);
-        if (keeperId) {
-          const { error: updateError } = await supabase
+      if (keeper) {
+        const extras = openMatches.filter((row: any) => row.id !== keeper.id);
+        if (extras.length > 0) {
+          const { error: dedupeError } = await supabase
             .from('email_followups')
-            .update({
-              sender_name: row.sender_name,
-              sender_email: row.sender_email,
-              subject: row.subject,
-              snippet: row.snippet,
-              received_at: row.received_at,
-              last_seen_at: nowIso,
-            })
-            .eq('id', keeperId);
-          if (updateError) throw updateError;
-        } else {
-          const { error: insertError } = await supabase
-            .from('email_followups')
-            .insert({ ...row, first_seen_at: nowIso });
-          if (insertError) throw insertError;
+            .delete()
+            .in(
+              'id',
+              extras.map((row: any) => row.id)
+            );
+          if (dedupeError) throw dedupeError;
+          deduped += extras.length;
+          for (const ex of extras) {
+            const idx = existing.indexOf(ex);
+            if (idx >= 0) existing.splice(idx, 1);
+          }
         }
-        written++;
+        const { error: updateError } = await supabase
+          .from('email_followups')
+          .update({
+            message_id: messageId,
+            sender_name: cleanString(item?.sender_name),
+            sender_email: senderEmail,
+            subject,
+            snippet: cleanString(item?.snippet),
+            received_at: receivedAt,
+            last_seen_at: nowIso,
+          })
+          .eq('id', keeper.id);
+        if (updateError) throw updateError;
+        keeper.message_id = messageId;
+      } else {
+        const { error: insertError } = await supabase
+          .from('email_followups')
+          .insert({
+            account_id: ACCOUNT_ID,
+            message_id: messageId,
+            sender_name: cleanString(item?.sender_name),
+            sender_email: senderEmail,
+            subject,
+            snippet: cleanString(item?.snippet),
+            received_at: receivedAt,
+            status: 'open',
+            first_seen_at: nowIso,
+            last_seen_at: nowIso,
+          });
+        if (insertError) throw insertError;
+        existing.push({
+          id: 'new-' + messageId,
+          message_id: messageId,
+          sender_email: senderEmail,
+          subject,
+          received_at: receivedAt,
+          status: 'open',
+          first_seen_at: nowIso,
+        });
       }
+      written++;
     }
 
     let resolvedCount = 0;
