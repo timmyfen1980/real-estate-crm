@@ -106,37 +106,74 @@ export default function PrepareOfferPage() {
   const [genError, setGenError] = useState('')
   const [results, setResults] = useState<{ filename: string; url: string }[]>([])
 
+  const [candidates, setCandidates] = useState<any[]>([])
+
+  const applyPrefill = (p: any, source: string) => {
+    if (p.address) setAddress(p.address)
+    if (p.city) setCity(p.city)
+    if (p.legal_description) setLegalDescription(p.legal_description)
+    if (p.pin) setPin(String(p.pin))
+    if (p.frontage) setFrontage(String(p.frontage))
+    if (p.depth) setDepth(String(p.depth))
+    if (p.list_price) setPrice(String(p.list_price))
+    if (p.chattels) setChattelsText(String(p.chattels))
+    if (p.exclusions) setExclusionsText(String(p.exclusions))
+    if (p.listing_brokerage) setListingBrokerage(String(p.listing_brokerage))
+    setCandidates([])
+    setPrefillNote(
+      source === 'DLA'
+        ? 'Filled from the DLA back-office feed. Seller legal names are not in any feed — add them below.'
+        : 'Filled the basics from the listing feed. Legal description and lot details are not in the public feed — add them below, plus the seller legal names.'
+    )
+  }
+
   const runPrefill = async () => {
-    if (!mls.trim()) return
+    const q = mls.trim()
+    if (!q) return
     setPrefilling(true)
     setPrefillNote('')
+    setCandidates([])
     try {
+      // No spaces = an MLS#; anything else is treated as an address
+      // search and comes back as candidates to pick from.
+      const looksLikeKey = !/\s/.test(q)
       const res = await fetch('/api/offers/prefill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mls: mls.trim() }),
+        body: JSON.stringify(looksLikeKey ? { mls: q } : { query: q }),
       })
       const data = await res.json()
       if (!data.ok) {
         setPrefillNote(data.error || 'Prefill failed — fill the form in manually.')
         return
       }
-      const p = data.prefill || {}
-      if (p.address) setAddress(p.address)
-      if (p.city) setCity(p.city)
-      if (p.legal_description) setLegalDescription(p.legal_description)
-      if (p.pin) setPin(String(p.pin))
-      if (p.frontage) setFrontage(String(p.frontage))
-      if (p.depth) setDepth(String(p.depth))
-      if (p.list_price) setPrice(String(p.list_price))
-      if (p.chattels) setChattelsText(String(p.chattels))
-      if (p.exclusions) setExclusionsText(String(p.exclusions))
-      if (p.listing_brokerage) setListingBrokerage(String(p.listing_brokerage))
-      setPrefillNote(
-        data.source === 'DLA'
-          ? 'Filled from the DLA back-office feed. Seller legal names are not in any feed — add them below.'
-          : 'Filled the basics from the listing feed. Legal description and lot details are not in the public feed — add them below, plus the seller legal names.'
-      )
+      if (data.candidates) {
+        setCandidates(data.candidates)
+        setPrefillNote('Found these — pick the right property:')
+        return
+      }
+      applyPrefill(data.prefill || {}, data.source)
+    } catch {
+      setPrefillNote('Prefill failed — fill the form in manually.')
+    } finally {
+      setPrefilling(false)
+    }
+  }
+
+  const pickCandidate = async (key: string) => {
+    setPrefilling(true)
+    try {
+      const res = await fetch('/api/offers/prefill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mls: key }),
+      })
+      const data = await res.json()
+      if (!data.ok) {
+        setPrefillNote(data.error || 'Prefill failed — fill the form in manually.')
+        return
+      }
+      applyPrefill(data.prefill || {}, data.source)
     } catch {
       setPrefillNote('Prefill failed — fill the form in manually.')
     } finally {
@@ -329,11 +366,11 @@ export default function PrepareOfferPage() {
 
         {/* MLS PREFILL */}
         <div className={sectionCls}>
-          <h2 className={h2Cls}>Start from an MLS# (optional)</h2>
+          <h2 className={h2Cls}>Start from an MLS# or address (optional)</h2>
           <div className="flex gap-2">
             <input
               className={inputCls}
-              placeholder="MLS# number, e.g. E14083510"
+              placeholder="MLS# (E14083510) or address (8 Calais Street)"
               value={mls}
               onChange={(e) => setMls(e.target.value)}
             />
@@ -346,6 +383,29 @@ export default function PrepareOfferPage() {
             </button>
           </div>
           {prefillNote && <p className="text-sm text-gray-600">{prefillNote}</p>}
+          {candidates.length > 0 && (
+            <div className="space-y-2">
+              {candidates.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => pickCandidate(c.key)}
+                  disabled={prefilling}
+                  className="block w-full text-left border rounded-md px-3 py-2 hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  <span className="font-medium">
+                    {c.address}
+                    {c.city ? `, ${c.city}` : ''}
+                  </span>
+                  <span className="text-gray-500 text-sm">
+                    {' '}
+                    — ${Number(c.list_price || 0).toLocaleString()}
+                    {c.beds ? ` · ${c.beds} bed` : ''}
+                    {c.baths ? ` · ${c.baths} bath` : ''} · MLS# {c.key}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* PROPERTY */}

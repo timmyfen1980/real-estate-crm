@@ -290,7 +290,9 @@ export async function POST(req: NextRequest) {
     if (!member) {
       return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
     }
-    if (!process.env.OPENAI_API_KEY) {
+    // The CRM project's key was entered as OPEN_PI_KEY — accept both names.
+    const openAiKey = process.env.OPENAI_API_KEY || process.env.OPEN_PI_KEY;
+    if (!openAiKey) {
       return NextResponse.json({
         ok: true,
         reply:
@@ -325,7 +327,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${openAiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

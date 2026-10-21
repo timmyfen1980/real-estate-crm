@@ -130,6 +130,37 @@ async function fromIDX(mls: string): Promise<any | null> {
   return prefill;
 }
 
+async function byKey(key: string): Promise<any | null> {
+  const dla = await fromDLA(key);
+  if (dla) return { ok: true, source: "DLA", prefill: dla };
+  const idx = await fromIDX(key);
+  if (idx) return { ok: true, source: "IDX", prefill: idx };
+  return null;
+}
+
+async function fromIDXSearch(query: string): Promise<any[]> {
+  // Address search over the public feed (Durham + Kawarthas scope).
+  // Returns candidates for the agent to pick from — an offer prefill
+  // must never silently land on a "close" house.
+  const params = new URLSearchParams({
+    mode: "search",
+    scope: "local",
+    q: query,
+    top: "5",
+  });
+  const res = await fetch(`https://www.thefcgroup.ca/api/idx?${params}`).catch(() => null);
+  if (!res || !res.ok) return [];
+  const data: any = await res.json().catch(() => null);
+  return (data?.listings || []).map((l: any) => ({
+    key: l.ListingKey,
+    address: streetAddress(l),
+    city: l.City,
+    list_price: l.ListPrice,
+    beds: l.BedroomsTotal,
+    baths: l.BathroomsTotalInteger,
+  }));
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!(await authorized(req))) {
@@ -137,18 +168,35 @@ export async function POST(req: NextRequest) {
     }
     const body = (await req.json().catch(() => ({}))) as any;
     const mls = String(body.mls || "").trim().toUpperCase();
-    if (!mls) {
-      return NextResponse.json({ ok: false, error: "Need an MLS# number." }, { status: 400 });
+    if (mls) {
+      const hit = await byKey(mls);
+      if (hit) return NextResponse.json(hit);
+      return NextResponse.json({
+        ok: false,
+        code: "not_found",
+        error: `No listing found for MLS# ${mls}. You can still fill the form in manually.`,
+      });
     }
-    const dla = await fromDLA(mls);
-    if (dla) return NextResponse.json({ ok: true, source: "DLA", prefill: dla });
-    const idx = await fromIDX(mls);
-    if (idx) return NextResponse.json({ ok: true, source: "IDX", prefill: idx });
-    return NextResponse.json({
-      ok: false,
-      code: "not_found",
-      error: `No listing found for MLS# ${mls}. You can still fill the form in manually.`,
-    });
+    const query = String(body.query || "").trim();
+    if (query) {
+      // A bare token with no spaces might be an MLS# typed in the
+      // address box — try the exact-key path first.
+      if (!/\s/.test(query)) {
+        const hit = await byKey(query.toUpperCase());
+        if (hit) return NextResponse.json(hit);
+      }
+      const candidates = await fromIDXSearch(query);
+      if (candidates.length) return NextResponse.json({ ok: true, candidates });
+      return NextResponse.json({
+        ok: false,
+        code: "not_found",
+        error: `No listings matched "${query}". Try the MLS# number, or fill the form in manually.`,
+      });
+    }
+    return NextResponse.json(
+      { ok: false, error: "Need an MLS# number or an address." },
+      { status: 400 }
+    );
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, code: "server_error", error: e?.message || "Prefill failed." },

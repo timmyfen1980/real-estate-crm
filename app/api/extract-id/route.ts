@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
+    // The CRM project's key was entered as OPEN_PI_KEY — accept both names.
+    const apiKey = process.env.OPENAI_API_KEY || process.env.OPEN_PI_KEY;
     if (!apiKey) {
       return NextResponse.json(
         { error: 'Send the licence photo to Rea in chat and she will fill in the details.' },
