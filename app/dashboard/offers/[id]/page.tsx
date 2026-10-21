@@ -46,6 +46,12 @@ function lines(text: string): string[] {
 }
 
 const inputCls = 'w-full border p-3 rounded-md'
+// Amber highlight for a required field that's still empty, so nothing
+// gets missed before generating (Tim, 2026-10-21).
+const miss = (v: string) =>
+  !v || !String(v).trim()
+    ? { borderColor: '#f59e0b', backgroundColor: '#fffbeb' }
+    : undefined
 const labelCls = 'text-sm font-medium'
 const sectionCls = 'space-y-4'
 const h2Cls = 'text-lg font-semibold'
@@ -73,14 +79,13 @@ export default function PrepareOfferPage() {
   const lastSavedSig = useRef('')
   const [saveState, setSaveState] = useState('')
   // MLS prefill
-  const [mls, setMls] = useState('')
-  const [prefilling, setPrefilling] = useState(false)
-  const [prefillNote, setPrefillNote] = useState('')
 
   // Property
   const [address, setAddress] = useState('')
   const [city, setCity] = useState('')
   const [municipality, setMunicipality] = useState('')
+  const [municipalityType, setMunicipalityType] = useState('')
+  const [mlsNum, setMlsNum] = useState('')
   const [legalDescription, setLegalDescription] = useState('')
   const [pin, setPin] = useState('')
   const [frontage, setFrontage] = useState('')
@@ -164,8 +169,6 @@ export default function PrepareOfferPage() {
   const [genError, setGenError] = useState('')
   const [results, setResults] = useState<{ filename: string; url: string }[]>([])
 
-  const [candidates, setCandidates] = useState<any[]>([])
-  const [pickedMls, setPickedMls] = useState('')
   const [sheetBusy, setSheetBusy] = useState(false)
   const [sheetNote, setSheetNote] = useState('')
   const [partialNote, setPartialNote] = useState('')
@@ -184,123 +187,6 @@ export default function PrepareOfferPage() {
     )
   }
 
-  const applyPrefill = (p: any, source: string) => {
-    if (p.address) setAddress(p.address)
-    if (p.city) setCity(p.city)
-    if (p.legal_description) setLegalDescription(p.legal_description)
-    if (p.pin) setPin(String(p.pin))
-    if (p.frontage) setFrontage(String(p.frontage))
-    if (p.depth) setDepth(String(p.depth))
-    // The purchase price is the offer amount, not the list price — it
-    // stays blank on purpose (Tim, 2026-10-21). The list price shows in
-    // the note below for reference.
-    if (p.chattels) setChattelsText(String(p.chattels))
-    if (p.exclusions) setExclusionsText(String(p.exclusions))
-    if (p.listing_brokerage) setListingBrokerage(String(p.listing_brokerage))
-    if (p.listing_agent) setListingAgent(String(p.listing_agent))
-    if (p.listing_agent_phone) setListingPhone(String(p.listing_agent_phone))
-    if (p.coop_share) setCoopShare((prev) => prev || String(p.coop_share))
-    if (p.street_name) setFrontageStreet((prev) => prev || String(p.street_name))
-    if (p.street_side) setFrontageSide((prev) => prev || String(p.street_side))
-    setCandidates([])
-    const listed = p.list_price
-      ? ` Listed at $${Number(p.list_price).toLocaleString()} — the offer price stays blank for you to set.`
-      : ''
-    setPrefillNote(
-      (source === 'DLA'
-        ? 'Filled from the DLA back-office feed — legal description, PIN, lot size, taxes and inclusions included.'
-        : 'Filled the basics from the listing feed.') + listed
-    )
-  }
-
-  const runPrefill = async () => {
-    const q = mls.trim()
-    if (!q) return
-    setPrefilling(true)
-    setPrefillNote('')
-    setCandidates([])
-    try {
-      // No spaces = an MLS#; anything else is treated as an address
-      // search and comes back as candidates to pick from.
-      const looksLikeKey = !/\s/.test(q)
-      const res = await fetch('/api/offers/prefill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(looksLikeKey ? { mls: q } : { query: q }),
-      })
-      const data = await res.json()
-      if (!data.ok) {
-        setPrefillNote(data.error || 'Prefill failed — fill the form in manually.')
-        return
-      }
-      if (data.candidates) {
-        setCandidates(data.candidates)
-        setPrefillNote('Found these — pick the right property:')
-        return
-      }
-      if (looksLikeKey) setPickedMls(q.toUpperCase())
-      applyPrefill(data.prefill || {}, data.source)
-    } catch {
-      setPrefillNote('Prefill failed — fill the form in manually.')
-    } finally {
-      setPrefilling(false)
-    }
-  }
-
-  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const suggestSeq = useRef(0)
-
-  // As-you-type address suggestions from the MLS feed. Debounced, and
-  // only the latest response is allowed to land.
-  const onLookupChange = (v: string) => {
-    setMls(v)
-    if (suggestTimer.current) clearTimeout(suggestTimer.current)
-    const q = v.trim()
-    if (q.length < 3) {
-      setCandidates([])
-      return
-    }
-    suggestTimer.current = setTimeout(async () => {
-      const seq = ++suggestSeq.current
-      try {
-        const res = await fetch('/api/offers/prefill', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ suggest: q }),
-        })
-        const data = await res.json()
-        if (seq === suggestSeq.current && data.ok) {
-          setCandidates(data.candidates || [])
-        }
-      } catch {
-        // Suggestions are a nicety — the Pre-fill button still works.
-      }
-    }, 350)
-  }
-
-  const pickCandidate = async (key: string) => {
-    setPrefilling(true)
-    setPickedMls(key)
-    try {
-      const res = await fetch('/api/offers/prefill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mls: key }),
-      })
-      const data = await res.json()
-      if (!data.ok) {
-        setPrefillNote(data.error || 'Prefill failed — fill the form in manually.')
-        return
-      }
-      applyPrefill(data.prefill || {}, data.source)
-    } catch {
-      setPrefillNote('Prefill failed — fill the form in manually.')
-    } finally {
-      setPrefilling(false)
-    }
-  }
-
-  // MLS listing sheet upload: read it, fill ONLY what's still blank.
   const onSheetUpload = async (file: File | null) => {
     if (!file) return
     setSheetBusy(true)
@@ -417,13 +303,14 @@ export default function PrepareOfferPage() {
     if (p.address) setAddress(p.address)
     if (p.city) setCity(p.city)
     if (p.municipality) setMunicipality(p.municipality)
+    if (p.municipality_type) setMunicipalityType(p.municipality_type)
     if (p.legal_description) setLegalDescription(p.legal_description)
     if (p.pin) setPin(String(p.pin))
     if (p.frontage) splitMeasure(p.frontage, setFrontage, setFrontageUnit)
     if (p.depth) splitMeasure(p.depth, setDepth, setDepthUnit)
     if (p.frontage_side) setFrontageSide(p.frontage_side)
     if (p.frontage_street) setFrontageStreet(p.frontage_street)
-    if (p.mls) setPickedMls(p.mls)
+    if (p.mls) setMlsNum(p.mls)
     if (deal.agreement_date) setAgreementDate(joinDate(deal.agreement_date))
     if (deal.price) setPrice(String(deal.price))
     if (deal.deposit) setDeposit(String(deal.deposit))
@@ -667,13 +554,14 @@ export default function PrepareOfferPage() {
           address,
           city,
           municipality: municipality || undefined,
+          municipality_type: municipalityType || undefined,
           legal_description: legalDescription,
           pin: pin || undefined,
           frontage: frontage ? `${frontage} ${frontageUnit}` : undefined,
           depth: depth ? `${depth} ${depthUnit}` : undefined,
           frontage_side: frontageSide || undefined,
           frontage_street: frontageStreet || undefined,
-          mls: pickedMls || undefined,
+          mls: mlsNum || undefined,
         },
         agreement_date: splitDate(agreementDate),
         price: Number(price),
@@ -925,13 +813,13 @@ export default function PrepareOfferPage() {
       if (token === 'INSERT NAME') {
         inputs.push(
           <p key={token} className="text-xs text-gray-500">
-            Inspector name comes from the fill-in at the top of the Additional clauses list.
+            This clause asks for a name — it's filled in on the generated PDF.
           </p>
         )
       } else if (token === 'INSERT DATE') {
         inputs.push(
           <p key={token} className="text-xs text-gray-500">
-            Date comes from the inspection-date fill-in at the top of the Additional clauses list.
+            This clause asks for a date — it's filled in on the generated PDF.
           </p>
         )
       } else if (token === '____') {
@@ -1017,6 +905,11 @@ export default function PrepareOfferPage() {
           )}
           {!pkgLoaded && <p className="text-sm text-gray-400 mt-1">Loading this package…</p>}
           {saveState && <p className="text-xs text-gray-400 mt-1">{saveState}</p>}
+          {pkgLoaded && (
+            <p className="text-xs text-amber-600 mt-1">
+              Fields highlighted amber still need completing.
+            </p>
+          )}
         </div>
 
         {/* FORM TABS */}
@@ -1045,60 +938,22 @@ export default function PrepareOfferPage() {
           ))}
         </div>
 
-        {/* MLS PREFILL */}
+        {/* LISTING DOCUMENTS */}
         <div className={tab === 'offer' ? sectionCls : 'hidden'}>
-          <h2 className={h2Cls}>Start from an MLS# or address (optional)</h2>
-          <div className="flex gap-2">
-            <input
-              className={inputCls}
-              placeholder="Start typing an address (928 Black Cherry…) or paste an MLS#"
-              value={mls}
-              onChange={(e) => onLookupChange(e.target.value)}
-            />
-            <button
-              onClick={runPrefill}
-              disabled={prefilling || !mls.trim()}
-              className="px-5 py-2 border border-black rounded-md hover:bg-black hover:text-white transition whitespace-nowrap disabled:opacity-50"
-            >
-              {prefilling ? 'Looking…' : 'Pre-fill'}
-            </button>
-          </div>
-          {prefillNote && <p className="text-sm text-gray-600">{prefillNote}</p>}
-          {candidates.length > 0 && (
-            <div className="space-y-2">
-              {candidates.map((c) => (
-                <button
-                  key={c.key}
-                  onClick={() => pickCandidate(c.key)}
-                  disabled={prefilling}
-                  className="block w-full text-left border rounded-md px-3 py-2 hover:bg-gray-50 transition disabled:opacity-50"
-                >
-                  <span className="font-medium">
-                    {c.address}
-                    {c.city ? `, ${c.city}` : ''}
-                  </span>
-                  <span className="text-gray-500 text-sm">
-                    {' '}
-                    — ${Number(c.list_price || 0).toLocaleString()}
-                    {c.beds ? ` · ${c.beds} bed` : ''}
-                    {c.baths ? ` · ${c.baths} bath` : ''} · MLS# {c.key}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="border-t pt-4 mt-2">
+          <h2 className={h2Cls}>MLS Listing &amp; Schedule B</h2>
+          <div>
             <p className="text-sm text-gray-600">
-              …or upload the MLS listing sheet (PDF or photo of the REALM printout) and I'll
-              fill what's still blank from it — seller names included, if they're on the sheet.
+              Upload the MLS listing (the REALM printout — PDF or photo) and I'll fill what's
+              still blank from it — seller names and the listing agent's email included, if
+              they're on it.
             </p>
             <div className="flex items-center gap-3 mt-2">
               <label className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100 transition cursor-pointer whitespace-nowrap">
                 {sheetBusy
                   ? 'Reading…'
                   : sheetUploaded
-                    ? 'Listing sheet on file — replace it'
-                    : 'Upload listing sheet'}
+                    ? 'MLS listing on file — replace it'
+                    : 'Upload MLS listing'}
                 <input
                   type="file"
                   accept=".pdf,image/*"
@@ -1144,11 +999,22 @@ export default function PrepareOfferPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Address</label>
-              <input className={inputCls} value={address} onChange={(e) => setAddress(e.target.value)} />
+              <input className={inputCls} style={miss(address)} value={address} onChange={(e) => setAddress(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>In the… (City of / Town of…)</label>
+              <select className={inputCls} value={municipalityType} onChange={(e) => setMunicipalityType(e.target.value)}>
+                <option value=""></option>
+                <option value="City of">City of</option>
+                <option value="Town of">Town of</option>
+                <option value="Township of">Township of</option>
+                <option value="Municipality of">Municipality of</option>
+                <option value="Village of">Village of</option>
+              </select>
             </div>
             <div>
               <label className={labelCls}>City</label>
-              <input className={inputCls} value={city} onChange={(e) => setCity(e.target.value)} />
+              <input className={inputCls} style={miss(city)} value={city} onChange={(e) => setCity(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Municipality (if different)</label>
@@ -1199,7 +1065,7 @@ export default function PrepareOfferPage() {
           </div>
           <div>
             <label className={labelCls}>Legal description</label>
-            <textarea className={inputCls} rows={2} value={legalDescription} onChange={(e) => setLegalDescription(e.target.value)} />
+            <textarea className={inputCls} style={miss(legalDescription)} rows={2} value={legalDescription} onChange={(e) => setLegalDescription(e.target.value)} />
           </div>
         </div>
 
@@ -1213,6 +1079,7 @@ export default function PrepareOfferPage() {
                 <input
                   key={i}
                   className={inputCls}
+                  style={i === 0 ? miss(buyers.join('')) : undefined}
                   placeholder={`Buyer ${i + 1}`}
                   value={b}
                   onChange={(e) => setBuyerAt(i, e.target.value)}
@@ -1225,6 +1092,7 @@ export default function PrepareOfferPage() {
                 <input
                   key={i}
                   className={inputCls}
+                  style={i === 0 ? miss(sellers.join('')) : undefined}
                   placeholder={`Seller ${i + 1}`}
                   value={s}
                   onChange={(e) => setSellerAt(i, e.target.value)}
@@ -1240,15 +1108,15 @@ export default function PrepareOfferPage() {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className={labelCls}>Agreement date</label>
-              <input type="date" className={inputCls} value={agreementDate} onChange={(e) => setAgreementDate(e.target.value)} />
+              <input type="date" className={inputCls} style={miss(agreementDate)} value={agreementDate} onChange={(e) => setAgreementDate(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Purchase price ($)</label>
-              <input type="number" className={inputCls} value={price} onChange={(e) => setPrice(e.target.value)} />
+              <input type="number" className={inputCls} style={miss(price)} value={price} onChange={(e) => setPrice(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Deposit ($)</label>
-              <input type="number" className={inputCls} value={deposit} onChange={(e) => setDeposit(e.target.value)} />
+              <input type="number" className={inputCls} style={miss(deposit)} value={deposit} onChange={(e) => setDeposit(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Deposit due</label>
@@ -1276,19 +1144,19 @@ export default function PrepareOfferPage() {
             </div>
             <div>
               <label className={labelCls}>Irrevocable time</label>
-              <input className={inputCls} value={irrevocableTime} onChange={(e) => setIrrevocableTime(e.target.value)} />
+              <input className={inputCls} style={miss(irrevocableTime)} value={irrevocableTime} onChange={(e) => setIrrevocableTime(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Irrevocable date</label>
-              <input type="date" className={inputCls} value={irrevocableDate} onChange={(e) => setIrrevocableDate(e.target.value)} />
+              <input type="date" className={inputCls} style={miss(irrevocableDate)} value={irrevocableDate} onChange={(e) => setIrrevocableDate(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Completion (closing) date</label>
-              <input type="date" className={inputCls} value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} />
+              <input type="date" className={inputCls} style={miss(completionDate)} value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Title search date</label>
-              <input type="date" className={inputCls} value={titleSearchDate} onChange={(e) => setTitleSearchDate(e.target.value)} />
+              <input type="date" className={inputCls} style={miss(titleSearchDate)} value={titleSearchDate} onChange={(e) => setTitleSearchDate(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>HST</label>
@@ -1472,7 +1340,7 @@ export default function PrepareOfferPage() {
             </div>
             <div>
               <label className={labelCls}>Listing agent</label>
-              <input className={inputCls} value={listingAgent} onChange={(e) => setListingAgent(e.target.value)} />
+              <input className={inputCls} style={miss(listingAgent)} value={listingAgent} onChange={(e) => setListingAgent(e.target.value)} />
               <select
                 className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
                 value={TEAM_AGENTS.some((t) => t.name === listingAgent) ? listingAgent : ''}
@@ -1503,7 +1371,7 @@ export default function PrepareOfferPage() {
             </div>
             <div>
               <label className={labelCls}>Selling agent</label>
-              <input className={inputCls} value={sellingAgent} onChange={(e) => setSellingAgent(e.target.value)} />
+              <input className={inputCls} style={miss(sellingAgent)} value={sellingAgent} onChange={(e) => setSellingAgent(e.target.value)} />
               <select
                 className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
                 value={TEAM_AGENTS.some((t) => t.name === sellingAgent) ? sellingAgent : ''}
@@ -1530,15 +1398,15 @@ export default function PrepareOfferPage() {
             </div>
             <div>
               <label className={labelCls}>Offer submitted via</label>
-              <input className={inputCls} value={submittedVia} onChange={(e) => setSubmittedVia(e.target.value)} />
+              <input className={inputCls} style={miss(submittedVia)} value={submittedVia} onChange={(e) => setSubmittedVia(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Submitted at (time)</label>
-              <input className={inputCls} placeholder="6:45 p.m." value={submittedTime} onChange={(e) => setSubmittedTime(e.target.value)} />
+              <input className={inputCls} style={miss(submittedTime)} placeholder="6:45 p.m." value={submittedTime} onChange={(e) => setSubmittedTime(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Submitted date</label>
-              <input type="date" className={inputCls} value={submittedDate} onChange={(e) => setSubmittedDate(e.target.value)} />
+              <input type="date" className={inputCls} style={miss(submittedDate)} value={submittedDate} onChange={(e) => setSubmittedDate(e.target.value)} />
             </div>
           </div>
         </div>
@@ -1584,17 +1452,7 @@ export default function PrepareOfferPage() {
           </div>
           <div>
             <p className={labelCls}>Additional clauses</p>
-            <div className="grid grid-cols-2 gap-4 mt-1">
-              <div>
-                <label className={labelCls}>Inspector name (only for clauses that ask for one)</label>
-                <input className={inputCls} value={inspectorName} onChange={(e) => setInspectorName(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>Inspection date (only for clauses that ask for a date)</label>
-                <input className={inputCls} placeholder="October 20, 2026" value={inspectionDeadline} onChange={(e) => setInspectionDeadline(e.target.value)} />
-              </div>
-            </div>
-            <div className="border rounded-md max-h-96 overflow-y-auto p-3 space-y-2 mt-2">
+            <div className="border rounded-md max-h-96 overflow-y-auto p-3 space-y-2 mt-1">
               {(LIB.options || []).map((opt: any) => (
                 <div key={opt.code}>
                   <label className="flex items-start gap-2 text-sm cursor-pointer">
@@ -1629,7 +1487,7 @@ export default function PrepareOfferPage() {
             </div>
             <div>
               <label className={labelCls}>Payable to co-operating brokerage (%)</label>
-              <input className={inputCls} placeholder="2.5" value={coopShare} onChange={(e) => setCoopShare(e.target.value)} />
+              <input className={inputCls} style={miss(coopShare)} placeholder="2.5" value={coopShare} onChange={(e) => setCoopShare(e.target.value)} />
             </div>
             <div className="col-span-2">
               <label className={labelCls}>Commission basis</label>

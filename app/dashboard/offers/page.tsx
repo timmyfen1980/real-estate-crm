@@ -23,6 +23,8 @@ export default function OffersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
+  const [libFor, setLibFor] = useState('')
+  const [libFiles, setLibFiles] = useState<string[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
   const addTarget = useRef<string>('')
 
@@ -135,6 +137,37 @@ export default function OffersPage() {
     }
   }
 
+  const openLibrary = async (pkg: any) => {
+    if (libFor === pkg.id) {
+      setLibFor('')
+      return
+    }
+    setLibFor(pkg.id)
+    setLibFiles([])
+    try {
+      const res = await fetch('/api/offers/packages?library=1')
+      const data = await res.json()
+      if (data.ok) setLibFiles(data.files || [])
+    } catch {
+      /* the library list is a convenience */
+    }
+  }
+
+  const attachFromLibrary = async (pkg: any, path: string) => {
+    setBusyId(pkg.id)
+    try {
+      const data = await act({ action: 'attach_library', id: pkg.id, path })
+      setPackages((prev) =>
+        prev.map((p) => (p.id === pkg.id ? { ...p, documents: data.documents } : p))
+      )
+      setLibFor('')
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setBusyId('')
+    }
+  }
+
   const docChip = (pkg: any, doc: any) => (
     <div
       key={doc.path}
@@ -200,7 +233,7 @@ export default function OffersPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <Link
                   href={`/dashboard/offers/${pkg.id}`}
-                  className="font-semibold text-lg hover:underline"
+                  className="font-semibold text-lg text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-600"
                 >
                   {pkg.address}
                   {pkg.city ? <span className="text-gray-500 font-normal">, {pkg.city}</span> : null}
@@ -264,6 +297,12 @@ export default function OffersPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Link
+                  href={`/dashboard/offers/${pkg.id}`}
+                  className="text-sm font-medium border border-black px-3 py-1.5 rounded-md hover:bg-black hover:text-white transition"
+                >
+                  Open package →
+                </Link>
                 <button
                   onClick={() => {
                     addTarget.current = pkg.id
@@ -275,6 +314,13 @@ export default function OffersPage() {
                   + Add a form or file
                 </button>
                 <button
+                  onClick={() => openLibrary(pkg)}
+                  disabled={busyId === pkg.id}
+                  className="text-sm border px-3 py-1.5 rounded-md hover:bg-gray-100 transition disabled:opacity-50"
+                >
+                  + Add from the team library
+                </button>
+                <button
                   disabled
                   title="Connects when the iinked Sign account is linked"
                   className="text-sm border px-3 py-1.5 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
@@ -282,6 +328,29 @@ export default function OffersPage() {
                   Send for signature — iinked Sign (coming)
                 </button>
               </div>
+
+              {libFor === pkg.id && (
+                <div className="border rounded-lg p-3 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    Team library — click a file to add a copy to this package
+                  </p>
+                  {libFiles.length === 0 && (
+                    <p className="text-sm text-gray-400">Loading the library…</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {libFiles.map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => attachFromLibrary(pkg, f)}
+                        disabled={busyId === pkg.id}
+                        className="text-sm border bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-100 transition disabled:opacity-50"
+                      >
+                        {f.split('/').pop()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}

@@ -406,6 +406,7 @@ export async function buildForm100(
   createField(doc, form, doc.getPage(0), "rea_address", [75, 211, 571, 225], prop.address, { size: 10 });
   if (prop.frontage_side) mappedField(doc, form, "txtp_Subdivision", prop.frontage_side);
   if (prop.frontage_street) mappedField(doc, form, "txtsideOf", prop.frontage_street);
+  if (prop.municipality_type) mappedField(doc, form, "hidInThe1", prop.municipality_type);
   mappedField(doc, form, "txtInThe", prop.municipality || prop.city);
   if (prop.frontage) mappedPair(doc, form, "txtp_SchoolDistrict", "hidSize1", prop.frontage);
   if (prop.depth) mappedPair(doc, form, "txtp_ZoningClass", "hidSize2", prop.depth);

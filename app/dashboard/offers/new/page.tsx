@@ -44,6 +44,7 @@ export default function StartOfferPage() {
   const [pickedMls, setPickedMls] = useState('')
   const [address, setAddress] = useState('')
   const [city, setCity] = useState('')
+  const [municipalityType, setMunicipalityType] = useState('')
   const [legalDescription, setLegalDescription] = useState('')
   const [pin, setPin] = useState('')
   const [frontage, setFrontage] = useState('')
@@ -301,6 +302,7 @@ export default function StartOfferPage() {
         property: {
           address,
           city,
+          municipality_type: municipalityType || undefined,
           legal_description: legalDescription || undefined,
           pin: pin || undefined,
           frontage: frontage ? `${frontage} ${frontageUnit}` : undefined,
@@ -420,6 +422,17 @@ export default function StartOfferPage() {
             <div>
               <label className={labelCls}>Address</label>
               <input className={inputCls} value={address} onChange={(e) => setAddress(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>In the… (City of / Town of…)</label>
+              <select className={inputCls} value={municipalityType} onChange={(e) => setMunicipalityType(e.target.value)}>
+                <option value=""></option>
+                <option value="City of">City of</option>
+                <option value="Town of">Town of</option>
+                <option value="Township of">Township of</option>
+                <option value="Municipality of">Municipality of</option>
+                <option value="Village of">Village of</option>
+              </select>
             </div>
             <div>
               <label className={labelCls}>City</label>
