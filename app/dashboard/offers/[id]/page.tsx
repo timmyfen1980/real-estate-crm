@@ -15,9 +15,9 @@ const BROKERAGE = 'RE/MAX Hallmark First Group Realty Ltd.'
 // Team directory for the agent pickers — picking a name fills the
 // phone too, where we have it.
 const TEAM_AGENTS = [
-  { name: 'Tim Fennessey', phone: '905 493-7355' },
-  { name: 'Aidan Comeau', phone: '' },
-  { name: 'Beth Nickle', phone: '' },
+  { name: 'Tim Fennessey', phone: '905 493-7355', email: 'tim@thefcgroup.ca' },
+  { name: 'Aidan Comeau', phone: '', email: 'aidan@thefcgroup.ca' },
+  { name: 'Beth Nickle', phone: '', email: 'beth@thefcgroup.ca' },
 ]
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -121,9 +121,11 @@ export default function PrepareOfferPage() {
   const [listingBrokerage, setListingBrokerage] = useState(BROKERAGE)
   const [listingAgent, setListingAgent] = useState('')
   const [listingPhone, setListingPhone] = useState('')
+  const [listingEmail, setListingEmail] = useState('')
   const [sellingBrokerage, setSellingBrokerage] = useState(BROKERAGE)
   const [sellingAgent, setSellingAgent] = useState('')
   const [sellingPhone, setSellingPhone] = useState('')
+  const [sellingEmail, setSellingEmail] = useState('')
   const [submittedVia, setSubmittedVia] = useState('email')
   const [submittedTime, setSubmittedTime] = useState('')
   const [submittedDate, setSubmittedDate] = useState(todayToronto())
@@ -131,6 +133,27 @@ export default function PrepareOfferPage() {
   // Clause details
   const [inspectorName, setInspectorName] = useState('')
   const [inspectionDeadline, setInspectionDeadline] = useState('')
+  // Condition deadlines — the answers the financing (B) and inspection
+  // (C) standard clauses are edited to match at generation time.
+  const [finDays, setFinDays] = useState('5')
+  const [finTime, setFinTime] = useState('6:00 p.m.')
+  const [inspDays, setInspDays] = useState('5')
+  const [inspTime, setInspTime] = useState('6:00 p.m.')
+  const [schedules, setSchedules] = useState('A')
+  const [sheetUploaded, setSheetUploaded] = useState(false)
+  // Buyer's lawyer (directory-backed)
+  const [lawyers, setLawyers] = useState<any[]>([])
+  const [lawyerName, setLawyerName] = useState('')
+  const [lawyerFirm, setLawyerFirm] = useState('')
+  const [lawyerAddress, setLawyerAddress] = useState('')
+  const [lawyerEmail, setLawyerEmail] = useState('')
+  const [lawyerPhone, setLawyerPhone] = useState('')
+  const [lawyerFax, setLawyerFax] = useState('')
+  const [showAddLawyer, setShowAddLawyer] = useState(false)
+  const [nlName, setNlName] = useState('')
+  const [nlFirm, setNlFirm] = useState('')
+  const [nlEmail, setNlEmail] = useState('')
+  const [nlPhone, setNlPhone] = useState('')
   const [selectedClauses, setSelectedClauses] = useState<string[]>([])
   const [blankValues, setBlankValues] = useState<Record<string, Record<string, string>>>({})
   const [blankArrays, setBlankArrays] = useState<Record<string, string[]>>({})
@@ -335,6 +358,8 @@ export default function PrepareOfferPage() {
       blank(listingBrokerage, f.listing_brokerage, setListingBrokerage, 'listing brokerage')
       blank(listingAgent, f.listing_agent, setListingAgent, 'listing agent')
       blank(listingPhone, f.listing_phone, setListingPhone, 'listing phone')
+      blank(listingEmail, f.listing_email, setListingEmail, 'listing email')
+      setSheetUploaded(true)
       setSheetNote(
         filled.length
           ? `From the sheet, filled: ${filled.join(', ')}. Everything already entered was left untouched.`
@@ -426,16 +451,36 @@ export default function PrepareOfferPage() {
     if (lb.brokerage) setListingBrokerage(lb.brokerage)
     if (lb.agent) setListingAgent(lb.agent)
     if (lb.phone) setListingPhone(lb.phone)
+    if (lb.email) setListingEmail(lb.email)
     const sb = deal.selling_brokerage || {}
     if (sb.brokerage) setSellingBrokerage(sb.brokerage)
     if (sb.agent) setSellingAgent(sb.agent)
     if (sb.phone) setSellingPhone(sb.phone)
+    if (sb.email) setSellingEmail(sb.email)
     const sub = deal.submitted || {}
     if (sub.via) setSubmittedVia(sub.via)
     if (sub.time) setSubmittedTime(sub.time)
     if (sub.date) setSubmittedDate(joinDate(sub.date))
     if (deal.inspector_name) setInspectorName(deal.inspector_name)
     if (deal.inspection_deadline) setInspectionDeadline(deal.inspection_deadline)
+    const ct = deal.condition_terms || {}
+    if (ct.financing) {
+      if (ct.financing.days) setFinDays(String(ct.financing.days))
+      if (ct.financing.time) setFinTime(ct.financing.time)
+    }
+    if (ct.inspection) {
+      if (ct.inspection.days) setInspDays(String(ct.inspection.days))
+      if (ct.inspection.time) setInspTime(ct.inspection.time)
+    }
+    if (deal.schedule) setSchedules(deal.schedule)
+    if (deal.listing_sheet) setSheetUploaded(true)
+    const bl = deal.buyer_lawyer || {}
+    if (bl.name) setLawyerName(bl.name)
+    if (bl.firm) setLawyerFirm(bl.firm)
+    if (bl.address) setLawyerAddress(bl.address)
+    if (bl.email) setLawyerEmail(bl.email)
+    if (bl.phone) setLawyerPhone(bl.phone)
+    if (bl.fax) setLawyerFax(bl.fax)
     if (deal.coop) {
       if (deal.coop.total) setCoopTotal(deal.coop.total)
       if (deal.coop.share) setCoopShare(deal.coop.share)
@@ -498,6 +543,73 @@ export default function PrepareOfferPage() {
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packageId])
+
+  // Lawyer directory (shared across packages) — pick a lawyer the
+  // team's clients have used before, or add a new one and it's kept.
+  useEffect(() => {
+    fetch('/api/offers/packages?lawyers=1')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) setLawyers(d.lawyers || [])
+      })
+      .catch(() => {})
+  }, [])
+
+  const pickLawyer = (idx: string) => {
+    const lw = lawyers[Number(idx)]
+    if (!lw) return
+    setLawyerName(lw.name || '')
+    setLawyerFirm(lw.firm || '')
+    setLawyerAddress(lw.address || '')
+    setLawyerEmail(lw.email || '')
+    setLawyerPhone(lw.phone || '')
+    setLawyerFax(lw.fax || '')
+  }
+
+  const addLawyer = async () => {
+    if (!nlName.trim()) return
+    try {
+      const data = await pkgAct({
+        action: 'add_lawyer',
+        lawyer: { name: nlName, firm: nlFirm, email: nlEmail, phone: nlPhone },
+      })
+      setLawyers(data.lawyers || [])
+      setLawyerName(nlName.trim())
+      setLawyerFirm(nlFirm.trim())
+      setLawyerEmail(nlEmail.trim())
+      setLawyerPhone(nlPhone.trim())
+      setLawyerAddress('')
+      setLawyerFax('')
+      setShowAddLawyer(false)
+      setNlName('')
+      setNlFirm('')
+      setNlEmail('')
+      setNlPhone('')
+    } catch {
+      /* the directory is a convenience — the typed details still save with this package */
+    }
+  }
+
+  const onSchedBUpload = async (file: File | null) => {
+    if (!file || !packageId) return
+    try {
+      const fd = new FormData()
+      fd.append('id', packageId)
+      fd.append('doc_form', 'schedule_b')
+      fd.append('file', file)
+      const res = await fetch('/api/offers/packages', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.ok) {
+        setActionNote('Schedule B added to this package.')
+        if (schedules.trim() === 'A') setSchedules('A, B')
+        refreshPkg()
+      } else {
+        setGenError(data.error || "Couldn't add the Schedule B.")
+      }
+    } catch {
+      setGenError("Couldn't add the Schedule B — check the connection and try again.")
+    }
+  }
 
   const loadLibrary = async () => {
     if (libLoaded) return
@@ -576,7 +688,7 @@ export default function PrepareOfferPage() {
         completion_date: splitDate(completionDate),
         title_search_date: splitDate(titleSearchDate),
         hst,
-        schedule: 'A',
+        schedule: schedules || 'A',
         chattels: lines(chattelsText),
         exclusions: lines(exclusionsText),
         rental_items: rentals
@@ -586,11 +698,13 @@ export default function PrepareOfferPage() {
           brokerage: listingBrokerage,
           agent: listingAgent || undefined,
           phone: listingPhone || undefined,
+          email: listingEmail || undefined,
         },
         selling_brokerage: {
           brokerage: sellingBrokerage,
           agent: sellingAgent || undefined,
           phone: sellingPhone || undefined,
+          email: sellingEmail || undefined,
         },
         submitted: {
           via: submittedVia,
@@ -601,6 +715,21 @@ export default function PrepareOfferPage() {
         client: pkgClient || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
+        condition_terms: {
+          financing: { days: finDays, time: finTime },
+          inspection: { days: inspDays, time: inspTime },
+        },
+        listing_sheet: sheetUploaded || undefined,
+        buyer_lawyer: lawyerName
+          ? {
+              name: lawyerName,
+              firm: lawyerFirm || undefined,
+              address: [lawyerFirm, lawyerAddress].filter(Boolean).join(', ') || undefined,
+              email: lawyerEmail || undefined,
+              phone: lawyerPhone || undefined,
+              fax: lawyerFax || undefined,
+            }
+          : undefined,
       },
       forms: ['100', '801'],
       clauseCodes: selectedClauses,
@@ -771,6 +900,21 @@ export default function PrepareOfferPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealSignature, pkgLoaded, packageId])
 
+  // Live preview of a standard condition clause with the deadline
+  // answers applied — the same edit the generator makes.
+  const ORDINAL_WORDS = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
+  const clausePreview = (code: string, days: string, time: string): string => {
+    const std = (LIB.standards || []).find((s: any) => s.code === code)
+    if (!std) return ''
+    let t = String(std.text || '')
+    const d = parseInt(days, 10)
+    if (d >= 1 && d <= 10 && d !== 5) {
+      t = t.split('fifth banking day').join(`${ORDINAL_WORDS[d]} banking day`)
+    }
+    if (time && time !== '6:00 p.m.') t = t.split('6:00 p.m.').join(time)
+    return t
+  }
+
   const renderBlankInputs = (opt: any) => {
     const blanks: string[] = opt.blanks || []
     if (!blanks.length) return null
@@ -781,13 +925,13 @@ export default function PrepareOfferPage() {
       if (token === 'INSERT NAME') {
         inputs.push(
           <p key={token} className="text-xs text-gray-500">
-            Inspector name comes from the Clause details section below.
+            Inspector name comes from the fill-in at the top of the Additional clauses list.
           </p>
         )
       } else if (token === 'INSERT DATE') {
         inputs.push(
           <p key={token} className="text-xs text-gray-500">
-            Date comes from the inspection deadline in Clause details below.
+            Date comes from the inspection-date fill-in at the top of the Additional clauses list.
           </p>
         )
       } else if (token === '____') {
@@ -950,7 +1094,11 @@ export default function PrepareOfferPage() {
             </p>
             <div className="flex items-center gap-3 mt-2">
               <label className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100 transition cursor-pointer whitespace-nowrap">
-                {sheetBusy ? 'Reading…' : 'Upload listing sheet'}
+                {sheetBusy
+                  ? 'Reading…'
+                  : sheetUploaded
+                    ? 'Listing sheet on file — replace it'
+                    : 'Upload listing sheet'}
                 <input
                   type="file"
                   accept=".pdf,image/*"
@@ -963,6 +1111,29 @@ export default function PrepareOfferPage() {
                 />
               </label>
               {sheetNote && <span className="text-sm text-gray-600">{sheetNote}</span>}
+            </div>
+          </div>
+          <div className="border-t pt-4 mt-2">
+            <p className="text-sm text-gray-600">
+              Schedule B comes with the listing — download it from REALM and add it here, and it
+              goes into this package. (The listing data feed carries details, not documents, so
+              this one can't be pulled automatically.)
+            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <label className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100 transition cursor-pointer whitespace-nowrap">
+                {pkgDocs.some((d: any) => d.form === 'schedule_b')
+                  ? 'Schedule B in package — replace it'
+                  : 'Add Schedule B (PDF)'}
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    onSchedBUpload(e.target.files?.[0] || null)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
             </div>
           </div>
         </div>
@@ -1126,7 +1297,132 @@ export default function PrepareOfferPage() {
                 <option value="included">Included in the Purchase Price</option>
               </select>
             </div>
+            <div>
+              <label className={labelCls}>Schedules attached</label>
+              <input className={inputCls} placeholder="A" value={schedules} onChange={(e) => setSchedules(e.target.value)} />
+              <p className="text-xs text-gray-400 mt-1">
+                Schedule A (your clauses) always goes in. Add the listing's — e.g. "A, B".
+              </p>
+            </div>
           </div>
+        </div>
+
+        {/* NOTICE DELIVERY */}
+        <div className={tab === 'offer' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Notice Delivery</h2>
+          <p className="text-sm text-gray-500">
+            The email addresses notices under this agreement are delivered to — they print on
+            the Form 100. The buyer's agent is whoever is preparing this offer; the seller's
+            agent's email usually comes off the REALM listing sheet.
+          </p>
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <div>
+              <label className={labelCls}>Buyer's agent email (ours)</label>
+              <input className={inputCls} placeholder="tim@thefcgroup.ca" value={sellingEmail} onChange={(e) => setSellingEmail(e.target.value)} />
+              <select
+                className="w-full border p-2 rounded-md mt-2 text-sm text-gray-600"
+                value={TEAM_AGENTS.some((t) => t.email === sellingEmail) ? sellingEmail : ''}
+                onChange={(e) => {
+                  const t = TEAM_AGENTS.find((x) => x.email === e.target.value)
+                  if (t) {
+                    setSellingEmail(t.email)
+                    setSellingAgent(t.name)
+                    if (t.phone) setSellingPhone(t.phone)
+                  }
+                }}
+              >
+                <option value="">…or pick who's preparing it</option>
+                {TEAM_AGENTS.map((t) => (
+                  <option key={t.email} value={t.email}>
+                    {t.name} — {t.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Seller's agent email (listing)</label>
+              <input className={inputCls} placeholder="From the listing sheet" value={listingEmail} onChange={(e) => setListingEmail(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        {/* BUYER'S LAWYER */}
+        <div className={tab === 'offer' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Buyer's Lawyer</h2>
+          <div>
+            <label className={labelCls}>Pick a lawyer our clients have used</label>
+            <select
+              className={inputCls}
+              value={(() => {
+                const i = lawyers.findIndex(
+                  (lw) => lw.name === lawyerName && (lw.firm || '') === lawyerFirm
+                )
+                return i >= 0 ? String(i) : ''
+              })()}
+              onChange={(e) => pickLawyer(e.target.value)}
+            >
+              <option value="">— pick a lawyer —</option>
+              {lawyers.map((lw, i) => (
+                <option key={i} value={i}>
+                  {lw.name}
+                  {lw.firm ? ` — ${lw.firm}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <div>
+              <label className={labelCls}>Lawyer name</label>
+              <input className={inputCls} value={lawyerName} onChange={(e) => setLawyerName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Firm</label>
+              <input className={inputCls} value={lawyerFirm} onChange={(e) => setLawyerFirm(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Address</label>
+              <input className={inputCls} value={lawyerAddress} onChange={(e) => setLawyerAddress(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Email</label>
+              <input className={inputCls} value={lawyerEmail} onChange={(e) => setLawyerEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Phone</label>
+              <input className={inputCls} value={lawyerPhone} onChange={(e) => setLawyerPhone(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Fax</label>
+              <input className={inputCls} value={lawyerFax} onChange={(e) => setLawyerFax(e.target.value)} />
+            </div>
+          </div>
+          {!showAddLawyer ? (
+            <button
+              type="button"
+              className="text-sm text-blue-700 underline mt-3"
+              onClick={() => setShowAddLawyer(true)}
+            >
+              + Add a new lawyer to the list
+            </button>
+          ) : (
+            <div className="border rounded-md p-3 mt-3 space-y-2">
+              <p className="text-sm font-medium">New lawyer — saved to the list for next time</p>
+              <div className="grid grid-cols-2 gap-3">
+                <input className={inputCls} placeholder="Name" value={nlName} onChange={(e) => setNlName(e.target.value)} />
+                <input className={inputCls} placeholder="Firm" value={nlFirm} onChange={(e) => setNlFirm(e.target.value)} />
+                <input className={inputCls} placeholder="Email" value={nlEmail} onChange={(e) => setNlEmail(e.target.value)} />
+                <input className={inputCls} placeholder="Phone" value={nlPhone} onChange={(e) => setNlPhone(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <button type="button" className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100" onClick={addLawyer}>
+                  Save to the list
+                </button>
+                <button type="button" className="text-sm px-3 py-2 text-gray-500" onClick={() => setShowAddLawyer(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* INCLUSIONS */}
@@ -1185,6 +1481,7 @@ export default function PrepareOfferPage() {
                   if (t) {
                     setListingAgent(t.name)
                     if (t.phone) setListingPhone(t.phone)
+                    if (t.email) setListingEmail(t.email)
                   }
                 }}
               >
@@ -1215,6 +1512,7 @@ export default function PrepareOfferPage() {
                   if (t) {
                     setSellingAgent(t.name)
                     if (t.phone) setSellingPhone(t.phone)
+                    if (t.email) setSellingEmail(t.email)
                   }
                 }}
               >
@@ -1256,17 +1554,47 @@ export default function PrepareOfferPage() {
               ))}
             </ul>
           </div>
-          <div>
-            <label className={labelCls}>Inspector name (for inspection clauses)</label>
-            <input className={inputCls} value={inspectorName} onChange={(e) => setInspectorName(e.target.value)} />
-          </div>
-          <div>
-            <label className={labelCls}>Inspection deadline (for inspection clauses)</label>
-            <input className={inputCls} placeholder="October 20, 2026" value={inspectionDeadline} onChange={(e) => setInspectionDeadline(e.target.value)} />
+          <div className="border rounded-md p-3 space-y-4">
+            <div>
+              <p className={labelCls}>Financing condition — Clause B deadline</p>
+              <div className="flex flex-wrap items-center gap-2 mt-1 text-sm">
+                <span>Conditional until</span>
+                <input className="border p-2 rounded-md w-24" value={finTime} onChange={(e) => setFinTime(e.target.value)} />
+                <span>on the</span>
+                <input type="number" min={1} max={10} className="border p-2 rounded-md w-16" value={finDays} onChange={(e) => setFinDays(e.target.value)} />
+                <span>banking day after the date of acceptance</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">{clausePreview('B', finDays, finTime)}</p>
+            </div>
+            <div>
+              <p className={labelCls}>Home inspection condition — Clause C deadline</p>
+              <div className="flex flex-wrap items-center gap-2 mt-1 text-sm">
+                <span>Inspection by a registered home inspector, at the buyer's expense, by</span>
+                <input className="border p-2 rounded-md w-24" value={inspTime} onChange={(e) => setInspTime(e.target.value)} />
+                <span>on the</span>
+                <input type="number" min={1} max={10} className="border p-2 rounded-md w-16" value={inspDays} onChange={(e) => setInspDays(e.target.value)} />
+                <span>banking day after the date of acceptance</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">{clausePreview('C', inspDays, inspTime)}</p>
+            </div>
+            <p className="text-xs text-gray-400">
+              The wording above is the actual clause — Schedule A is edited to match these
+              answers. Standard wording: 6:00 p.m. on the fifth banking day.
+            </p>
           </div>
           <div>
             <p className={labelCls}>Additional clauses</p>
-            <div className="border rounded-md max-h-96 overflow-y-auto p-3 space-y-2 mt-1">
+            <div className="grid grid-cols-2 gap-4 mt-1">
+              <div>
+                <label className={labelCls}>Inspector name (only for clauses that ask for one)</label>
+                <input className={inputCls} value={inspectorName} onChange={(e) => setInspectorName(e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Inspection date (only for clauses that ask for a date)</label>
+                <input className={inputCls} placeholder="October 20, 2026" value={inspectionDeadline} onChange={(e) => setInspectionDeadline(e.target.value)} />
+              </div>
+            </div>
+            <div className="border rounded-md max-h-96 overflow-y-auto p-3 space-y-2 mt-2">
               {(LIB.options || []).map((opt: any) => (
                 <div key={opt.code}>
                   <label className="flex items-start gap-2 text-sm cursor-pointer">

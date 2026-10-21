@@ -58,6 +58,9 @@ export default function StartOfferPage() {
   const [listingAgent, setListingAgent] = useState('')
   const [listingPhone, setListingPhone] = useState('')
   const [coopShare, setCoopShare] = useState('')
+  const [listingEmail, setListingEmail] = useState('')
+  const [sheetDone, setSheetDone] = useState(false)
+  const [schedBFile, setSchedBFile] = useState<File | null>(null)
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sheet upload
@@ -271,6 +274,8 @@ export default function StartOfferPage() {
       blank(listingBrokerage, f.listing_brokerage, setListingBrokerage, 'listing brokerage')
       blank(listingAgent, f.listing_agent, setListingAgent, 'listing agent')
       blank(listingPhone, f.listing_phone, setListingPhone, 'listing phone')
+      blank(listingEmail, f.listing_email, setListingEmail, 'listing email')
+      setSheetDone(true)
       setSheetNote(
         filled.length
           ? `From the sheet: ${filled.join(', ')}. It all carries into the package.`
@@ -311,8 +316,11 @@ export default function StartOfferPage() {
               brokerage: listingBrokerage,
               agent: listingAgent || undefined,
               phone: listingPhone || undefined,
+              email: listingEmail || undefined,
             }
           : undefined,
+        listing_sheet: sheetDone || undefined,
+        schedule: schedBFile ? 'A, B' : undefined,
         coop: coopShare
           ? { total: '', share: coopShare, basis: 'of the purchase price' }
           : undefined,
@@ -335,6 +343,17 @@ export default function StartOfferPage() {
       if (!data.ok) {
         setCreateError(data.error || 'Could not create the package.')
         return
+      }
+      if (schedBFile && data.id) {
+        try {
+          const fd = new FormData()
+          fd.append('id', data.id)
+          fd.append('doc_form', 'schedule_b')
+          fd.append('file', schedBFile)
+          await fetch('/api/offers/packages', { method: 'POST', body: fd })
+        } catch {
+          /* best-effort — Schedule B can be added again inside the package */
+        }
       }
       router.push(`/dashboard/offers/${data.id}`)
     } catch {
@@ -427,6 +446,32 @@ export default function StartOfferPage() {
                 />
               </label>
               {sheetNote && <span className="text-sm text-gray-600">{sheetNote}</span>}
+            </div>
+          </div>
+          <div className="border-t pt-4">
+            <p className="text-sm text-gray-600">
+              Got the listing's Schedule B too? Add the PDF here and it goes straight into the
+              package. (It comes from REALM like the sheet — the listing data feed carries
+              details, not documents.)
+            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <label className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100 transition cursor-pointer whitespace-nowrap">
+                {schedBFile ? `Schedule B: ${schedBFile.name}` : 'Add Schedule B (PDF)'}
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    setSchedBFile(e.target.files?.[0] || null)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              {schedBFile && (
+                <span className="text-sm text-gray-600">
+                  It'll be attached when the package is created.
+                </span>
+              )}
             </div>
           </div>
         </div>

@@ -108,6 +108,35 @@ function resolveClauses(
   const paragraphs: string[] = [];
   for (const c of chosen) {
     let t = c.text;
+    // Condition deadlines (Tim, 2026-10-21): the financing and
+    // inspection standards bake in "6:00 p.m." and "the fifth banking
+    // day" — when the workspace answers differ, the clause text is
+    // edited to match the answers so Schedule A stays accurate.
+    if (c.code === "B" || c.code === "C") {
+      const terms =
+        (deal.condition_terms || {})[c.code === "B" ? "financing" : "inspection"] || {};
+      const ORDINALS = [
+        "",
+        "first",
+        "second",
+        "third",
+        "fourth",
+        "fifth",
+        "sixth",
+        "seventh",
+        "eighth",
+        "ninth",
+        "tenth",
+      ];
+      const days = parseInt(String(terms.days ?? ""), 10);
+      if (days >= 1 && days <= 10 && days !== 5) {
+        t = t.split("fifth banking day").join(`${ORDINALS[days]} banking day`);
+      }
+      const time = String(terms.time || "").trim();
+      if (time && time !== "6:00 p.m.") {
+        t = t.split("6:00 p.m.").join(time);
+      }
+    }
     const blanks = clauseBlanks[c.code] || {};
     t = t.split("INSERT NAME").join(deal.inspector_name || "");
     t = t.split("INSERT DATE").join(deal.inspection_deadline || "");

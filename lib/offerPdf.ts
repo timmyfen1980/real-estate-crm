@@ -447,6 +447,7 @@ export async function buildForm100(
     if (brk.brokerage) mappedField(doc, form, prefix + "broker", brk.brokerage);
     if (brk.agent) mappedField(doc, form, prefix + "brkagent", brk.agent);
     if (brk.phone) mappedField(doc, form, prefix + "brkphone", brk.phone);
+    if (brk.email) mappedField(doc, form, prefix + "brkagentemail", brk.email);
   }
   for (const [key, prefix] of [
     ["seller_lawyer", "txts_lawyer"],
@@ -619,7 +620,9 @@ async function buildCoopForm(
     string,
     { rect: number[]; page: number }
   >;
-  const doc = await PDFDocument.load(templateBytes);
+  // The WebForms/PropTx blanks carry an owner password — pdf-lib needs
+  // ignoreEncryption to open them (the saved output is unencrypted).
+  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
   const helvetica = await doc.embedFont(StandardFonts.Helvetica);
   const form = doc.getForm();
   const prop = deal.property || {};
@@ -652,14 +655,13 @@ async function buildCoopForm(
     D("commission_amount", `${pct} ${basis}, plus HST`);
   }
 
+  // Buyer side ONLY (Tim, 2026-10-21): the co-operating/buyer
+  // brokerage's block is filled; the seller brokerage's signature
+  // block stays blank for that brokerage to complete itself.
   const sb = deal.selling_brokerage || {};
-  const lb = deal.listing_brokerage || {};
   D("coop_brokerage", sb.brokerage);
   D("coop_tel", sb.phone);
   D("coop_print_name", sb.agent);
-  D("seller_brokerage", lb.brokerage);
-  D("seller_tel", lb.phone);
-  D("seller_print_name", lb.agent);
 
   form.updateFieldAppearances(helvetica);
   const bytes = await doc.save();

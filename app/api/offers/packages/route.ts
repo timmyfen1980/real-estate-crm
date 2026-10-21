@@ -20,6 +20,34 @@ import { createClient } from "@supabase/supabase-js";
 const FC_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 const BUCKET = "client-documents";
 
+// The team's lawyer directory — one shared list (storage JSON), seeded
+// with the lawyers Tim's clients already use. The workspace picker
+// reads it and can add to it.
+const LAWYER_PATH = "system/lawyer-directory.json";
+const LAWYER_SEED = [
+  { name: "Jonathan Griffiths", firm: "Griffiths Law", address: "", email: "", phone: "", fax: "" },
+  { name: "Sarah Duff", firm: "Griffiths Law", address: "", email: "", phone: "", fax: "" },
+];
+
+async function readLawyers(supabase: any): Promise<any[]> {
+  const { data, error } = await supabase.storage.from(BUCKET).download(LAWYER_PATH);
+  if (error || !data) return [...LAWYER_SEED];
+  try {
+    const parsed = JSON.parse(await data.text());
+    return Array.isArray(parsed) && parsed.length ? parsed : [...LAWYER_SEED];
+  } catch {
+    return [...LAWYER_SEED];
+  }
+}
+
+async function writeLawyers(supabase: any, lawyers: any[]): Promise<void> {
+  const bytes = new TextEncoder().encode(JSON.stringify(lawyers, null, 2));
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(LAWYER_PATH, bytes, { contentType: "application/json", upsert: true });
+  if (error) throw new Error(error.message);
+}
+
 function serviceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -97,6 +125,12 @@ export async function GET(req: NextRequest) {
     }
     const supabase = serviceClient();
     const url = new URL(req.url);
+
+    // The shared lawyer directory.
+    if (url.searchParams.get("lawyers")) {
+      const lawyers = await readLawyers(supabase);
+      return NextResponse.json({ ok: true, lawyers });
+    }
 
     // Single package, including the deal snapshot (workspace page).
     const oneId = url.searchParams.get("id");
@@ -182,9 +216,11 @@ export async function POST(req: NextRequest) {
         .from(BUCKET)
         .upload(path, bytes, { contentType: file.type || "application/pdf", upsert: false });
       if (upErr) throw new Error(upErr.message);
+      const docForm =
+        String(formData.get("doc_form") || "") === "schedule_b" ? "schedule_b" : "file";
       const docs = Array.isArray(pkg.documents) ? [...pkg.documents] : [];
       docs.push({
-        form: "file",
+        form: docForm,
         filename: safeName,
         path,
         signed: false,
@@ -200,6 +236,29 @@ export async function POST(req: NextRequest) {
 
     // --- JSON actions ---
     const body = (await req.json().catch(() => ({}))) as any;
+
+    if (body.action === "add_lawyer") {
+      const lw = body.lawyer || {};
+      const name = String(lw.name || "").trim();
+      if (!name) {
+        return NextResponse.json({ ok: false, error: "A lawyer name is required." }, { status: 400 });
+      }
+      const entry = {
+        name,
+        firm: String(lw.firm || "").trim(),
+        address: String(lw.address || "").trim(),
+        email: String(lw.email || "").trim(),
+        phone: String(lw.phone || "").trim(),
+        fax: String(lw.fax || "").trim(),
+      };
+      const lawyers = await readLawyers(supabase);
+      const key = (e: any) => `${e.name}|${e.firm}`.toLowerCase();
+      if (!lawyers.some((e: any) => key(e) === key(entry))) {
+        lawyers.push(entry);
+        await writeLawyers(supabase, lawyers);
+      }
+      return NextResponse.json({ ok: true, lawyers });
+    }
 
     if (body.action === "create") {
       const deal = body.deal || {};
