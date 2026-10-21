@@ -354,6 +354,16 @@ export default function OffersPage() {
                 >
                   + Add from the team library
                 </button>
+                {(pkg.documents || []).length > 0 && (
+                  <button
+                    onClick={() =>
+                      window.open(`/api/offers/packages?id=${pkg.id}&download_all=1`, '_blank')
+                    }
+                    className="text-sm border px-3 py-1.5 rounded-md hover:bg-gray-100 transition"
+                  >
+                    Download all (.zip)
+                  </button>
+                )}
                 <button
                   disabled
                   title="Connects when the iinked Sign account is linked"
