@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { CHECKLISTS, ChecklistType } from '@/lib/checklists';
 
 const FC_ACCOUNT_ID = 'a540905b-7cd7-4dd6-bba0-162c07978bd6';
 
@@ -108,13 +109,92 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ---- JSON: lookup ----
+    // ---- JSON: create_file + lookup ----
     const body = (await req.json()) as {
       action?: string;
       contact_id?: string;
       name?: string;
       deal_id?: string;
+      client_names?: string;
+      checklist_type?: string;
+      email?: string;
+      phone?: string;
+      property_address?: string;
     };
+    if (body.action === 'create_file') {
+      const type = (body.checklist_type || 'buyer') as ChecklistType;
+      if (!CHECKLISTS[type] || !body.client_names) {
+        return NextResponse.json(
+          { error: 'Need client_names and a valid checklist_type.' },
+          { status: 400 }
+        );
+      }
+      // Refuse to duplicate an existing file for the same contact.
+      if (body.contact_id) {
+        const { data: existing } = await supabase
+          .from('client_files')
+          .select('id')
+          .eq('crm_contact_id', body.contact_id)
+          .eq('account_id', FC_ACCOUNT_ID);
+        if (existing && existing.length > 0) {
+          return NextResponse.json({
+            ok: true,
+            created: false,
+            file_id: existing[0].id,
+          });
+        }
+      }
+      const { data: newFile, error: insertError } = await supabase
+        .from('client_files')
+        .insert({
+          account_id: FC_ACCOUNT_ID,
+          checklist_types: [type],
+          client_names: body.client_names,
+          email: body.email || null,
+          phone: body.phone || null,
+          property_address: body.property_address || null,
+          crm_contact_id: body.contact_id || null,
+          crm_deal_id: body.deal_id || null,
+          deal_dates: {},
+          financials: {},
+        })
+        .select('id')
+        .single();
+      if (insertError) throw insertError;
+
+      const rows: Record<string, unknown>[] = [];
+      const checklist = CHECKLISTS[type];
+      checklist.stages.forEach((stage, stage_index) => {
+        stage.items.forEach((item, doc_index) => {
+          rows.push({
+            client_file_id: newFile.id,
+            checklist_type: type,
+            stage_index,
+            doc_index,
+            document: item.document,
+            form: item.form || null,
+            required: item.required,
+            view_form: item.viewForm || null,
+            beth_note: item.bethNote,
+            status: 'pending',
+            received_via: null,
+            file_url: null,
+            notes: null,
+          });
+        });
+      });
+      const { error: seedError } = await supabase
+        .from('client_documents')
+        .insert(rows);
+      if (seedError) throw seedError;
+
+      return NextResponse.json({
+        ok: true,
+        created: true,
+        file_id: newFile.id,
+        documents_seeded: rows.length,
+      });
+    }
     if (
       body.action === 'lookup' &&
       (body.contact_id || body.name || body.deal_id)
