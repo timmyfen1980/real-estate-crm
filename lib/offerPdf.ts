@@ -47,8 +47,8 @@ const SCHED_HEADER = {
   buyers: [77, 132, 560, 146],
   sellers: [77, 155, 560, 169],
   property: [145, 178, 571, 192],
-  day: [259, 201, 300, 215],
-  month: [321, 201, 480, 215],
+  day: [264, 201, 302, 215],
+  month: [325, 201, 480, 215],
   year: [537, 201, 571, 215],
 };
 
@@ -291,40 +291,44 @@ function mappedPair(
 // Schedule A chunking
 // ---------------------------------------------------------------------------
 
-function wrapLines(text: string, font: PDFFont, size: number, width: number): number {
-  let lines = 0;
+// Wrap at a width safely inside the field: pdf-lib's own appearance
+// wrapping overflows the right edge (verified on the first live build),
+// so lines are broken here and handed to the field pre-wrapped.
+const SCHED_WRAP_WIDTH = 472;
+
+function wrapText(text: string, font: PDFFont, size: number, width: number): string[] {
+  const lines: string[] = [];
   let cur = "";
   for (const wd of text.split(/\s+/)) {
     const t = cur ? cur + " " + wd : wd;
     if (font.widthOfTextAtSize(t, size) > width && cur) {
-      lines += 1;
+      lines.push(cur);
       cur = wd;
     } else {
       cur = t;
     }
   }
-  if (cur) lines += 1;
-  return Math.max(lines, 1);
+  if (cur) lines.push(cur);
+  return lines.length > 0 ? lines : [""];
 }
 
 function chunkParagraphs(paragraphs: string[], font: PDFFont): string[] {
-  const width = SCHED_X1 - SCHED_X0;
   const chunks: string[] = [];
-  let cur: string[] = [];
+  let curParas: string[] = [];
   let used = 0;
   for (const para of paragraphs) {
-    const lines = wrapLines(para, font, SCHED_FONT_SIZE, width);
-    const cost = lines + (cur.length > 0 ? 1 : 0); // blank line between clauses
-    if (used + cost > SCHED_LINES_PER_PAGE && cur.length > 0) {
-      chunks.push(cur.join("\n\n"));
-      cur = [para];
-      used = lines;
+    const lines = wrapText(para, font, SCHED_FONT_SIZE, SCHED_WRAP_WIDTH);
+    const cost = lines.length + (curParas.length > 0 ? 1 : 0); // blank line between clauses
+    if (used + cost > SCHED_LINES_PER_PAGE && curParas.length > 0) {
+      chunks.push(curParas.join("\n\n"));
+      curParas = [lines.join("\n")];
+      used = lines.length;
     } else {
-      cur.push(para);
+      curParas.push(lines.join("\n"));
       used += cost;
     }
   }
-  if (cur.length > 0) chunks.push(cur.join("\n\n"));
+  if (curParas.length > 0) chunks.push(curParas.join("\n\n"));
   return chunks.length > 0 ? chunks : [""];
 }
 
