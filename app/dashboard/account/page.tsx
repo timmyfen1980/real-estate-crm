@@ -131,7 +131,11 @@ setOriginalData(loaded)
   )
 
   const uploadFile = async (file: File, path: string) => {
-    await supabase.storage.from('account-assets').upload(path, file, { upsert: true })
+    const { error } = await supabase.storage.from('account-assets').upload(path, file, { upsert: true })
+    if (error) {
+      console.error('ACCOUNT ASSET UPLOAD ERROR:', error)
+      return null
+    }
     const { data } = supabase.storage.from('account-assets').getPublicUrl(path)
     return data.publicUrl
   }
@@ -148,31 +152,55 @@ setOriginalData(loaded)
     let newEmailHeaderUrl = emailHeaderUrl
 
     if (logoFile) {
-  newLogoUrl = await uploadFile(
+  const uploaded = await uploadFile(
     logoFile,
     `${accountId}/agents/${Date.now()}-${logoFile.name}`
   )
+  if (!uploaded) {
+    setSaving(false)
+    setMessage('Error uploading logo — your other changes were not saved. Please try again.')
+    return
+  }
+  newLogoUrl = uploaded
 }
 
     if (brokerageLogoFile) {
-  newBrokerageLogoUrl = await uploadFile(
+  const uploaded = await uploadFile(
     brokerageLogoFile,
     `${accountId}/brokerage-logo.${brokerageLogoFile.name.split('.').pop()}`
   )
+  if (!uploaded) {
+    setSaving(false)
+    setMessage('Error uploading brokerage logo — your other changes were not saved. Please try again.')
+    return
+  }
+  newBrokerageLogoUrl = uploaded
 }
 
 if (teamLogoFile) {
-  newTeamLogoUrl = await uploadFile(
+  const uploaded = await uploadFile(
     teamLogoFile,
     `${accountId}/team-logo.${teamLogoFile.name.split('.').pop()}`
   )
+  if (!uploaded) {
+    setSaving(false)
+    setMessage('Error uploading team logo — your other changes were not saved. Please try again.')
+    return
+  }
+  newTeamLogoUrl = uploaded
 }
 
 if (emailHeaderFile) {
-  newEmailHeaderUrl = await uploadFile(
+  const uploaded = await uploadFile(
     emailHeaderFile,
     `${accountId}/email-header-${Date.now()}-${emailHeaderFile.name}`
   )
+  if (!uploaded) {
+    setSaving(false)
+    setMessage('Error uploading email header — your other changes were not saved. Please try again.')
+    return
+  }
+  newEmailHeaderUrl = uploaded
 }
 
 const {
@@ -216,17 +244,13 @@ if (userRole === 'owner') {
 
   if (accountError) {
     console.error('ACCOUNT UPDATE ERROR:', accountError)
+    setSaving(false)
+    setMessage('Error saving changes.')
+    return
   }
 }
 
 console.log('UPDATED ACCOUNT ID:', accountId)
-
-if (updateError) {
-  console.error('ACCOUNT UPDATE ERROR:', updateError)
-  setSaving(false)
-  setMessage('Error saving changes.')
-  return
-}
 
 setLogoUrl(newLogoUrl)
 setBrokerageLogoUrl(newBrokerageLogoUrl)
