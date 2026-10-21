@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import ReaChat from '@/components/ReaChat'
+import ReaChat from '@/app/components/ReaChat'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
