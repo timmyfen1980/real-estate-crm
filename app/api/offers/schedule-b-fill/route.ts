@@ -65,9 +65,9 @@ const FORM105: Record<string, { x0: number; x1: number; y: number }> = {
   buyers: { x0: 0.125, x1: 0.885, y: 0.178 },
   sellers: { x0: 0.125, x1: 0.925, y: 0.207 },
   property: { x0: 0.252, x1: 0.925, y: 0.236 },
-  date_day: { x0: 0.435, x1: 0.575, y: 0.288 },
-  date_month: { x0: 0.655, x1: 0.815, y: 0.288 },
-  date_year: { x0: 0.852, x1: 0.9, y: 0.288 },
+  date_day: { x0: 0.445, x1: 0.625, y: 0.2655 },
+  date_month: { x0: 0.7, x1: 0.84, y: 0.2655 },
+  date_year: { x0: 0.885, x1: 0.935, y: 0.2655 },
 };
 
 const MONTHS = [
