@@ -90,6 +90,9 @@ if (!existingProfile) {
 
   if (profileError) {
     console.error('Profile insert error:', profileError)
+    setError('Signup failed while creating your profile — please try again or contact Tim.')
+    setLoading(false)
+    return
   }
 }// =============================
 // UNIFIED CREATE / JOIN FLOW
