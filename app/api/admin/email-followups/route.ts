@@ -125,11 +125,62 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Dedupe-safe sync (fixed 2026-10-21): plain upserts created duplicate
+    // open rows for the same message_id, so this route now collapses any
+    // existing duplicate open rows (keeping the earliest first_seen), then
+    // UPDATEs the surviving row when one exists and INSERTs only when the
+    // message has no open row yet.
+    let deduped = 0;
+    let written = 0;
     if (upsertRows.length > 0) {
-      const { error: upsertError } = await supabase
+      const syncIds = upsertRows.map((row: any) => row.message_id as string);
+      const { data: existingRows, error: existingError } = await supabase
         .from('email_followups')
-        .upsert(upsertRows, { onConflict: 'account_id,message_id' });
-      if (upsertError) throw upsertError;
+        .select('id, message_id, status, first_seen_at')
+        .eq('account_id', ACCOUNT_ID)
+        .in('message_id', syncIds)
+        .order('first_seen_at', { ascending: true });
+      if (existingError) throw existingError;
+
+      const openByMessage = new Map<string, string>();
+      const extraOpenIds: string[] = [];
+      for (const row of existingRows || []) {
+        if (row.status !== 'open') continue;
+        if (openByMessage.has(row.message_id)) extraOpenIds.push(row.id);
+        else openByMessage.set(row.message_id, row.id);
+      }
+      if (extraOpenIds.length > 0) {
+        const { error: dedupeError } = await supabase
+          .from('email_followups')
+          .delete()
+          .in('id', extraOpenIds);
+        if (dedupeError) throw dedupeError;
+        deduped = extraOpenIds.length;
+      }
+
+      for (const row of upsertRows) {
+        const keeperId = openByMessage.get(row.message_id);
+        if (keeperId) {
+          const { error: updateError } = await supabase
+            .from('email_followups')
+            .update({
+              sender_name: row.sender_name,
+              sender_email: row.sender_email,
+              subject: row.subject,
+              snippet: row.snippet,
+              received_at: row.received_at,
+              last_seen_at: nowIso,
+            })
+            .eq('id', keeperId);
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from('email_followups')
+            .insert({ ...row, first_seen_at: nowIso });
+          if (insertError) throw insertError;
+        }
+        written++;
+      }
     }
 
     let resolvedCount = 0;
@@ -146,7 +197,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      upserted: upsertRows.length,
+      upserted: written,
+      deduped,
       skipped_dismissed: skippedDismissed,
       resolved: resolvedCount,
     });

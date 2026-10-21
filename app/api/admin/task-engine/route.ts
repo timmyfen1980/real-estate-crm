@@ -92,6 +92,91 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// GET — assignment audit (added 2026-10-21): team members, every deal with
+// its agent, and every open task with its assignee, so Rea can verify that
+// milestone tasks land on the deal's agent and spot unassigned work.
+export async function GET(req: NextRequest) {
+  if (!authorized(req)) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  }
+  try {
+    const supabase = db();
+
+    const { data: members, error: membersError } = await supabase
+      .from('account_users')
+      .select('user_id, role')
+      .eq('account_id', ACCOUNT_ID);
+    if (membersError) throw membersError;
+
+    const memberIds = (members || []).map((m: any) => m.user_id);
+    const nameById = new Map<string, string>();
+    if (memberIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', memberIds);
+      for (const p of profiles || []) {
+        if (p.full_name) nameById.set(p.id, p.full_name);
+      }
+    }
+    const team = (members || []).map((m: any) => ({
+      user_id: m.user_id,
+      role: m.role,
+      full_name: nameById.get(m.user_id) || null,
+    }));
+
+    const { data: deals, error: dealsError } = await supabase
+      .from('deals')
+      .select('id, contact_id, property_id, assigned_user_id, status, closing_date')
+      .eq('account_id', ACCOUNT_ID);
+    if (dealsError) throw dealsError;
+
+    const propertyIds = Array.from(
+      new Set((deals || []).map((d: any) => d.property_id).filter(Boolean))
+    );
+    const addressByProperty = new Map<string, string>();
+    if (propertyIds.length > 0) {
+      const { data: props } = await supabase
+        .from('properties')
+        .select('id, address')
+        .in('id', propertyIds);
+      for (const p of props || []) {
+        if (p.address) addressByProperty.set(p.id, p.address);
+      }
+    }
+
+    const { data: tasks, error: tasksError } = await supabase
+      .from('tasks')
+      .select('id, title, due_date, priority, status, assigned_user_id, source')
+      .eq('account_id', ACCOUNT_ID)
+      .neq('status', 'completed')
+      .order('due_date', { ascending: true });
+    if (tasksError) throw tasksError;
+
+    return NextResponse.json({
+      team,
+      deals: (deals || []).map((d: any) => ({
+        id: d.id,
+        address: d.property_id
+          ? addressByProperty.get(d.property_id) || null
+          : null,
+        status: d.status,
+        closing_date: d.closing_date,
+        assigned_user_id: d.assigned_user_id,
+        assigned_name: d.assigned_user_id
+          ? nameById.get(d.assigned_user_id) || null
+          : null,
+      })),
+      open_tasks: tasks || [],
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || 'Audit failed.' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
