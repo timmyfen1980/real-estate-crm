@@ -224,7 +224,7 @@ function noticeParagraphs(
     paragraphs.push(
       ...extra
         .split(/\n{2,}/)
-        .map((s) => s.trim())
+        .map((s: string) => s.trim())
         .filter(Boolean)
     );
   }
