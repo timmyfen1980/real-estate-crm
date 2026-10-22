@@ -598,6 +598,8 @@ const { data: propertyData, error: propertyError } = await supabase
         .eq('lead_id', lead.id)
         .in('source', ['drip_checkin', 'lead_followup'])
         .eq('status', 'pending')
+
+      window.dispatchEvent(new Event('rea:counts-refresh'))
     }
   }
 
@@ -616,6 +618,7 @@ const completeLeadTask = async (task: Task) => {
   }
 
   setLeadTasks(prev => prev.filter(t => t.id !== task.id))
+  window.dispatchEvent(new Event('rea:counts-refresh'))
 }
 
 const toggleEnrollment = async (enrollment: any) => {

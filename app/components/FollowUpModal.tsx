@@ -241,6 +241,9 @@ export default function FollowUpModal({
       setSentInfo(data.next_followup_date || null)
       setSent(true)
       setSending(false)
+      // The send completed this lead's follow-up task server-side —
+      // refresh the sidebar counts right away.
+      window.dispatchEvent(new Event('rea:counts-refresh'))
       setTimeout(() => {
         if (onSent) onSent()
         else onClose()

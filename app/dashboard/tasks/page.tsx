@@ -128,6 +128,11 @@ export default function TasksPage() {
     }
 
     setLoading(false)
+
+    // Every task mutation on this page funnels through loadTasks()
+    // afterwards — tell the sidebar to recount right away so its
+    // Tasks pill matches without a page refresh.
+    window.dispatchEvent(new Event('rea:counts-refresh'))
   }
 
   useEffect(() => {

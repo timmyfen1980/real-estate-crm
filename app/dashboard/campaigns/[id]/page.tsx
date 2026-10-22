@@ -142,6 +142,7 @@ const [enrolling, setEnrolling] = useState(false)
       const data = await res.json()
 
       if (data.issue_status) setIssueStatus(data.issue_status)
+      window.dispatchEvent(new Event('rea:counts-refresh'))
     } finally {
       setApprovingIssue(null)
     }
@@ -160,6 +161,7 @@ const [enrolling, setEnrolling] = useState(false)
       const data = await res.json()
 
       if (data.issue_status) setIssueStatus(data.issue_status)
+      window.dispatchEvent(new Event('rea:counts-refresh'))
     } finally {
       setSkippingIssue(null)
     }

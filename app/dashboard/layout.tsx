@@ -47,6 +47,7 @@ const [userRole, setUserRole] = useState<string | null>(null)
 const [overdueCount, setOverdueCount] = useState(0)
 const [newLeadsCount, setNewLeadsCount] = useState(0)
 const [taskCount, setTaskCount] = useState(0)
+const [countsNonce, setCountsNonce] = useState(0)
 const [closedBuyers, setClosedBuyers] = useState(0)
 const [closedSellers, setClosedSellers] = useState(0)
 const [closedLeases, setClosedLeases] = useState(0)
@@ -280,7 +281,19 @@ setNewLeadsCount(newLeads || 0)
     }
 
     init()
-  }, [router])
+  }, [router, countsNonce])
+
+  // Live sidebar counts (Tim, 2026-10-22): pages that change tasks
+  // or leads — the Tasks page, the lead page, the follow-up modal,
+  // the newsletter panel — dispatch 'rea:counts-refresh' after a
+  // successful change, and the counts re-run immediately, so the
+  // Tasks pill drops the moment a task is cleared instead of
+  // waiting for a full page refresh.
+  useEffect(() => {
+    const handler = () => setCountsNonce((n) => n + 1)
+    window.addEventListener('rea:counts-refresh', handler)
+    return () => window.removeEventListener('rea:counts-refresh', handler)
+  }, [])
 const handleLogout = async () => {
   setLoggingOut(true)
   await supabase.auth.signOut()

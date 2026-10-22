@@ -246,24 +246,19 @@ export async function getIssueStatus(
 ): Promise<IssueStatus> {
   const { year, month } = torontoYearMonth(now);
   const curKey = issueKeyFor(year, month);
-  const nxtKey = nextIssueKey(curKey);
-  const nxtParsed = parseIssueKey(nxtKey) || { year, month };
   const curStep = stepForMonth(month);
-  const nxtStep = stepForMonth(nxtParsed.month);
 
   const { data: seqs } = await supabase
     .from('email_sequences')
     .select('step_number, subject')
-    .eq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
-    .in('step_number', [curStep, nxtStep]);
+    .eq('campaign_id', NEWSLETTER_CAMPAIGN_ID);
   const subjectFor = (step: number): string | null => {
     const row = (seqs || []).find((s) => s.step_number === step);
     return row ? row.subject : null;
   };
 
-  const [curApproval, nxtApproval, skippedIssues] = await Promise.all([
+  const [curApproval, skippedIssues] = await Promise.all([
     getIssueApproval(supabase, curKey),
-    getIssueApproval(supabase, nxtKey),
     getSkippedIssues(supabase),
   ]);
 
@@ -313,17 +308,35 @@ export async function getIssueStatus(
     return info;
   };
 
+  const currentInfo = buildInfo(curKey, year, month, curStep, curApproval);
+
+  // The "next" issue is the next one still awaiting a decision —
+  // the first month after the current issue that is neither
+  // approved nor skipped (Tim, 2026-10-22: approving November
+  // should immediately put December in line, ready for approval,
+  // and so on as issues are decided). Walk a full year; if every
+  // month ahead is already decided, fall back to the plain
+  // calendar-next issue.
+  let calendarNext: IssueInfo | null = null;
+  let nextInfo: IssueInfo | null = null;
+  for (let ahead = 1; ahead <= 12; ahead++) {
+    const m = ((month - 1 + ahead) % 12) + 1;
+    const y = year + Math.floor((month - 1 + ahead) / 12);
+    const key = issueKeyFor(y, m);
+    const approval = await getIssueApproval(supabase, key);
+    const info = buildInfo(key, y, m, stepForMonth(m), approval);
+    if (ahead === 1) calendarNext = info;
+    if (!info.approved && !info.skipped) {
+      nextInfo = info;
+      break;
+    }
+  }
+
   return {
     campaign_id: NEWSLETTER_CAMPAIGN_ID,
     generated_at: now.toISOString(),
-    current_issue: buildInfo(curKey, year, month, curStep, curApproval),
-    next_issue: buildInfo(
-      nxtKey,
-      nxtParsed.year,
-      nxtParsed.month,
-      nxtStep,
-      nxtApproval
-    ),
+    current_issue: currentInfo,
+    next_issue: nextInfo || calendarNext || currentInfo,
     enrollments: counts,
     sent_this_month: sentCount || 0,
   };
