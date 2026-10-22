@@ -518,6 +518,8 @@ const handlePreview = async (sequence: Sequence) => {
     )
   }
 
+  const pendingIssue = issueStatus?.pending_issue || null
+
   // Newsletter campaign: show NEXT month's issue first (Tim,
   // 2026-10-22). The list rotates so the upcoming issue leads and
   // the rest follow in month order (Nov, Dec, Jan, ..., Oct).
@@ -596,16 +598,16 @@ const handlePreview = async (sequence: Sequence) => {
 
           {issueStatus ? (
             <div className="space-y-4">
-              {issueStatus.pending_issue ? (
+              {pendingIssue ? (
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div>
                     <div className="font-semibold text-gray-900">
-                      {issueStatus.pending_issue.month_name}{' '}
-                      {issueStatus.pending_issue.year} issue
+                      {pendingIssue.month_name}{' '}
+                      {pendingIssue.year} issue
                     </div>
 
                     <div className="text-sm text-gray-500">
-                      {issueStatus.pending_issue.subject || 'No content yet'}
+                      {pendingIssue.subject || 'No content yet'}
                       {' • Enrolled: '}
                       {issueStatus.enrollments.total} (
                       {issueStatus.enrollments.active} active,{' '}
@@ -616,25 +618,25 @@ const handlePreview = async (sequence: Sequence) => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={function () {
-                        handleApproveIssue(issueStatus.pending_issue.key)
+                        handleApproveIssue(pendingIssue.key)
                       }}
                       disabled={approvingIssue !== null || skippingIssue !== null}
                       className="bg-black text-white px-4 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50"
                     >
-                      {approvingIssue === issueStatus.pending_issue.key
+                      {approvingIssue === pendingIssue.key
                         ? 'Approving…'
-                        : `Approve ${issueStatus.pending_issue.month_name} issue — start sending`}
+                        : `Approve ${pendingIssue.month_name} issue — start sending`}
                     </button>
                     <button
                       onClick={function () {
-                        handleSkipIssue(issueStatus.pending_issue.key)
+                        handleSkipIssue(pendingIssue.key)
                       }}
                       disabled={approvingIssue !== null || skippingIssue !== null}
                       className="border px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition disabled:opacity-50"
                     >
-                      {skippingIssue === issueStatus.pending_issue.key
+                      {skippingIssue === pendingIssue.key
                         ? 'Skipping…'
-                        : `Skip ${issueStatus.pending_issue.month_name}`}
+                        : `Skip ${pendingIssue.month_name}`}
                     </button>
                   </div>
                 </div>
