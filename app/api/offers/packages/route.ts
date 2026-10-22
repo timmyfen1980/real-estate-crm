@@ -159,6 +159,20 @@ function tableMissing(error: any): boolean {
   return msg.includes("offer_packages") && (msg.includes("does not exist") || msg.includes("schema cache"));
 }
 
+const MONTH_INDEX: Record<string, number> = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+};
+
+// {day, month (name), year (2-digit)} -> ISO date, or null.
+function isoFromParts(d: any): string | null {
+  if (!d || !d.day || !d.year) return null;
+  const m = MONTH_INDEX[String(d.month || "").toLowerCase()];
+  if (!m) return null;
+  const y = String(d.year).length === 2 ? `20${d.year}` : String(d.year);
+  return `${y}-${String(m).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+}
+
 async function resolveUserId(req: NextRequest): Promise<string | null> {
   const supabase = serviceClient();
   const token = (req.headers.get("authorization") || "").replace("Bearer ", "").trim();
@@ -346,6 +360,315 @@ export async function POST(req: NextRequest) {
 
     // --- JSON actions ---
     const body = (await req.json().catch(() => ({}))) as any;
+
+    // --- Deal linking (Tim, 2026-10-22): "Create / Link to Deal".
+    // A linked package's documents mirror onto the deal's page
+    // automatically (signed replacing unsigned). Writes need the
+    // one-time deal-link-setup.sql (offer_packages.deal_id); until it
+    // runs they answer setup_needed instead of failing obscurely.
+    const dealSetupNeeded = (error: any) =>
+      String(error?.message || "").includes("deal_id");
+    const normAddr = (s: string) =>
+      String(s || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const summarizeDeals = async (rows: any[]) => {
+      if (!rows.length) return [];
+      const propIds = [...new Set(rows.map((r) => r.property_id).filter(Boolean))];
+      const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean))];
+      const { data: props } = await supabase
+        .from("properties")
+        .select("id,address")
+        .in("id", propIds.length ? propIds : ["-"]);
+      const { data: cons } = await supabase
+        .from("contacts")
+        .select("id,first_name,last_name")
+        .in("id", contactIds.length ? contactIds : ["-"]);
+      const propMap = new Map((props || []).map((p: any) => [p.id, p.address]));
+      const conMap = new Map(
+        (cons || []).map((c: any) => [c.id, `${c.first_name || ""} ${c.last_name || ""}`.trim()])
+      );
+      return rows.map((r) => ({
+        deal_id: r.id,
+        address: propMap.get(r.property_id) || "",
+        contact_name: conMap.get(r.contact_id) || "",
+        deal_type: r.deal_type,
+        status: r.status,
+        closing_date: r.closing_date || null,
+      }));
+    };
+    const loadPkgRow = async () => {
+      const { data, error } = await supabase
+        .from("offer_packages")
+        .select("*")
+        .eq("account_id", FC_ACCOUNT_ID)
+        .eq("id", body.id || "")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data;
+    };
+
+    if (body.action === "deal_suggestions") {
+      const pkg = await loadPkgRow();
+      if (!pkg) {
+        return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
+      }
+      const snap = pkg.deal || {};
+      const pkgAddr = normAddr(pkg.address || "");
+      const clientContactId = snap?.client?.contact_id || null;
+      const { data: dealRows } = await supabase
+        .from("deals")
+        .select("id,contact_id,property_id,deal_type,status,closing_date")
+        .eq("account_id", FC_ACCOUNT_ID);
+      const summaries = await summarizeDeals(dealRows || []);
+      const suggestions = summaries
+        .map((s) => {
+          let score = 0;
+          const reasons: string[] = [];
+          const dAddr = normAddr(s.address);
+          if (
+            dAddr &&
+            pkgAddr &&
+            (dAddr === pkgAddr || dAddr.includes(pkgAddr) || pkgAddr.includes(dAddr))
+          ) {
+            score += 2;
+            reasons.push("same property");
+          }
+          const row = (dealRows || []).find((r: any) => r.id === s.deal_id);
+          if (clientContactId && row && row.contact_id === clientContactId) {
+            score += 2;
+            reasons.push("same client");
+          }
+          return { ...s, reason: reasons.join(" + ") , score };
+        })
+        .filter((s) => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+        .map(({ score, ...rest }) => rest);
+      let linked: any = null;
+      if ((pkg as any).deal_id) {
+        const row = (dealRows || []).find((r: any) => r.id === (pkg as any).deal_id);
+        if (row) {
+          const [sum] = await summarizeDeals([row]);
+          linked = sum || null;
+        }
+      }
+      let typeGuess = "buyer";
+      if (snap?.client?.client_file_id) {
+        const { data: cf } = await supabase
+          .from("client_files")
+          .select("checklist_types")
+          .eq("id", snap.client.client_file_id)
+          .maybeSingle();
+        const types: string[] = cf?.checklist_types || [];
+        if (types.includes("seller")) typeGuess = "seller";
+        else if (types.includes("tenant") || types.includes("landlord")) typeGuess = "lease";
+      }
+      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : [];
+      return NextResponse.json({
+        ok: true,
+        linked,
+        suggestions,
+        prefill: {
+          deal_type: typeGuess,
+          status: codes.includes("B") || codes.includes("C") ? "Sold Conditional" : "Sold Firm",
+          closing_date: isoFromParts(snap?.completion_date),
+        },
+      });
+    }
+
+    if (body.action === "link_deal") {
+      const pkg = await loadPkgRow();
+      if (!pkg) {
+        return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
+      }
+      const { data: dealRow } = await supabase
+        .from("deals")
+        .select("id")
+        .eq("account_id", FC_ACCOUNT_ID)
+        .eq("id", body.deal_id || "")
+        .maybeSingle();
+      if (!dealRow) {
+        return NextResponse.json({ ok: false, error: "That deal was not found." }, { status: 404 });
+      }
+      const { error } = await supabase
+        .from("offer_packages")
+        .update({ deal_id: body.deal_id })
+        .eq("id", pkg.id);
+      if (error) {
+        if (dealSetupNeeded(error)) {
+          return NextResponse.json(
+            { ok: false, code: "setup_needed", error: "Deal linking needs a one-time database step first — Rea has the SQL for it." },
+            { status: 400 }
+          );
+        }
+        throw new Error(error.message);
+      }
+      return NextResponse.json({ ok: true, deal_id: body.deal_id });
+    }
+
+    if (body.action === "unlink_deal") {
+      const pkg = await loadPkgRow();
+      if (!pkg) {
+        return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
+      }
+      const { error } = await supabase
+        .from("offer_packages")
+        .update({ deal_id: null })
+        .eq("id", pkg.id);
+      if (error) {
+        if (dealSetupNeeded(error)) {
+          return NextResponse.json(
+            { ok: false, code: "setup_needed", error: "Deal linking needs a one-time database step first — Rea has the SQL for it." },
+            { status: 400 }
+          );
+        }
+        throw new Error(error.message);
+      }
+      return NextResponse.json({ ok: true, deal_id: null });
+    }
+
+    if (body.action === "create_deal") {
+      // Probe the link column first, so a missing setup step never
+      // leaves a half-created deal behind.
+      const probe = await supabase.from("offer_packages").select("deal_id").limit(1);
+      if (probe.error) {
+        return NextResponse.json(
+          { ok: false, code: "setup_needed", error: "Deal linking needs a one-time database step first — Rea has the SQL for it." },
+          { status: 400 }
+        );
+      }
+      const pkg = await loadPkgRow();
+      if (!pkg) {
+        return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
+      }
+      const snap = pkg.deal || {};
+      const dealType = ["buyer", "seller", "lease"].includes(body.deal_type)
+        ? body.deal_type
+        : "buyer";
+      // Property: find by address, else create (never touching an
+      // existing property's status).
+      const { data: props } = await supabase
+        .from("properties")
+        .select("id,address")
+        .eq("account_id", FC_ACCOUNT_ID);
+      const pkgAddr = normAddr(pkg.address || "");
+      let property = (props || []).find((p: any) => normAddr(p.address) === pkgAddr);
+      if (!property) {
+        const { data: created, error: propErr } = await supabase
+          .from("properties")
+          .insert([
+            {
+              account_id: FC_ACCOUNT_ID,
+              address: pkg.address,
+              user_id: pkg.created_by || null,
+              status: dealType === "seller" ? "for_sale" : dealType === "lease" ? "for_lease" : "purchased",
+            },
+          ])
+          .select("id,address")
+          .single();
+        if (propErr) throw new Error(propErr.message);
+        property = created;
+      }
+      // One deal per property — the CRM's own duplicate rule.
+      const { data: existing } = await supabase
+        .from("deals")
+        .select("id,status")
+        .eq("account_id", FC_ACCOUNT_ID)
+        .eq("property_id", property.id)
+        .maybeSingle();
+      if (existing) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "deal_exists",
+            deal_id: existing.id,
+            error: "A deal already exists for this property — link this package to it instead.",
+          },
+          { status: 409 }
+        );
+      }
+      // Contact: the package's client, else a unique name match on
+      // our side of the deal.
+      let contactId: string | null = snap?.client?.contact_id || null;
+      if (contactId) {
+        const { data: c } = await supabase
+          .from("contacts")
+          .select("id")
+          .eq("account_id", FC_ACCOUNT_ID)
+          .eq("id", contactId)
+          .maybeSingle();
+        if (!c) contactId = null;
+      }
+      if (!contactId) {
+        const names: string[] =
+          dealType === "seller" ? snap?.sellers || [] : snap?.buyers || [];
+        const first = String(names[0] || "").trim();
+        if (first) {
+          const parts = first.split(/\s+/);
+          const { data: matches } = await supabase
+            .from("contacts")
+            .select("id,first_name,last_name")
+            .eq("account_id", FC_ACCOUNT_ID)
+            .ilike("first_name", parts[0])
+            .ilike("last_name", parts.slice(1).join(" ") || "%");
+          if (matches && matches.length === 1) contactId = matches[0].id;
+        }
+      }
+      if (!contactId) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "no_client",
+            error:
+              "This package isn't tied to a client yet, so the deal would have no person. Pick the client on the package first (they're chosen in Step 1), then try again.",
+          },
+          { status: 400 }
+        );
+      }
+      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : [];
+      const status = ["Active", "Sold Conditional", "Sold Firm", "Closed"].includes(body.status)
+        ? body.status
+        : codes.includes("B") || codes.includes("C")
+          ? "Sold Conditional"
+          : "Sold Firm";
+      const closingIso = isoFromParts(snap?.completion_date);
+      const assigned = pkg.created_by || (await resolveUserId(req));
+      const { data: newDeal, error: dealErr } = await supabase
+        .from("deals")
+        .insert([
+          {
+            account_id: FC_ACCOUNT_ID,
+            contact_id: contactId,
+            property_id: property.id,
+            assigned_user_id: assigned,
+            deal_type: dealType,
+            status,
+            closing_date: closingIso,
+          },
+        ])
+        .select("id")
+        .single();
+      if (dealErr) throw new Error(dealErr.message);
+      const { error: linkErr } = await supabase
+        .from("offer_packages")
+        .update({ deal_id: newDeal.id })
+        .eq("id", pkg.id);
+      if (linkErr) throw new Error(linkErr.message);
+      const [summary] = await summarizeDeals([
+        {
+          id: newDeal.id,
+          contact_id: contactId,
+          property_id: property.id,
+          deal_type: dealType,
+          status,
+          closing_date: closingIso,
+        },
+      ]);
+      return NextResponse.json({ ok: true, deal_id: newDeal.id, linked: summary || null });
+    }
 
     if (body.action === "add_lawyer") {
       const lw = body.lawyer || {};

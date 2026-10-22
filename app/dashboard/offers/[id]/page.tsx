@@ -66,6 +66,13 @@ export default function PrepareOfferPage() {
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
   const [pkgClient, setPkgClient] = useState<any>(null)
+  const [dealLinked, setDealLinked] = useState<any>(null)
+  const [dealSuggestions, setDealSuggestions] = useState<any[]>([])
+  const [dealPrefill, setDealPrefill] = useState<any>(null)
+  const [dealPanel, setDealPanel] = useState(false)
+  const [dealBusy, setDealBusy] = useState(false)
+  const [dealNote, setDealNote] = useState('')
+  const [dealTypeSel, setDealTypeSel] = useState('buyer')
   // iinked Sign (Syngrafii) — editor-first send flow (Tim, 2026-10-21)
   const [synInfo, setSynInfo] = useState<any>(null)
   const [synOpen, setSynOpen] = useState(false)
@@ -522,6 +529,69 @@ export default function PrepareOfferPage() {
     return data
   }
 
+  // Create / Link to Deal (Tim, 2026-10-22): the package suggests an
+  // existing deal for this property/client first; creating is the
+  // fallback. Once linked, the deal page mirrors this package's
+  // documents automatically.
+  const loadDealLink = async () => {
+    try {
+      const data = await pkgAct({ action: 'deal_suggestions', id: packageId })
+      setDealLinked(data.linked || null)
+      setDealSuggestions(data.suggestions || [])
+      setDealPrefill(data.prefill || null)
+      if (data.prefill?.deal_type) setDealTypeSel(data.prefill.deal_type)
+    } catch {
+      /* deal linking is an extra — never block the workspace */
+    }
+  }
+
+  const linkDeal = async (dealId: string) => {
+    setDealBusy(true)
+    setDealNote('')
+    try {
+      await pkgAct({ action: 'link_deal', id: packageId, deal_id: dealId })
+      setDealPanel(false)
+      await loadDealLink()
+      setDealNote('Linked — this package’s documents now show on the deal.')
+    } catch (e: any) {
+      setDealNote(e.message)
+    } finally {
+      setDealBusy(false)
+    }
+  }
+
+  const unlinkDeal = async () => {
+    setDealBusy(true)
+    setDealNote('')
+    try {
+      await pkgAct({ action: 'unlink_deal', id: packageId })
+      setDealLinked(null)
+      setDealNote('Unlinked from the deal.')
+    } catch (e: any) {
+      setDealNote(e.message)
+    } finally {
+      setDealBusy(false)
+    }
+  }
+
+  const createDeal = async () => {
+    setDealBusy(true)
+    setDealNote('')
+    try {
+      const data = await pkgAct({ action: 'create_deal', id: packageId, deal_type: dealTypeSel })
+      setDealLinked(data.linked || null)
+      setDealPanel(false)
+      setDealNote('Deal created from this offer and linked — its documents now show on the deal.')
+    } catch (e: any) {
+      setDealNote(e.message)
+      // If a deal already exists for the property, surface it as a
+      // suggestion so it can be linked instead.
+      void loadDealLink()
+    } finally {
+      setDealBusy(false)
+    }
+  }
+
   const refreshPkg = async () => {
     try {
       const res = await fetch(`/api/offers/packages?id=${packageId}`)
@@ -553,6 +623,7 @@ export default function PrepareOfferPage() {
           setPkgStatus(data.package.status || 'draft')
           setPkgDocs(Array.isArray(data.package.documents) ? data.package.documents : [])
           hydrate(data.package.deal)
+          void loadDealLink()
         }
       } catch {
         /* a fresh package simply starts blank */
@@ -1140,6 +1211,104 @@ export default function PrepareOfferPage() {
                 : ''}
             </p>
           )}
+          {/* DEAL LINK */}
+          <div className="mt-2">
+            {dealLinked ? (
+              <p className="text-sm text-gray-600">
+                Deal:{' '}
+                <a
+                  href={`/dashboard/deals/${dealLinked.deal_id}`}
+                  className="font-medium text-blue-700 underline"
+                >
+                  {dealLinked.status}
+                  {dealLinked.deal_type ? ` · ${dealLinked.deal_type}` : ''}
+                  {dealLinked.closing_date ? ` · closes ${dealLinked.closing_date}` : ''}
+                </a>{' '}
+                — this package’s documents show on the deal automatically.{' '}
+                <button
+                  onClick={unlinkDeal}
+                  disabled={dealBusy}
+                  className="text-xs text-gray-500 underline disabled:opacity-50"
+                >
+                  Unlink
+                </button>
+              </p>
+            ) : (
+              <button
+                onClick={() => {
+                  setDealPanel((v) => !v)
+                  void loadDealLink()
+                }}
+                className="text-sm border px-3 py-1.5 rounded-md hover:bg-gray-100 transition"
+              >
+                Create / Link to Deal
+              </button>
+            )}
+            {dealNote && <p className="text-xs text-gray-500 mt-1">{dealNote}</p>}
+            {dealPanel && !dealLinked && (
+              <div className="border rounded-lg p-3 mt-2 bg-gray-50 space-y-3 max-w-xl">
+                {dealSuggestions.length > 0 ? (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      A deal already exists — link this package to it?
+                    </p>
+                    {dealSuggestions.map((s) => (
+                      <div
+                        key={s.deal_id}
+                        className="flex items-center gap-2 bg-white border rounded-md px-2.5 py-1.5 mb-1"
+                      >
+                        <span className="text-sm">
+                          {s.address || 'Deal'}
+                          <span className="text-gray-400">
+                            {' '}
+                            · {s.contact_name} · {s.status}
+                            {s.reason ? ` · ${s.reason}` : ''}
+                          </span>
+                        </span>
+                        <button
+                          onClick={() => linkDeal(s.deal_id)}
+                          disabled={dealBusy}
+                          className="ml-auto text-xs border rounded-md px-2 py-1 hover:bg-gray-100 transition disabled:opacity-50"
+                        >
+                          Link
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    No existing deal found for this property or client.
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm">Or create the deal from this offer:</span>
+                  <select
+                    className="border rounded-md px-2 py-1.5 text-sm"
+                    value={dealTypeSel}
+                    onChange={(e) => setDealTypeSel(e.target.value)}
+                  >
+                    <option value="buyer">Buyer deal</option>
+                    <option value="seller">Seller deal</option>
+                    <option value="lease">Lease deal</option>
+                  </select>
+                  <button
+                    onClick={createDeal}
+                    disabled={dealBusy}
+                    className="text-sm bg-black text-white px-3 py-1.5 rounded-md hover:bg-gray-800 transition disabled:opacity-50"
+                  >
+                    {dealBusy ? 'Working…' : 'Create deal'}
+                  </button>
+                </div>
+                {dealPrefill && (
+                  <p className="text-xs text-gray-400">
+                    It starts as {dealPrefill.status}
+                    {dealPrefill.closing_date ? `, closing ${dealPrefill.closing_date}` : ''} —
+                    taken from the offer. You can adjust it on the deal page.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
           {!pkgLoaded && <p className="text-sm text-gray-400 mt-1">Loading this package…</p>}
           {saveState && <p className="text-xs text-gray-400 mt-1">{saveState}</p>}
           {pkgLoaded && (
