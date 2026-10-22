@@ -1,19 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Syngrafii integration test: takes one document from an offer package
-// (default: the rebuilt 928 Black Cherry test package's Form 801),
-// uploads it to iinked Sign and creates a signing package addressed to
-// Tim alone, sent immediately (state "open"). This is how we learn what
-// the signer experience looks like on our untagged OREA PDFs before the
-// real send flow is wired into the Offers UI.
-// Auth: signed-in session or the agent Bearer secret (same pattern as
-// the other /api/offers routes).
-//   POST { package_id?, form? } -> { ok, syngrafii_package_id, file_id, doc }
+// Syngrafii integration DIAGNOSTIC. First live attempt (2026-10-21)
+// created the package shell in Tim's iinked account but no document
+// attached, and packages/add answered with a generic error. This route
+// isolates the failing step in one run:
+//   1. list packages (shows the orphan + its state)
+//   2. upload the test PDF, returning the API's full verdict
+//      (isConverted / error) instead of just the fileId
+//   3. attempt A: create a package referencing the uploaded fileId
+//   4. attempt B: create a package with the PDF embedded as base64
+//      (documents[].fileData), bypassing the upload reference entirely
+// Both attempts are addressed to Tim alone and sent immediately.
+// Auth: signed-in session or the agent Bearer secret.
+//   POST { package_id?, form? } -> full diagnostic JSON
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { synUploadPdf, synCreatePackage } from "@/lib/syngrafii";
+import {
+  synUploadPdf,
+  synCreatePackage,
+  synListPackages,
+} from "@/lib/syngrafii";
 
 const DEFAULT_PACKAGE_ID = "14ce094b-4a93-4418-adbf-7407637f1736"; // 928 Black Cherry test package
 const TIM = { firstName: "Tim", lastName: "Fennessey", email: "tim@thefcgroup.ca" };
@@ -46,7 +54,17 @@ async function authorized(req: NextRequest): Promise<boolean> {
   return !!user;
 }
 
+async function attempt(label: string, body: any): Promise<any> {
+  try {
+    const created = await synCreatePackage(body);
+    return { label, ok: true, response: created };
+  } catch (e: any) {
+    return { label, ok: false, error: e?.message || String(e) };
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const diag: any = { steps: [] };
   try {
     if (!(await authorized(req))) {
       return NextResponse.json({ ok: false, error: "Not authorized." }, { status: 401 });
@@ -55,6 +73,26 @@ export async function POST(req: NextRequest) {
     const packageId = String(body.package_id || DEFAULT_PACKAGE_ID);
     const wantForm = String(body.form || "801");
 
+    // 1. What does the account currently hold?
+    try {
+      const list = await synListPackages();
+      const arr = Array.isArray(list) ? list : list?.packages || list?.items || [];
+      diag.steps.push({
+        step: "list_packages",
+        count: Array.isArray(arr) ? arr.length : null,
+        packages: (Array.isArray(arr) ? arr : []).slice(0, 5).map((p: any) => ({
+          packageId: p.packageId || p.id,
+          name: p.name,
+          state: p.state,
+          documents: Array.isArray(p.documents) ? p.documents.length : null,
+        })),
+        raw_keys: list && typeof list === "object" ? Object.keys(list) : null,
+      });
+    } catch (e: any) {
+      diag.steps.push({ step: "list_packages", error: e?.message || String(e) });
+    }
+
+    // 2. Fetch the test document from the offer package.
     const supabase = serviceClient();
     const { data: pkg, error } = await supabase
       .from("offer_packages")
@@ -63,20 +101,13 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!pkg) {
-      return NextResponse.json({ ok: false, error: "Offer package not found." }, { status: 404 });
+      return NextResponse.json({ ok: false, error: "Offer package not found.", diag }, { status: 404 });
     }
     const docs: any[] = Array.isArray(pkg.documents) ? pkg.documents : [];
-    const doc =
-      docs.find((d) => String(d.form || "").includes(wantForm)) || docs[0];
+    const doc = docs.find((d) => String(d.form || "").includes(wantForm)) || docs[0];
     if (!doc?.path) {
-      return NextResponse.json(
-        { ok: false, error: "That package has no documents to test with." },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "That package has no documents.", diag }, { status: 400 });
     }
-
-    // Pull the PDF bytes via a signed URL (storage.download() corrupts
-    // paths containing spaces — see the Schedule B lesson).
     const { data: signed, error: signErr } = await supabase.storage
       .from("client-documents")
       .createSignedUrl(doc.path, 180);
@@ -86,35 +117,48 @@ export async function POST(req: NextRequest) {
     const fileRes = await fetch(signed.signedUrl);
     if (!fileRes.ok) throw new Error(`Document fetch failed: ${fileRes.status}`);
     const bytes = new Uint8Array(await fileRes.arrayBuffer());
-
     const filename = doc.filename || "document.pdf";
-    const fileId = await synUploadPdf(
-      bytes,
-      filename,
-      `crm-test-${packageId}-${doc.form || "doc"}`
-    );
+    diag.doc = { filename, bytes: bytes.length };
 
-    const created = await synCreatePackage({
-      name: `TEST — ${pkg.address || "928 Black Cherry Dr"} — ${filename} (Rea integration test)`,
+    // 3. Upload — keep the full verdict this time.
+    const file = await synUploadPdf(bytes, filename, `crm-diag-${packageId}-${doc.form || "doc"}`);
+    diag.steps.push({ step: "upload", file });
+    const fileId = file?.fileId;
+
+    const base = {
       type: "concurrent",
       state: "open",
       signers: [TIM],
-      documents: [{ fileName: filename, fileId }],
-      message:
-        "Rea integration test — please open and sign so we can check the signer experience on our forms. Test only, not a real transaction.",
-    });
+      message: "Rea integration diagnostic — test only, not a real transaction.",
+    };
 
-    return NextResponse.json({
-      ok: true,
-      syngrafii_package_id: created?.packageId || created?.id || null,
-      file_id: fileId,
-      doc: filename,
-      created_response: created,
-    });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Syngrafii test failed." },
-      { status: 500 }
+    // 4. Attempt A — reference the uploaded file.
+    if (fileId) {
+      diag.steps.push(
+        await attempt("add_by_fileId", {
+          ...base,
+          name: `TEST A (fileId) — ${filename}`,
+          documents: [{ fileName: filename, fileId }],
+        })
+      );
+    }
+
+    // 5. Attempt B — embed the PDF directly as base64.
+    diag.steps.push(
+      await attempt("add_by_fileData", {
+        ...base,
+        name: `TEST B (fileData) — ${filename}`,
+        documents: [
+          { fileName: filename, fileData: Buffer.from(bytes).toString("base64") },
+        ],
+      })
     );
+
+    diag.ok = diag.steps.some((s: any) => s.ok && String(s.step).startsWith("add"));
+    return NextResponse.json(diag);
+  } catch (e: any) {
+    diag.ok = false;
+    diag.error = e?.message || "Diagnostic failed.";
+    return NextResponse.json(diag, { status: 500 });
   }
 }

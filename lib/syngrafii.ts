@@ -30,12 +30,13 @@ function apiError(res: Response, data: any, what: string): Error {
 // Upload one PDF. The docs show a multipart body whose single part
 // carries only a filename in its Content-Disposition (no field name) and
 // the raw bytes — built by hand here to match that shape exactly.
-// Returns the fileId to reference from packages/add.
+// Returns the API's file record (fileId, isConverted, error, ...) so
+// callers can see the conversion verdict, not just the id.
 export async function synUploadPdf(
   bytes: Uint8Array,
   filename: string,
   externalId?: string
-): Promise<string> {
+): Promise<any> {
   const boundary = `----rea${Date.now().toString(16)}${Math.random()
     .toString(16)
     .slice(2)}`;
@@ -68,7 +69,16 @@ export async function synUploadPdf(
       `Syngrafii rejected the file: ${file.error || file.message || "invalid file"}`
     );
   }
-  return file.fileId as string;
+  return file;
+}
+
+export async function synListPackages(): Promise<any> {
+  const res = await fetch(`${BASE}/packages/list`, {
+    headers: { api_key: apiKey() },
+  });
+  const data = await readBody(res);
+  if (!res.ok) throw apiError(res, data, "package list");
+  return data;
 }
 
 export interface SynSigner {
@@ -84,7 +94,7 @@ export interface SynCreatePackage {
   type?: string; // "concurrent" | "Sequential" | "Counterpart" | ...
   state?: string; // "open" (send now) | "draft" | "add" | "select"
   signers: SynSigner[];
-  documents: { fileName: string; fileId: string }[];
+  documents: { fileName: string; fileId?: string; fileData?: string }[];
   message?: string;
   generateEditLink?: boolean;
   generateSignerLinks?: boolean;
