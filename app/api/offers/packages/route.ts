@@ -466,7 +466,7 @@ export async function POST(req: NextRequest) {
         if (types.includes("seller")) typeGuess = "seller";
         else if (types.includes("tenant") || types.includes("landlord")) typeGuess = "lease";
       }
-      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : [];
+      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : ["B", "C"]; // unset = all standards on (the generator default), so the financing + inspection conditions count
       return NextResponse.json({
         ok: true,
         linked,
@@ -628,7 +628,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : [];
+      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : ["B", "C"]; // unset = all standards on (the generator default), so the financing + inspection conditions count
       const status = ["Active", "Sold Conditional", "Sold Firm", "Closed"].includes(body.status)
         ? body.status
         : codes.includes("B") || codes.includes("C")
