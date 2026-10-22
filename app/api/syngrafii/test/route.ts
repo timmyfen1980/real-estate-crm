@@ -93,11 +93,16 @@ export async function GET(req: NextRequest) {
     };
     const firstDoc = docs[0]?.documentId;
     if (firstDoc) {
-      for (const version of ["executed", "cac"]) {
+      for (const version of ["current", "executed", "cac"]) {
         try {
           const bytes = await synDownloadDocument(pkgId, firstDoc, version);
           const head = Buffer.from(bytes.slice(0, 5)).toString("latin1");
           out.downloads[version] = { bytes: bytes.length, is_pdf: head === "%PDF-" };
+          // The 'current' bytes come back in full so the caller can
+          // inspect exactly what iinked is holding (fields? layout?).
+          if (version === "current") {
+            out.current_b64 = Buffer.from(bytes).toString("base64");
+          }
         } catch (e: any) {
           out.downloads[version] = { error: e?.message || String(e) };
         }
