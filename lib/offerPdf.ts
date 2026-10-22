@@ -12,7 +12,7 @@
 // (Form 100 Rev 2024, 612x792 pt pages). Template rects are top-left
 // origin; pdf-lib is bottom-left — rectTL converts.
 
-import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, PDFName, PDFString, StandardFonts, decodePDFRawStream, rgb } from "pdf-lib";
 import type { PDFFont, PDFForm, PDFPage } from "pdf-lib";
 import mapping100 from "./fieldMapping100.json";
 import mapping801 from "./fieldMapping801.json";
@@ -404,6 +404,55 @@ function replaceTickAppearance(doc: PDFDocument, widget: any, onState: string): 
   }
 }
 
+// pdf-lib paints an OPAQUE WHITE background over the whole rect of
+// every text field it creates — swallowing whatever print lies inside
+// the rect (the caption under the 801's address line, the words
+// ", have signed" inside the buyer-name field's span, the dotted
+// leaders themselves). Real form fills are transparent: the print
+// shows through and the value sits on the dots. Strip the background
+// block from created fields' appearance streams after generation
+// (template-owned fields don't have this block and are left alone).
+const BG_BLOCK_RE =
+  /q\s+q\s+[\d.]+ [\d.]+ [\d.]+ rg\s+[\d.]+ [\d.]+ [\d.]+ RG\s+[\d.]+ w\s+\[\] 0 d\s+(?:1 0 0 1 0 0 cm\s+)+0 0 m\s+0 [\d.]+ l\s+[\d.]+ [\d.]+ l\s+[\d.]+ 0 l\s+h\s+f\s+Q\s+/;
+
+function stripCreatedFieldBackgrounds(doc: PDFDocument, form: PDFForm): void {
+  for (const field of form.getFields()) {
+    const name = field.getName();
+    if (!/^(f801_|f320_|f324_|rea_)/.test(name)) continue;
+    let tf: any;
+    try {
+      tf = form.getTextField(name);
+    } catch {
+      continue;
+    }
+    for (const w of tf.acroField.getWidgets()) {
+      try {
+        let ap: any = w.dict.lookup(PDFName.of("AP"));
+        if (ap && typeof ap.lookup !== "function") ap = doc.context.lookup(ap);
+        if (!ap || typeof ap.lookup !== "function") continue;
+        const nRef = ap.lookup(PDFName.of("N"));
+        if (!nRef) continue;
+        const stream: any = doc.context.lookup(nRef);
+        if (!stream?.dict) continue;
+        const text = new TextDecoder("latin1").decode(
+          decodePDFRawStream(stream).decode()
+        );
+        if (!BG_BLOCK_RE.test(text)) continue;
+        const stripped = text.replace(BG_BLOCK_RE, "q ");
+        const fresh = (doc.context as any).flateStream(stripped, {
+          Type: PDFName.of("XObject"),
+          Subtype: PDFName.of("Form"),
+          BBox: stream.dict.lookup(PDFName.of("BBox")),
+          Resources: stream.dict.lookup(PDFName.of("Resources")),
+        });
+        ap.set(PDFName.of("N"), doc.context.register(fresh));
+      } catch {
+        // leave the appearance exactly as generated
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Schedule A chunking
 // ---------------------------------------------------------------------------
@@ -646,6 +695,7 @@ export async function buildForm100(
   }
   applyCalibration(form, (mapping100 as any).calibration, semToRaw100);
   form.updateFieldAppearances(helvetica);
+  stripCreatedFieldBackgrounds(doc, form);
   const bytes = await doc.save();
   return { bytes, pages: total };
 }
@@ -722,6 +772,7 @@ export async function buildForm801(
 
   applyCalibration(form, (mapping801 as any).form801_offer_summary?.calibration);
   form.updateFieldAppearances(helvetica);
+  stripCreatedFieldBackgrounds(doc, form);
   const bytes = await doc.save();
   return { bytes, pages: 1 };
 }
@@ -942,6 +993,7 @@ async function buildCoopForm(
 
   applyCalibration(form, (mapping320 as any).form320_confirmation?.calibration);
   form.updateFieldAppearances(helvetica);
+  stripCreatedFieldBackgrounds(doc, form);
   const bytes = await doc.save();
   return { bytes, pages: 2 };
 }
