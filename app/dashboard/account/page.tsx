@@ -40,6 +40,8 @@ const [userRole, setUserRole] = useState<string | null>(null)
   const [msConnected, setMsConnected] = useState<boolean | null>(null)
   const [msEmail, setMsEmail] = useState('')
   const [msBusy, setMsBusy] = useState(false)
+  const [msTesting, setMsTesting] = useState(false)
+  const [msTest, setMsTest] = useState<any>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -144,6 +146,19 @@ setOriginalData(loaded)
       setMessage('Outlook connection did not complete. Please try Connect Outlook again.')
     }
   }, [])
+
+  const handleMsTest = async () => {
+    setMsTesting(true)
+    setMsTest(null)
+    try {
+      const res = await fetch('/api/microsoft/test')
+      const data = await res.json()
+      setMsTest(data)
+    } catch {
+      setMsTest({ ok: false, error: 'The test pull could not run.' })
+    }
+    setMsTesting(false)
+  }
 
   const handleMsDisconnect = async () => {
     setMsBusy(true)
@@ -504,19 +519,65 @@ const renderHeroImageBlock = () => (
           {msConnected === null ? (
             <p className="text-sm text-gray-500">Checking connection…</p>
           ) : msConnected ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Connected</p>
-                <p className="text-sm text-gray-500">{msEmail}</p>
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-sm font-medium">Connected</p>
+                  <p className="text-sm text-gray-500">{msEmail}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleMsDisconnect}
+                  disabled={msBusy}
+                  className="text-sm underline"
+                >
+                  {msBusy ? 'Disconnecting…' : 'Disconnect'}
+                </button>
               </div>
+
               <button
                 type="button"
-                onClick={handleMsDisconnect}
-                disabled={msBusy}
-                className="text-sm underline"
+                onClick={handleMsTest}
+                disabled={msTesting}
+                className="px-6 py-3 border border-gray-900 text-sm font-medium hover:bg-gray-900 hover:text-white transition rounded-md"
               >
-                {msBusy ? 'Disconnecting…' : 'Disconnect'}
+                {msTesting ? 'Pulling from your mailbox…' : 'Test the connection'}
               </button>
+
+              {msTest && !msTest.ok && (
+                <p className="text-sm mt-6">
+                  Test failed: {msTest.error || 'unknown error'}
+                </p>
+              )}
+
+              {msTest && msTest.ok && (
+                <div className="mt-8">
+                  <p className="text-sm font-medium mb-4">
+                    ✓ Live pull worked — mailbox {msTest.email}
+                  </p>
+                  <p className="text-sm font-medium mb-2">Most recent emails</p>
+                  <ul className="text-sm text-gray-600 mb-6">
+                    {(msTest.messages || []).map((m: any, i: number) => (
+                      <li key={i} className="mb-1">
+                        {m.subject}
+                        {m.from ? ` — ${m.from}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-sm font-medium mb-2">Coming up on your calendar</p>
+                  <ul className="text-sm text-gray-600">
+                    {(msTest.events || []).length === 0 && (
+                      <li>Nothing in the next two weeks</li>
+                    )}
+                    {(msTest.events || []).map((e: any, i: number) => (
+                      <li key={i} className="mb-1">
+                        {e.subject}
+                        {e.start ? ` — ${e.start}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ) : (
             <button
