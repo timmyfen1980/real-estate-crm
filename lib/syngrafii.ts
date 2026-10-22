@@ -155,3 +155,171 @@ export async function synDownloadDocument(
   }
   return new Uint8Array(await res.arrayBuffer());
 }
+
+// A short-lived secure link into the package editor — opens iinked
+// already authenticated (no login). Mint it at click time only.
+export async function synEditLink(packageId: string): Promise<string> {
+  const res = await fetch(
+    `${BASE}/packages/${encodeURIComponent(packageId)}/link/edit`,
+    { method: "POST", headers: { api_key: apiKey() } }
+  );
+  const data = await readBody(res);
+  if (!res.ok) throw apiError(res, data, "edit link");
+  if (!data?.link) {
+    throw new Error(`Syngrafii edit link missing: ${JSON.stringify(data).slice(0, 300)}`);
+  }
+  return data.link as string;
+}
+
+// Register a webhook endpoint; the response carries the endpoint
+// secret used to verify callbacks. Called once (setup action).
+export async function synRegisterEndpoint(url: string, name: string): Promise<any> {
+  const res = await fetch(`${BASE}/events/endpoints/set`, {
+    method: "POST",
+    headers: { api_key: apiKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ url, name, delete: false }),
+  });
+  const data = await readBody(res);
+  if (!res.ok) throw apiError(res, data, "webhook registration");
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Webhook settings (endpoint id + secret) live in a storage JSON only
+// the service role can read — the secret never leaves the server.
+// ---------------------------------------------------------------------------
+
+export const SYN_SETTINGS_PATH = "system/syngrafii-webhook.json";
+export const SYN_WEBHOOK_URL = "https://crm.thefcgroup.ca/api/syngrafii/webhook";
+const SYN_BUCKET = "client-documents";
+
+export async function synReadSettings(supabase: any): Promise<any | null> {
+  const { data, error } = await supabase.storage
+    .from(SYN_BUCKET)
+    .download(SYN_SETTINGS_PATH);
+  if (error || !data) return null;
+  try {
+    return JSON.parse(await data.text());
+  } catch {
+    return null;
+  }
+}
+
+export async function synWriteSettings(supabase: any, settings: any): Promise<void> {
+  const bytes = new TextEncoder().encode(JSON.stringify(settings, null, 2));
+  const { error } = await supabase.storage
+    .from(SYN_BUCKET)
+    .upload(SYN_SETTINGS_PATH, bytes, {
+      contentType: "application/json",
+      upsert: true,
+    });
+  if (error) throw new Error(error.message);
+}
+
+// ---------------------------------------------------------------------------
+// Flattening — Tim's rule (2026-10-21): iinked's engine re-renders live
+// AcroForm appearances and shifts filled values off their lines. The
+// copy sent for signing is flattened (values printed into the page, no
+// live fields left to re-draw); the CRM master stays editable.
+// Documents with no form fields (scans) pass through untouched.
+// ---------------------------------------------------------------------------
+
+export async function flattenPdfBytes(
+  bytes: Uint8Array
+): Promise<{ bytes: Uint8Array; flattened: boolean }> {
+  try {
+    const { PDFDocument } = await import("pdf-lib");
+    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const form = doc.getForm();
+    if (!form.getFields().length) return { bytes, flattened: false };
+    form.flatten();
+    const out = await doc.save();
+    return { bytes: out, flattened: true };
+  } catch {
+    return { bytes, flattened: false };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Filing an executed package back into the CRM: for every document that
+// went out, download the signed PDF + its Compliance Audit Certificate
+// from iinked and add them to the package's documents; mark the
+// originals signed; flip the package status to 'signed'. Idempotent —
+// a document already filed (same syn_doc id) is skipped, so webhook
+// retries and manual status checks can both call it safely.
+// ---------------------------------------------------------------------------
+
+export async function fileExecutedPackage(
+  supabase: any,
+  pkg: any
+): Promise<{ filed: string[] }> {
+  const filed: string[] = [];
+  const syn = pkg?.deal?.syngrafii;
+  if (!syn?.package_id || !Array.isArray(syn.docs) || !syn.docs.length) {
+    return { filed };
+  }
+  const docs: any[] = Array.isArray(pkg.documents) ? [...pkg.documents] : [];
+  const stamp = Date.now();
+  for (const sent of syn.docs) {
+    if (!sent?.document_id || !sent?.path) continue;
+    if (docs.some((d) => d.syn_doc === sent.document_id && d.form === "signed")) {
+      continue; // already filed
+    }
+    const signedBytes = await synDownloadDocument(
+      syn.package_id,
+      sent.document_id,
+      "executed"
+    );
+    const base = String(sent.filename || "document.pdf").replace(/\.pdf$/i, "");
+    const signedName = `${base} (Signed).pdf`;
+    const signedPath = `offers/${pkg.id}/signed/${stamp}-${signedName.replace(/[^\w.\- ]+/g, "_")}`;
+    const { error: upErr } = await supabase.storage
+      .from(SYN_BUCKET)
+      .upload(signedPath, signedBytes, { contentType: "application/pdf", upsert: false });
+    if (upErr) throw new Error(upErr.message);
+    docs.push({
+      form: "signed",
+      filename: signedName,
+      path: signedPath,
+      signed: true,
+      syn_doc: sent.document_id,
+      added_at: new Date().toISOString(),
+    });
+    filed.push(signedName);
+    try {
+      const cacBytes = await synDownloadDocument(syn.package_id, sent.document_id, "cac");
+      const cacName = `Audit Certificate - ${base}.pdf`;
+      const cacPath = `offers/${pkg.id}/signed/${stamp}-CAC-${base.replace(/[^\w.\- ]+/g, "_")}.pdf`;
+      const { error: cacErr } = await supabase.storage
+        .from(SYN_BUCKET)
+        .upload(cacPath, cacBytes, { contentType: "application/pdf", upsert: false });
+      if (!cacErr) {
+        docs.push({
+          form: "cac",
+          filename: cacName,
+          path: cacPath,
+          signed: true,
+          syn_doc: sent.document_id,
+          added_at: new Date().toISOString(),
+        });
+        filed.push(cacName);
+      }
+    } catch {
+      // The signed PDF is the essential artifact; a missing CAC is noted
+      // by its absence and can be fetched manually from iinked.
+    }
+    // Mark the original document signed.
+    for (const d of docs) {
+      if (d.path === sent.path) d.signed = true;
+    }
+  }
+  if (filed.length) {
+    const deal = { ...(pkg.deal || {}), syngrafii: { ...syn, state: "executed", filed_at: new Date().toISOString() } };
+    const { error } = await supabase
+      .from("offer_packages")
+      .update({ documents: docs, status: "signed", deal })
+      .eq("id", pkg.id);
+    if (error) throw new Error(error.message);
+  }
+  return { filed };
+}

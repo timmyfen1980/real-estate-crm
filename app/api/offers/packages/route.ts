@@ -16,6 +16,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import {
+  synCreatePackage,
+  synEditLink,
+  synPackageStatus,
+  synRegisterEndpoint,
+  synReadSettings,
+  synWriteSettings,
+  flattenPdfBytes,
+  fileExecutedPackage,
+  SYN_WEBHOOK_URL,
+} from "@/lib/syngrafii";
 
 const FC_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 const BUCKET = "client-documents";
@@ -382,6 +393,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, id: pkg.id });
     }
 
+    if (body.action === "register_webhook") {
+      // One-time setup: register the CRM's webhook URL with iinked and
+      // keep the endpoint secret server-side (storage JSON). Safe to
+      // re-run — it reports the existing registration instead of
+      // creating a duplicate.
+      const existing = await synReadSettings(supabase);
+      if (existing?.secret) {
+        return NextResponse.json({ ok: true, already: true, endpoint_id: existing.endpoint_id || null });
+      }
+      const data = await synRegisterEndpoint(SYN_WEBHOOK_URL, "FC Group CRM");
+      const endpoint = data?.endpoint || data;
+      if (!endpoint?.secret) {
+        throw new Error("iinked did not return a webhook secret.");
+      }
+      await synWriteSettings(supabase, {
+        endpoint_id: endpoint.eventEndpointId || endpoint.id || null,
+        url: SYN_WEBHOOK_URL,
+        secret: endpoint.secret,
+        registered_at: new Date().toISOString(),
+      });
+      return NextResponse.json({ ok: true, endpoint_id: endpoint.eventEndpointId || endpoint.id || null });
+    }
+
     const id = String(body.id || "");
     if (!id) {
       return NextResponse.json({ ok: false, error: "Need a package id." }, { status: 400 });
@@ -508,6 +542,164 @@ export async function POST(req: NextRequest) {
         .eq("id", id);
       if (updErr) throw new Error(updErr.message);
       return NextResponse.json({ ok: true, documents: docs });
+    }
+
+    if (body.action === "prepare_signature") {
+      // Editor-first flow (Tim, 2026-10-21): the chosen documents are
+      // FLATTENED (values printed into the page so iinked's engine can't
+      // re-draw them off their lines) and sent to iinked as a DRAFT
+      // package with the signers preloaded. Tim then lands in the
+      // iinked editor via a secure edit link to place signature /
+      // initial spots and send it himself. Signed copies return via
+      // the webhook (fileExecutedPackage).
+      const { data: pkg, error } = await supabase
+        .from("offer_packages")
+        .select("id,address,deal,documents,status")
+        .eq("account_id", FC_ACCOUNT_ID)
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!pkg) return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
+      const wantPaths: string[] = Array.isArray(body.paths) ? body.paths.map(String) : [];
+      const allDocs: any[] = Array.isArray(pkg.documents) ? pkg.documents : [];
+      const chosen = allDocs.filter(
+        (d) => wantPaths.includes(d.path) && !d.signed && String(d.filename || "").toLowerCase().endsWith(".pdf")
+      );
+      if (!chosen.length) {
+        return NextResponse.json(
+          { ok: false, error: "Choose at least one unsigned PDF to send." },
+          { status: 400 }
+        );
+      }
+      const rawSigners: any[] = Array.isArray(body.signers) ? body.signers : [];
+      const signers = rawSigners
+        .map((s) => {
+          const full = String(s?.name || "").trim();
+          const email = String(s?.email || "").trim();
+          const cut = full.indexOf(" ");
+          return {
+            firstName: cut > 0 ? full.slice(0, cut) : full,
+            lastName: cut > 0 ? full.slice(cut + 1) : "",
+            email,
+          };
+        })
+        .filter((s) => s.firstName && s.email.includes("@"));
+      if (!signers.length) {
+        return NextResponse.json(
+          { ok: false, error: "Add at least one signer with a name and an email." },
+          { status: 400 }
+        );
+      }
+      const synDocs: { fileName: string; fileData: string }[] = [];
+      const sentMeta: { path: string; filename: string; flattened: boolean }[] = [];
+      for (const d of chosen) {
+        const { data: signedUrl, error: sErr } = await supabase.storage
+          .from(BUCKET)
+          .createSignedUrl(d.path, 180);
+        if (sErr || !signedUrl?.signedUrl) {
+          throw new Error(sErr?.message || `Could not read ${d.filename}.`);
+        }
+        const r = await fetch(signedUrl.signedUrl);
+        if (!r.ok) throw new Error(`Could not read ${d.filename}.`);
+        const raw = new Uint8Array(await r.arrayBuffer());
+        const flat = await flattenPdfBytes(raw);
+        synDocs.push({
+          fileName: d.filename,
+          fileData: Buffer.from(flat.bytes).toString("base64"),
+        });
+        sentMeta.push({ path: d.path, filename: d.filename, flattened: flat.flattened });
+      }
+      const created = await synCreatePackage({
+        name: `${pkg.address || "Offer"} — documents for signature`,
+        type: signers.length > 1 ? "Sequential" : "concurrent",
+        state: "draft",
+        signers,
+        documents: synDocs,
+        message: String(body.message || "").trim() || undefined,
+      });
+      const synPkg = created?.package || {};
+      const synPackageId = created?.packageId || synPkg?.packageId;
+      if (!synPackageId) {
+        throw new Error("iinked did not return a package id.");
+      }
+      const createdDocs: any[] = Array.isArray(synPkg.documents) ? synPkg.documents : [];
+      const docMap = sentMeta.map((m) => {
+        const hit =
+          createdDocs.find((cd) => String(cd.fileName || cd.name || "") === m.filename) ||
+          createdDocs[sentMeta.indexOf(m)];
+        return {
+          path: m.path,
+          filename: m.filename,
+          document_id: hit?.documentId || hit?.id || null,
+          flattened: m.flattened,
+        };
+      });
+      const synInfo = {
+        package_id: synPackageId,
+        docs: docMap,
+        signers,
+        state: "draft",
+        prepared_at: new Date().toISOString(),
+      };
+      const deal = { ...(pkg.deal || {}), syngrafii: synInfo };
+      const { error: updErr } = await supabase
+        .from("offer_packages")
+        .update({ deal, status: "out" })
+        .eq("id", id);
+      if (updErr) throw new Error(updErr.message);
+      let editLink: string | null = null;
+      let linkError: string | null = null;
+      try {
+        editLink = await synEditLink(synPackageId);
+      } catch (e: any) {
+        linkError = e?.message || "Edit link failed.";
+      }
+      return NextResponse.json({
+        ok: true,
+        syngrafii_package_id: synPackageId,
+        edit_link: editLink,
+        link_error: linkError,
+        docs: docMap,
+      });
+    }
+
+    if (body.action === "signature_status") {
+      const { data: pkg, error } = await supabase
+        .from("offer_packages")
+        .select("id,deal,documents,status")
+        .eq("account_id", FC_ACCOUNT_ID)
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!pkg) return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
+      const syn = (pkg.deal || {}).syngrafii;
+      if (!syn?.package_id) {
+        return NextResponse.json({ ok: false, error: "This package has not been sent to iinked." }, { status: 400 });
+      }
+      const status = await synPackageStatus(syn.package_id);
+      const state = String(status?.state || "unknown");
+      let filed: string[] = [];
+      if (state === "executed") {
+        const fresh = await supabase
+          .from("offer_packages")
+          .select("id,deal,documents,status")
+          .eq("id", id)
+          .maybeSingle();
+        const res = await fileExecutedPackage(supabase, fresh.data || pkg);
+        filed = res.filed;
+      }
+      const { data: after } = await supabase
+        .from("offer_packages")
+        .select("documents,status")
+        .eq("id", id)
+        .maybeSingle();
+      return NextResponse.json({
+        ok: true,
+        state,
+        filed,
+        documents: after?.documents || pkg.documents,
+        status: after?.status || pkg.status,
+      });
     }
 
     if (body.action === "delete") {

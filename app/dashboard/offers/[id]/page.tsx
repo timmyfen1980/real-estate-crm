@@ -66,6 +66,13 @@ export default function PrepareOfferPage() {
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
   const [pkgClient, setPkgClient] = useState<any>(null)
+  // iinked Sign (Syngrafii) — editor-first send flow (Tim, 2026-10-21)
+  const [synInfo, setSynInfo] = useState<any>(null)
+  const [synOpen, setSynOpen] = useState(false)
+  const [synSigners, setSynSigners] = useState<{ name: string; email: string }[]>([])
+  const [synPaths, setSynPaths] = useState<string[]>([])
+  const [synBusy, setSynBusy] = useState(false)
+  const [synChecking, setSynChecking] = useState(false)
   const [previewUrl, setPreviewUrl] = useState('')
   const [previewName, setPreviewName] = useState('')
   const [actionNote, setActionNote] = useState('')
@@ -441,6 +448,7 @@ export default function PrepareOfferPage() {
       setBlankArrays(ba)
     }
     if (deal.client) setPkgClient(deal.client)
+    setSynInfo(deal.syngrafii || null)
   }
 
   const pkgAct = async (body: any) => {
@@ -461,6 +469,7 @@ export default function PrepareOfferPage() {
       if (data.ok && data.package) {
         setPkgDocs(Array.isArray(data.package.documents) ? data.package.documents : [])
         setPkgStatus(data.package.status || 'draft')
+        setSynInfo(data.package.deal?.syngrafii || null)
       }
     } catch {
       /* leave as-is */
@@ -1783,7 +1792,7 @@ export default function PrepareOfferPage() {
           <h2 className={h2Cls}>Package Files</h2>
           <p className="text-sm text-gray-600">
             Everything in this package, signed kept apart from unsigned — so the whole
-            unsigned set can go out together when iinked Sign connects.
+            unsigned set can go out together through iinked Sign (button below).
           </p>
           <p className="text-xs text-gray-400">
             A form's PDF saves itself into the package as you work — when you switch tabs,
@@ -1889,13 +1898,179 @@ export default function PrepareOfferPage() {
               </button>
             )}
             <button
-              disabled
-              title="Connects when the iinked Sign account is linked"
-              className="text-sm border px-3 py-1.5 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
+              onClick={() => {
+                if (!synOpen) {
+                  const names = [...buyers, ...sellers].map((s) => String(s || '').trim()).filter(Boolean)
+                  setSynSigners(names.map((name) => ({ name, email: '' })))
+                  setSynPaths(
+                    pkgDocs
+                      .filter((d) => !d.signed && String(d.filename || '').toLowerCase().endsWith('.pdf'))
+                      .map((d) => d.path)
+                  )
+                }
+                setSynOpen(!synOpen)
+              }}
+              className="text-sm border px-3 py-1.5 rounded-md bg-blue-900 text-white hover:bg-blue-800 transition"
             >
-              Send for signature — iinked Sign (coming)
+              Send for signature — iinked Sign
             </button>
           </div>
+          {synOpen && (
+            <div className="border rounded-lg p-4 space-y-4 bg-gray-50">
+              <p className="text-sm text-gray-700">
+                This prepares the package inside iinked Sign as a <strong>draft</strong> — the
+                filled values are printed into the pages first so nothing can shift — and then
+                opens the iinked editor for you. Place the signature and initial spots there and
+                send it from iinked. When everyone has signed, the signed copies and the audit
+                certificate file themselves back into this package on their own.
+              </p>
+              {synInfo?.package_id && (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="border rounded-md bg-white px-2 py-1">
+                    In iinked: <strong>{synInfo.state || 'prepared'}</strong>
+                    {synInfo.prepared_at
+                      ? ` · prepared ${new Date(synInfo.prepared_at).toLocaleString()}`
+                      : ''}
+                  </span>
+                  <button
+                    disabled={synChecking}
+                    onClick={async () => {
+                      setSynChecking(true)
+                      try {
+                        const data = await pkgAct({ action: 'signature_status', id: packageId })
+                        if (Array.isArray(data.documents)) setPkgDocs(data.documents)
+                        if (data.status) setPkgStatus(data.status)
+                        setActionNote(
+                          data.state === 'executed'
+                            ? `iinked: fully signed.${data.filed?.length ? ` Filed back: ${data.filed.join(', ')}.` : ' Signed copies are already filed here.'}`
+                            : `iinked status: ${data.state}.`
+                        )
+                        refreshPkg()
+                      } catch (e: any) {
+                        setActionNote(e.message)
+                      } finally {
+                        setSynChecking(false)
+                      }
+                    }}
+                    className="text-xs border rounded-md px-2 py-1 bg-white hover:bg-gray-100 transition disabled:opacity-50"
+                  >
+                    {synChecking ? 'Checking…' : 'Check iinked status'}
+                  </button>
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Signers (in signing order)
+                </p>
+                <div className="space-y-2">
+                  {synSigners.map((s, i) => (
+                    <div key={i} className="flex flex-wrap gap-2">
+                      <input
+                        className="border p-2 rounded-md text-sm flex-1 min-w-[160px]"
+                        placeholder="Full name"
+                        value={s.name}
+                        onChange={(e) =>
+                          setSynSigners(synSigners.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
+                        }
+                      />
+                      <input
+                        className="border p-2 rounded-md text-sm flex-1 min-w-[200px]"
+                        placeholder="Email"
+                        type="email"
+                        value={s.email}
+                        onChange={(e) =>
+                          setSynSigners(synSigners.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))
+                        }
+                      />
+                      <button
+                        onClick={() => setSynSigners(synSigners.filter((_, j) => j !== i))}
+                        className="text-xs border rounded-md px-2 py-1 text-gray-500 hover:bg-red-50 hover:text-red-700 transition"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setSynSigners([...synSigners, { name: '', email: '' }])}
+                  className="mt-2 text-xs border rounded-md px-2 py-1 bg-white hover:bg-gray-100 transition"
+                >
+                  + Add a signer
+                </button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Documents to send
+                </p>
+                <div className="space-y-1">
+                  {pkgDocs
+                    .filter((d) => !d.signed && String(d.filename || '').toLowerCase().endsWith('.pdf'))
+                    .map((d) => (
+                      <label key={d.path} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={synPaths.includes(d.path)}
+                          onChange={(e) =>
+                            setSynPaths(
+                              e.target.checked
+                                ? [...synPaths, d.path]
+                                : synPaths.filter((p) => p !== d.path)
+                            )
+                          }
+                        />
+                        {d.filename}
+                      </label>
+                    ))}
+                  {pkgDocs.filter((d) => !d.signed).length === 0 && (
+                    <p className="text-sm text-gray-400">No unsigned documents in this package.</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  disabled={synBusy || !synSigners.length || !synPaths.length}
+                  onClick={async () => {
+                    setSynBusy(true)
+                    try {
+                      const data = await pkgAct({
+                        action: 'prepare_signature',
+                        id: packageId,
+                        signers: synSigners,
+                        paths: synPaths,
+                      })
+                      setSynInfo({
+                        package_id: data.syngrafii_package_id,
+                        state: 'draft',
+                        docs: data.docs,
+                        prepared_at: new Date().toISOString(),
+                      })
+                      setPkgStatus('out')
+                      if (data.edit_link) {
+                        window.open(data.edit_link, '_blank')
+                        setActionNote(
+                          'iinked is open in a new tab — place the signature and initial spots, then Send inside iinked. Signed copies will file themselves back here.'
+                        )
+                      } else {
+                        setActionNote(
+                          'The package is in your iinked Drafts, but the editor link failed — open it from iinked Drafts to place the signature spots and send.'
+                        )
+                      }
+                    } catch (e: any) {
+                      setActionNote(e.message)
+                    } finally {
+                      setSynBusy(false)
+                    }
+                  }}
+                  className="text-sm border px-3 py-1.5 rounded-md bg-blue-900 text-white hover:bg-blue-800 transition disabled:opacity-50"
+                >
+                  {synBusy ? 'Preparing…' : 'Prepare in iinked Sign →'}
+                </button>
+                <span className="text-xs text-gray-500">
+                  Nothing is sent to signers until you send it from inside iinked.
+                </span>
+              </div>
+            </div>
+          )}
           <input ref={pkgFileRef} type="file" className="hidden" onChange={onPkgAddFile} />
         </div>
 
