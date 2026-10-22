@@ -97,10 +97,30 @@ export function buildNewsletterEmail({
   ctaLink,
   ctaText,
 }: any) {
-  const safeContent = String(content || '').replace(
-    /<img(?![^>]*\bwidth=)/gi,
-    '<img width="560"'
-  );
+  // Content images, aligned with the drip template's discipline
+  // (Tim, 2026-10-22): Outlook ignores CSS max-width and renders
+  // under-specified images at natural size — the "huge images in
+  // Outlook" problem. So: every content image ends up with a width
+  // attribute of at most 544 (the content column at the 600px
+  // container width), and images that arrive with no width and no
+  // style also get the constraining inline style the drip template
+  // uses. 560 (the old value) was wider than the column itself.
+  const safeContent = String(content || '')
+    .replace(
+      /<img(?![^>]*\bwidth=)(?![^>]*\bstyle=)/gi,
+      '<img width="544" style="width:100%; max-width:544px; height:auto;"'
+    )
+    .replace(/<img(?![^>]*\bwidth=)(?=[^>]*\bstyle=)/gi, '<img width="544"')
+    .replace(/<img[^>]*>/gi, (tag: string) =>
+      tag.replace(
+        /\bwidth=(?:"(\d+)"|'(\d+)'|(\d+))/i,
+        (m: string, dq: string, sq: string, bare: string) => {
+          const n = Number(dq || sq || bare);
+          if (!(n > 544)) return m;
+          return dq ? 'width="544"' : sq ? "width='544'" : 'width=544';
+        }
+      )
+    );
 
   return `
 <!DOCTYPE html>
@@ -109,17 +129,17 @@ export function buildNewsletterEmail({
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin:0; padding:0; background-color:#e8e8e8; font-family: Arial, Helvetica, sans-serif;">
+<body style="margin:0; padding:0; background-color:#e5e7eb; font-family: Arial, Helvetica, sans-serif;">
 <center>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#e8e8e8;">
-<tr><td align="center" style="padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#e5e7eb;">
+<tr><td align="center" style="padding:40px 0;">
 
-  <table width="640" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff; max-width:640px;">
+  <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff; max-width:600px;">
     <tr><td>
-      <img src="cid:newsletter-hero" width="640" alt="Fennessey Comeau Group" style="width:100%; max-width:640px; height:auto; display:block; border:0;" />
+      <img src="cid:newsletter-hero" width="600" alt="Fennessey Comeau Group" style="width:100%; max-width:600px; height:auto; display:block; border:0;" />
     </td></tr>
     <tr><td height="6" style="background-color:#d22630; font-size:0; line-height:0;">&nbsp;</td></tr>
-    <tr><td style="padding:34px 44px 6px;">
+    <tr><td style="padding:30px 28px 6px;">
       <div style="font-family: Georgia, 'Times New Roman', serif; font-size:32px; font-weight:700; color:#0f2a44; line-height:1.2;">
         ${headline || ''}
       </div>
@@ -130,7 +150,7 @@ export function buildNewsletterEmail({
         <tr><td width="60" height="3" style="background-color:#d22630; font-size:0; line-height:0;">&nbsp;</td></tr>
       </table>
     </td></tr>
-    <tr><td style="padding:20px 44px 30px; font-size:16px; line-height:1.75; color:#222222;">
+    <tr><td style="padding:20px 28px 30px; font-size:16px; line-height:1.75; color:#222222;">
       ${safeContent
         .replaceAll('{{first_name}}', firstName || '')
         .replaceAll('{{agent_name}}', 'Fennessey Comeau Group')}
@@ -143,7 +163,7 @@ export function buildNewsletterEmail({
       </table>
       </center>` : ''}
     </td></tr>
-    <tr><td style="padding:0 44px 34px;">
+    <tr><td style="padding:0 28px 34px;">
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e0dede; background-color:#fafafa;">
         <tr><td height="4" style="background-color:#d22630; font-size:0; line-height:0;">&nbsp;</td></tr>
         <tr><td align="center" style="padding:26px;">
