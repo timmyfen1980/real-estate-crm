@@ -230,6 +230,7 @@ export type IssueStatus = {
   generated_at: string;
   current_issue: IssueInfo;
   next_issue: IssueInfo;
+  pending_issue: IssueInfo | null;
   enrollments: {
     total: number;
     active: number;
@@ -310,25 +311,39 @@ export async function getIssueStatus(
 
   const currentInfo = buildInfo(curKey, year, month, curStep, curApproval);
 
-  // The "next" issue is the next one still awaiting a decision —
-  // the first month after the current issue that is neither
-  // approved nor skipped (Tim, 2026-10-22: approving November
-  // should immediately put December in line, ready for approval,
-  // and so on as issues are decided). Walk a full year; if every
-  // month ahead is already decided, fall back to the plain
-  // calendar-next issue.
+  // The approval panel is a decision queue (Tim, 2026-10-22): it
+  // shows ONLY the next issue still waiting on a decision — the
+  // first month from the current issue onward that is neither
+  // approved nor skipped — and decided issues leave the panel
+  // entirely. Approve November and the panel becomes December
+  // waiting on approval, and so on. That front-of-queue issue is
+  // `pending_issue`. `next_issue` keeps its first-undecided-after-
+  // current meaning for the sidebar / dashboard smart-task rules,
+  // with the plain calendar-next issue as its fallback.
   let calendarNext: IssueInfo | null = null;
   let nextInfo: IssueInfo | null = null;
-  for (let ahead = 1; ahead <= 12; ahead++) {
+  let pendingInfo: IssueInfo | null = null;
+  for (let ahead = 0; ahead <= 12; ahead++) {
     const m = ((month - 1 + ahead) % 12) + 1;
     const y = year + Math.floor((month - 1 + ahead) / 12);
     const key = issueKeyFor(y, m);
-    const approval = await getIssueApproval(supabase, key);
-    const info = buildInfo(key, y, m, stepForMonth(m), approval);
+    const info =
+      ahead === 0
+        ? currentInfo
+        : buildInfo(
+            key,
+            y,
+            m,
+            stepForMonth(m),
+            await getIssueApproval(supabase, key)
+          );
     if (ahead === 1) calendarNext = info;
     if (!info.approved && !info.skipped) {
-      nextInfo = info;
-      break;
+      if (!pendingInfo) pendingInfo = info;
+      if (ahead >= 1) {
+        nextInfo = info;
+        break;
+      }
     }
   }
 
@@ -337,6 +352,7 @@ export async function getIssueStatus(
     generated_at: now.toISOString(),
     current_issue: currentInfo,
     next_issue: nextInfo || calendarNext || currentInfo,
+    pending_issue: pendingInfo,
     enrollments: counts,
     sent_this_month: sentCount || 0,
   };

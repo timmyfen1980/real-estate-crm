@@ -66,6 +66,7 @@ type NewsletterIssueInfo = {
 type NewsletterIssueStatus = {
   current_issue: NewsletterIssueInfo
   next_issue: NewsletterIssueInfo
+  pending_issue: NewsletterIssueInfo | null
   enrollments: { total: number; active: number; paused: number }
   sent_this_month: number
 }
@@ -595,100 +596,54 @@ const handlePreview = async (sequence: Sequence) => {
 
           {issueStatus ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <div className="font-semibold text-gray-900">
-                    {issueStatus.current_issue.month_name}{' '}
-                    {issueStatus.current_issue.year} issue
+              {issueStatus.pending_issue ? (
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="font-semibold text-gray-900">
+                      {issueStatus.pending_issue.month_name}{' '}
+                      {issueStatus.pending_issue.year} issue
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+                      {issueStatus.pending_issue.subject || 'No content yet'}
+                      {' • Enrolled: '}
+                      {issueStatus.enrollments.total} (
+                      {issueStatus.enrollments.active} active,{' '}
+                      {issueStatus.enrollments.paused} paused)
+                    </div>
                   </div>
 
-                  <div className="text-sm text-gray-500">
-                    {issueStatus.current_issue.subject || 'No content yet'}
-                    {' • Sent this month: '}
-                    {issueStatus.sent_this_month}
-                    {' • Enrolled: '}
-                    {issueStatus.enrollments.total} (
-                    {issueStatus.enrollments.active} active,{' '}
-                    {issueStatus.enrollments.paused} paused)
-                  </div>
-                </div>
-
-                {issueStatus.current_issue.approved ? (
-                  <span className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
-                    Approved
-                    {issueStatus.current_issue.approved_by
-                      ? ` by ${issueStatus.current_issue.approved_by}`
-                      : ''}
-                  </span>
-                ) : issueStatus.current_issue.skipped ? (
-                  <span className="text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full">
-                    Skipped — will not send
-                  </span>
-                ) : (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={function () {
-                        handleApproveIssue(issueStatus.current_issue.key)
+                        handleApproveIssue(issueStatus.pending_issue.key)
                       }}
                       disabled={approvingIssue !== null || skippingIssue !== null}
                       className="bg-black text-white px-4 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50"
                     >
-                      {approvingIssue === issueStatus.current_issue.key
+                      {approvingIssue === issueStatus.pending_issue.key
                         ? 'Approving…'
-                        : `Approve ${issueStatus.current_issue.month_name} issue — start sending`}
+                        : `Approve ${issueStatus.pending_issue.month_name} issue — start sending`}
                     </button>
                     <button
                       onClick={function () {
-                        handleSkipIssue(issueStatus.current_issue.key)
+                        handleSkipIssue(issueStatus.pending_issue.key)
                       }}
                       disabled={approvingIssue !== null || skippingIssue !== null}
                       className="border px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition disabled:opacity-50"
                     >
-                      {skippingIssue === issueStatus.current_issue.key
+                      {skippingIssue === issueStatus.pending_issue.key
                         ? 'Skipping…'
-                        : `Skip ${issueStatus.current_issue.month_name}`}
+                        : `Skip ${issueStatus.pending_issue.month_name}`}
                     </button>
                   </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between gap-4 flex-wrap border-t pt-4">
-                <div>
-                  <div className="font-semibold text-gray-900">
-                    Next: {issueStatus.next_issue.month_name}{' '}
-                    {issueStatus.next_issue.year} issue
-                  </div>
-
-                  <div className="text-sm text-gray-500">
-                    {issueStatus.next_issue.subject || 'No content yet'}
-                  </div>
                 </div>
-
-                {issueStatus.next_issue.approved ? (
-                  <span className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
-                    Approved
-                    {issueStatus.next_issue.approved_by
-                      ? ` by ${issueStatus.next_issue.approved_by}`
-                      : ''}
-                  </span>
-                ) : issueStatus.next_issue.skipped ? (
-                  <span className="text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full">
-                    Skipped — will not send
-                  </span>
-                ) : (
-                  <button
-                    onClick={function () {
-                      handleApproveIssue(issueStatus.next_issue.key)
-                    }}
-                    disabled={approvingIssue !== null}
-                    className="border px-4 py-2 rounded-xl text-sm hover:bg-gray-100 transition disabled:opacity-50"
-                  >
-                    {approvingIssue === issueStatus.next_issue.key
-                      ? 'Approving…'
-                      : `Approve ${issueStatus.next_issue.month_name} issue — start sending`}
-                  </button>
-                )}
-              </div>
+              ) : (
+                <div className="text-sm text-gray-500">
+                  Nothing is waiting on approval — every upcoming issue
+                  has been approved or skipped.
+                </div>
+              )}
 
               <p className="text-xs text-gray-400">
                 An issue can only send during its own month, only after it
