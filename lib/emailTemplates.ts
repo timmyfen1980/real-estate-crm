@@ -1,3 +1,52 @@
+// Content-image discipline shared by BOTH email templates
+// (Tim, 2026-10-22): Outlook's renderer ignores CSS max-width and
+// prints under-specified images at natural size — a 1400px stock
+// photo styled only "width:100%" renders at full size, forces the
+// whole layout wide and adds a horizontal scrollbar, while the
+// browser preview shrinks it to fit and looks fine. The fix that
+// made the drip emails match their preview: every content image
+// ends up with (a) a width attribute no larger than the content
+// column, and (b) max-width + height:auto in its inline style.
+// Images already carrying a sane width are left as authored.
+function constrainContentImages(content: string, columnWidth: number): string {
+  return String(content || '').replace(/<img[^>]*>/gi, (tag: string) => {
+    let out = tag;
+    let sized = false;
+    // (a) width attribute — add when missing, clamp when oversized.
+    const w = out.match(/\bwidth=(?:"(\d+)"|'(\d+)'|(\d+))/i);
+    if (!w) {
+      out = out.replace(/<img/i, `<img width="${columnWidth}"`);
+      sized = true;
+    } else {
+      const n = Number(w[1] || w[2] || w[3]);
+      if (n > columnWidth) {
+        out = out.replace(
+          w[0],
+          w[1] ? `width="${columnWidth}"` : w[2] ? `width='${columnWidth}'` : `width=${columnWidth}`
+        );
+        sized = true;
+      }
+    }
+    if (!sized) return out;
+    // (b) inline style — add the constraining style when there is
+    // none; append the cap when a style exists without one.
+    const s = out.match(/\bstyle=("([^"]*)"|'([^']*)')/i);
+    if (!s) {
+      out = out.replace(
+        /<img/i,
+        `<img style="width:100%; max-width:${columnWidth}px; height:auto;"`
+      );
+    } else {
+      const inner = s[2] !== undefined ? s[2] : s[3] || '';
+      if (!/max-width/i.test(inner)) {
+        const q = s[2] !== undefined ? '"' : "'";
+        out = out.replace(s[0], `style=${q}${inner}; max-width:${columnWidth}px; height:auto;${q}`);
+      }
+    }
+    return out;
+  });
+}
+
 export function buildEmailTemplate({
   content,
   firstName,
@@ -13,6 +62,7 @@ export function buildEmailTemplate({
   ctaText,
   emailHeaderImage,
 }: any) {
+  const safeContent = constrainContentImages(content || '', 544);
   return `
 <!DOCTYPE html>
 <html>
@@ -35,7 +85,7 @@ export function buildEmailTemplate({
     <tr><td style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111111;">
       <p style="font-size:20px; margin:0 0 20px 0; font-weight:600;">Hi ${firstName},</p>
       <div style="font-size:16px; line-height:1.8; color:#111111;">
-        ${content
+        ${safeContent
           .replaceAll('{{first_name}}', firstName || '')
           .replaceAll('{{agent_name}}', agentName || '')}
       </div>
@@ -97,30 +147,9 @@ export function buildNewsletterEmail({
   ctaLink,
   ctaText,
 }: any) {
-  // Content images, aligned with the drip template's discipline
-  // (Tim, 2026-10-22): Outlook ignores CSS max-width and renders
-  // under-specified images at natural size — the "huge images in
-  // Outlook" problem. So: every content image ends up with a width
-  // attribute of at most 544 (the content column at the 600px
-  // container width), and images that arrive with no width and no
-  // style also get the constraining inline style the drip template
-  // uses. 560 (the old value) was wider than the column itself.
-  const safeContent = String(content || '')
-    .replace(
-      /<img(?![^>]*\bwidth=)(?![^>]*\bstyle=)/gi,
-      '<img width="544" style="width:100%; max-width:544px; height:auto;"'
-    )
-    .replace(/<img(?![^>]*\bwidth=)(?=[^>]*\bstyle=)/gi, '<img width="544"')
-    .replace(/<img[^>]*>/gi, (tag: string) =>
-      tag.replace(
-        /\bwidth=(?:"(\d+)"|'(\d+)'|(\d+))/i,
-        (m: string, dq: string, sq: string, bare: string) => {
-          const n = Number(dq || sq || bare);
-          if (!(n > 544)) return m;
-          return dq ? 'width="544"' : sq ? "width='544'" : 'width=544';
-        }
-      )
-    );
+  // Content images: the shared Outlook-proof constraining (see
+  // constrainContentImages above), at this template's 544 column.
+  const safeContent = constrainContentImages(content, 544);
 
   return `
 <!DOCTYPE html>
