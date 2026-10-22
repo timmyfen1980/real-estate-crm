@@ -21,6 +21,8 @@ import {
   synUploadPdf,
   synCreatePackage,
   synListPackages,
+  synPackageStatus,
+  synDownloadDocument,
 } from "@/lib/syngrafii";
 
 const DEFAULT_PACKAGE_ID = "14ce094b-4a93-4418-adbf-7407637f1736"; // 928 Black Cherry test package
@@ -60,6 +62,50 @@ async function attempt(label: string, body: any): Promise<any> {
     return { label, ok: true, response: created };
   } catch (e: any) {
     return { label, ok: false, error: e?.message || String(e) };
+  }
+}
+
+// Return-leg proof: GET ?pkg=<syngrafii packageId> -> status, then
+// download the executed PDF + the Compliance Audit Certificate for the
+// first document and report their sizes / PDF magic — no storing.
+export async function GET(req: NextRequest) {
+  try {
+    if (!(await authorized(req))) {
+      return NextResponse.json({ ok: false, error: "Not authorized." }, { status: 401 });
+    }
+    const pkgId = req.nextUrl.searchParams.get("pkg");
+    if (!pkgId) {
+      return NextResponse.json({ ok: false, error: "pkg query param required." }, { status: 400 });
+    }
+    const status = await synPackageStatus(pkgId);
+    const docs: any[] = Array.isArray(status?.documents) ? status.documents : [];
+    const signers: any[] = Array.isArray(status?.signers) ? status.signers : [];
+    const out: any = {
+      ok: true,
+      packageId: status?.packageId || pkgId,
+      state: status?.state,
+      documents: docs.map((d: any) => ({ documentId: d.documentId, state: d.state })),
+      signers: signers.map((s: any) => ({
+        name: `${s.firstName || ""} ${s.lastName || ""}`.trim(),
+        hasSigned: s.hasSigned ?? null,
+      })),
+      downloads: {},
+    };
+    const firstDoc = docs[0]?.documentId;
+    if (firstDoc) {
+      for (const version of ["executed", "cac"]) {
+        try {
+          const bytes = await synDownloadDocument(pkgId, firstDoc, version);
+          const head = Buffer.from(bytes.slice(0, 5)).toString("latin1");
+          out.downloads[version] = { bytes: bytes.length, is_pdf: head === "%PDF-" };
+        } catch (e: any) {
+          out.downloads[version] = { error: e?.message || String(e) };
+        }
+      }
+    }
+    return NextResponse.json(out);
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Status check failed." }, { status: 500 });
   }
 }
 
