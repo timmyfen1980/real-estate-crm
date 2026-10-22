@@ -24,7 +24,7 @@ export default function OffersPage() {
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
   const [libFor, setLibFor] = useState('')
-  const [libFiles, setLibFiles] = useState<string[]>([])
+  const [libFiles, setLibFiles] = useState<Array<{ name: string; folder?: string; path: string }>>([])
   const [confirmRemove, setConfirmRemove] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const addTarget = useRef<string>('')
@@ -163,16 +163,26 @@ export default function OffersPage() {
     try {
       const res = await fetch('/api/offers/packages?library=1')
       const data = await res.json()
-      if (data.ok) setLibFiles(data.files || [])
+      if (data.ok) {
+        // The library API returns file objects ({ name, folder, path }).
+        // This page once treated them as plain path strings and crashed
+        // rendering them (f.split on an object) — normalize defensively.
+        const files = (data.files || [])
+          .map((f: any) =>
+            typeof f === 'string' ? { name: f.split('/').pop() || f, path: f } : f
+          )
+          .filter((f: any) => f && typeof f.path === 'string')
+        setLibFiles(files)
+      }
     } catch {
       /* the library list is a convenience */
     }
   }
 
-  const attachFromLibrary = async (pkg: any, path: string) => {
+  const attachFromLibrary = async (pkg: any, file: { name: string; path: string }) => {
     setBusyId(pkg.id)
     try {
-      const data = await act({ action: 'attach_library', id: pkg.id, path })
+      const data = await act({ action: 'attach_library', id: pkg.id, path: file.path, name: file.name })
       setPackages((prev) =>
         prev.map((p) => (p.id === pkg.id ? { ...p, documents: data.documents } : p))
       )
@@ -384,12 +394,12 @@ export default function OffersPage() {
                   <div className="flex flex-wrap gap-2">
                     {libFiles.map((f) => (
                       <button
-                        key={f}
+                        key={f.path}
                         onClick={() => attachFromLibrary(pkg, f)}
                         disabled={busyId === pkg.id}
                         className="text-sm border bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-100 transition disabled:opacity-50"
                       >
-                        {f.split('/').pop()}
+                        {f.name || f.path.split('/').pop()}
                       </button>
                     ))}
                   </div>
