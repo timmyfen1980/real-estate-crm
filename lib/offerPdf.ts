@@ -412,10 +412,17 @@ function replaceTickAppearance(doc: PDFDocument, widget: any, onState: string): 
 // shows through and the value sits on the dots. Strip the background
 // block from created fields' appearance streams after generation
 // (template-owned fields don't have this block and are left alone).
+// NOTE: the strip must run on a RELOADED document — on the live doc
+// the appearances are PDFContentStreams, whose contents can't be
+// decoded as raw bytes (learned the hard way: the first version
+// silently no-opped in production while working on saved files).
 const BG_BLOCK_RE =
   /q\s+q\s+[\d.]+ [\d.]+ [\d.]+ rg\s+[\d.]+ [\d.]+ [\d.]+ RG\s+[\d.]+ w\s+\[\] 0 d\s+(?:1 0 0 1 0 0 cm\s+)+0 0 m\s+0 [\d.]+ l\s+[\d.]+ [\d.]+ l\s+[\d.]+ 0 l\s+h\s+f\s+Q\s+/;
 
-function stripCreatedFieldBackgrounds(doc: PDFDocument, form: PDFForm): void {
+async function stripCreatedFieldBackgrounds(doc: PDFDocument): Promise<PDFDocument> {
+  const saved = await doc.save();
+  const reloaded = await PDFDocument.load(saved, { ignoreEncryption: true });
+  const form = reloaded.getForm();
   for (const field of form.getFields()) {
     const name = field.getName();
     if (!/^(f801_|f320_|f324_|rea_)/.test(name)) continue;
@@ -428,29 +435,30 @@ function stripCreatedFieldBackgrounds(doc: PDFDocument, form: PDFForm): void {
     for (const w of tf.acroField.getWidgets()) {
       try {
         let ap: any = w.dict.lookup(PDFName.of("AP"));
-        if (ap && typeof ap.lookup !== "function") ap = doc.context.lookup(ap);
+        if (ap && typeof ap.lookup !== "function") ap = reloaded.context.lookup(ap);
         if (!ap || typeof ap.lookup !== "function") continue;
         const nRef = ap.lookup(PDFName.of("N"));
         if (!nRef) continue;
-        const stream: any = doc.context.lookup(nRef);
+        const stream: any = reloaded.context.lookup(nRef);
         if (!stream?.dict) continue;
         const text = new TextDecoder("latin1").decode(
           decodePDFRawStream(stream).decode()
         );
         if (!BG_BLOCK_RE.test(text)) continue;
         const stripped = text.replace(BG_BLOCK_RE, "q ");
-        const fresh = (doc.context as any).flateStream(stripped, {
+        const fresh = (reloaded.context as any).flateStream(stripped, {
           Type: PDFName.of("XObject"),
           Subtype: PDFName.of("Form"),
           BBox: stream.dict.lookup(PDFName.of("BBox")),
           Resources: stream.dict.lookup(PDFName.of("Resources")),
         });
-        ap.set(PDFName.of("N"), doc.context.register(fresh));
+        ap.set(PDFName.of("N"), reloaded.context.register(fresh));
       } catch {
         // leave the appearance exactly as generated
       }
     }
   }
+  return reloaded;
 }
 
 // ---------------------------------------------------------------------------
@@ -695,8 +703,8 @@ export async function buildForm100(
   }
   applyCalibration(form, (mapping100 as any).calibration, semToRaw100);
   form.updateFieldAppearances(helvetica);
-  stripCreatedFieldBackgrounds(doc, form);
-  const bytes = await doc.save();
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
   return { bytes, pages: total };
 }
 
@@ -772,8 +780,8 @@ export async function buildForm801(
 
   applyCalibration(form, (mapping801 as any).form801_offer_summary?.calibration);
   form.updateFieldAppearances(helvetica);
-  stripCreatedFieldBackgrounds(doc, form);
-  const bytes = await doc.save();
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
   return { bytes, pages: 1 };
 }
 
@@ -993,8 +1001,8 @@ async function buildCoopForm(
 
   applyCalibration(form, (mapping320 as any).form320_confirmation?.calibration);
   form.updateFieldAppearances(helvetica);
-  stripCreatedFieldBackgrounds(doc, form);
-  const bytes = await doc.save();
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
   return { bytes, pages: 2 };
 }
 
