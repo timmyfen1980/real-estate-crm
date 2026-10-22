@@ -9,7 +9,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getIssueStatus, approveIssue } from '@/lib/newsletterIssue';
+import { getIssueStatus, approveIssue, skipIssue } from '@/lib/newsletterIssue';
 
 async function requireUser() {
   const cookieStore = await cookies();
@@ -57,7 +57,16 @@ export async function POST(req: NextRequest) {
     }
     const body = await req.json().catch(() => ({}));
     const issue = typeof body.issue === 'string' ? body.issue : '';
+    const action = typeof body.action === 'string' ? body.action : 'approve';
     const supabase = serviceDb();
+    if (action === 'skip') {
+      await skipIssue(supabase, issue);
+      return NextResponse.json({
+        skipped: true,
+        issue,
+        issue_status: await getIssueStatus(supabase),
+      });
+    }
     const result = await approveIssue(
       supabase,
       issue,

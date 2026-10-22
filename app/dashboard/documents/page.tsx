@@ -13,10 +13,14 @@ const BUYER_DOCS: TeamDoc[] = [
   { name: 'New Home Utility.docx', size: '517 KB', path: 'team-docs/buyer/New Home Utility.docx' },
   { name: 'New Home Utility.pdf', size: '117 KB', path: 'team-docs/buyer/New Home Utility.pdf' },
   { name: 'Sched A Buyer rep.pdf', size: '681 KB', path: 'team-docs/buyer/Sched A Buyer rep.pdf' },
+  { name: 'Buyer Representation Agreement - Form 371.pdf', size: '56 KB', path: 'team-docs/buyer/Buyer Representation Agreement - Form 371.pdf' },
   { name: 'Buyer Schedule B.docx', size: '15 KB', path: 'team-docs/buyer/Buyer Schedule B.docx' },
   { name: 'Copy of SHOWINGS REPORT.xlsx', size: '18 KB', path: 'team-docs/buyer/Copy of SHOWINGS REPORT.xlsx' },
   { name: 'FINTRAC - Individual Identification Information Record.pdf', size: '495 KB', path: 'team-docs/buyer/FINTRAC - Individual Identification Information Record.pdf' },
   { name: 'FINTRAC - Receipt of Funds Record.pdf', size: '77 KB', path: 'team-docs/buyer/FINTRAC - Receipt of Funds Record.pdf' },
+  { name: 'FINTRAC 635 - Receipt of Funds Record.pdf', size: '121 KB', path: 'team-docs/buyer/FINTRAC 635 - Receipt of Funds Record.pdf' },
+  { name: 'FINTRAC 636 - Beneficial Ownership.pdf', size: '85 KB', path: 'team-docs/buyer/FINTRAC 636 - Beneficial Ownership.pdf' },
+  { name: 'FINTRAC 639 - Risk Assessment.pdf', size: '232 KB', path: 'team-docs/buyer/FINTRAC 639 - Risk Assessment.pdf' },
   { name: 'LEASE CLAUSES.docx', size: '14 KB', path: 'team-docs/buyer/LEASE CLAUSES.docx' },
   { name: 'OFFER CLAUSES.docx', size: '32 KB', path: 'team-docs/buyer/OFFER CLAUSES.docx' },
   { name: 'Team Fennessey Information Package.pdf', size: '1.3 MB', path: 'team-docs/buyer/Team Fennessey Information Package.pdf' },
@@ -25,7 +29,11 @@ const BUYER_DOCS: TeamDoc[] = [
 
 const SELLER_DOCS: TeamDoc[] = [
   { name: 'tresa-schedule-a-listing-agreement.docx', size: '27 KB', path: 'team-docs/seller/tresa-schedule-a-listing-agreement.docx' },
+  { name: 'Listing Agreement - Sale - Form 271.pdf', size: '80 KB', path: 'team-docs/seller/Listing Agreement - Sale - Form 271.pdf' },
   { name: 'FINTRAC - Individual Identification Information Record.pdf', size: '495 KB', path: 'team-docs/seller/FINTRAC - Individual Identification Information Record.pdf' },
+  { name: 'FINTRAC 635 - Receipt of Funds Record.pdf', size: '121 KB', path: 'team-docs/seller/FINTRAC 635 - Receipt of Funds Record.pdf' },
+  { name: 'FINTRAC 636 - Beneficial Ownership.pdf', size: '85 KB', path: 'team-docs/seller/FINTRAC 636 - Beneficial Ownership.pdf' },
+  { name: 'FINTRAC 639 - Risk Assessment.pdf', size: '232 KB', path: 'team-docs/seller/FINTRAC 639 - Risk Assessment.pdf' },
   { name: 'New Home Utility.pdf', size: '117 KB', path: 'team-docs/seller/New Home Utility.pdf' },
   { name: 'Tim Fennessey - Selling is what I do!.pptx', size: '11 MB', path: 'team-docs/seller/Tim Fennessey - Selling is what I do!.pptx' },
   { name: 'RECO-Information-Guide.pdf', size: '2.3 MB', path: 'team-docs/seller/RECO-Information-Guide.pdf' },
@@ -37,10 +45,17 @@ const SELLER_DOCS: TeamDoc[] = [
   { name: 'Tim Fennessey - Selling is what I do!.pdf', size: '2.8 MB', path: 'team-docs/seller/Tim Fennessey - Selling is what I do!.pdf' },
 ];
 
+const RENTER_DOCS: TeamDoc[] = [
+  { name: 'Tenant Representation Agreement - Form 372.pdf', size: '56 KB', path: 'team-docs/renter/Tenant Representation Agreement - Form 372.pdf' },
+  { name: 'Listing Agreement - Lease - Form 272.pdf', size: '80 KB', path: 'team-docs/renter/Listing Agreement - Lease - Form 272.pdf' },
+  { name: 'FINTRAC - Individual Identification Information Record.pdf', size: '154 KB', path: 'team-docs/renter/FINTRAC - Individual Identification Information Record.pdf' },
+  { name: 'FINTRAC 635 - Receipt of Funds Record.pdf', size: '121 KB', path: 'team-docs/renter/FINTRAC 635 - Receipt of Funds Record.pdf' },
+];
+
 const FOLDERS = [
   { id: 'buyer', title: 'Buyer File', description: 'Buyer representation, offer clauses, FINTRAC forms, info package', docs: BUYER_DOCS },
   { id: 'seller', title: 'Seller File', description: 'Listing agreement, seller presentation, trade forms, FINTRAC', docs: SELLER_DOCS },
-  { id: 'renter', title: 'Renter File', description: 'Tenant documents', docs: [] as TeamDoc[] },
+  { id: 'renter', title: 'Renter File', description: 'Tenant representation, lease listing agreement, FINTRAC forms', docs: RENTER_DOCS },
 ];
 
 function fileIcon(name: string): string {

@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import EmailPreviewModal from '@/components/email/EmailPreviewModal'
-import { buildEmailTemplate } from '@/lib/emailTemplates'
+import { buildEmailTemplate, buildNewsletterEmail } from '@/lib/emailTemplates'
 
 type Campaign = {
   id: string
@@ -60,6 +60,7 @@ type NewsletterIssueInfo = {
   approved: boolean
   approved_at: string | null
   approved_by: string | null
+  skipped: boolean
 }
 
 type NewsletterIssueStatus = {
@@ -89,7 +90,11 @@ export default function CampaignDetailPage() {
 
   const [previewHtml, setPreviewHtml] = useState('')
 
+  const [previewDisplayHtml, setPreviewDisplayHtml] = useState('')
+
   const [previewSubject, setPreviewSubject] = useState('')
+
+  const nlImagesRef = useRef<{ hero?: string; team?: string }>({})
 
   const [agent, setAgent] = useState<any>(null)
 
@@ -112,6 +117,8 @@ const [enrolling, setEnrolling] = useState(false)
     useState<NewsletterIssueStatus | null>(null)
 
   const [approvingIssue, setApprovingIssue] = useState<string | null>(null)
+
+  const [skippingIssue, setSkippingIssue] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isNewsletterCampaign) return
@@ -137,6 +144,24 @@ const [enrolling, setEnrolling] = useState(false)
       if (data.issue_status) setIssueStatus(data.issue_status)
     } finally {
       setApprovingIssue(null)
+    }
+  }
+
+  const handleSkipIssue = async (issue: string) => {
+    setSkippingIssue(issue)
+
+    try {
+      const res = await fetch('/api/admin/newsletter-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'skip', issue }),
+      })
+
+      const data = await res.json()
+
+      if (data.issue_status) setIssueStatus(data.issue_status)
+    } finally {
+      setSkippingIssue(null)
     }
   }
 
@@ -395,8 +420,52 @@ const handleRemoveContact = async (id: string) => {
     prev.filter((item) => item.id !== id)
   )
 }
-const handlePreview = (sequence: Sequence) => {
+const handlePreview = async (sequence: Sequence) => {
   if (!agent || !account) return
+
+  if (isNewsletterCampaign) {
+    // Preview the REAL newsletter design — the same template the
+    // processor sends subscribers (Tim, 2026-10-22) — not the
+    // standard drip wrapper. The design references its hero + team
+    // photo as CID attachments; for on-screen display, swap those
+    // for data URIs of the exact same files. previewHtml (what the
+    // test-send posts) keeps the CID references, and the send-test
+    // route attaches the files so the test matches the real send.
+    try {
+      if (!nlImagesRef.current.hero) {
+        const t = await (await fetch('/email-hero.b64')).text()
+        nlImagesRef.current.hero = `data:image/png;base64,${t.trim()}`
+      }
+      if (!nlImagesRef.current.team) {
+        const t = await (await fetch('/team-photo.b64')).text()
+        nlImagesRef.current.team = `data:image/jpeg;base64,${t.trim()}`
+      }
+    } catch {}
+
+    const html = buildNewsletterEmail({
+      content: sequence.body_html,
+      firstName: 'John',
+      headline: sequence.subject,
+      teamName: 'Fennessey Comeau Group',
+      teamEmail: 'info@thefcgroup.ca',
+      teamPhone: '905 493-7355',
+      brokerageName: 'RE/MAX HALLMARK FIRST GROUP REALTY LTD.',
+      brokerageLogoUrl: account.brokerage_logo_url || '',
+      unsubscribeLink: `${process.env.NEXT_PUBLIC_SITE_URL}/api/unsubscribe?contact_id=test`,
+      ctaLink: sequence.cta_link || null,
+      ctaText: sequence.cta_text || null,
+    })
+
+    setPreviewHtml(html)
+    setPreviewDisplayHtml(
+      html
+        .replaceAll('cid:newsletter-hero', nlImagesRef.current.hero || '')
+        .replaceAll('cid:team-photo', nlImagesRef.current.team || '')
+    )
+    setPreviewSubject(sequence.subject)
+    setPreviewOpen(true)
+    return
+  }
 
   const html = buildEmailTemplate({
     content: sequence.body_html,
@@ -415,6 +484,7 @@ const handlePreview = (sequence: Sequence) => {
   })
 
   setPreviewHtml(html)
+  setPreviewDisplayHtml(html)
   setPreviewSubject(sequence.subject)
   setPreviewOpen(true)
 }
@@ -444,6 +514,24 @@ const handlePreview = (sequence: Sequence) => {
       </div>
     )
   }
+
+  // Newsletter campaign: show NEXT month's issue first (Tim,
+  // 2026-10-22). The list rotates so the upcoming issue leads and
+  // the rest follow in month order (Nov, Dec, Jan, ..., Oct).
+  const displaySequences = (() => {
+    if (!isNewsletterCampaign) return sequences
+    const torontoMonth = Number(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto',
+        month: 'numeric',
+      }).format(new Date())
+    )
+    const nextMonth = torontoMonth === 12 ? 1 : torontoMonth + 1
+    const nextStep = ((nextMonth - 6 + 12) % 12) + 1
+    const idx = sequences.findIndex((s) => s.step_number === nextStep)
+    if (idx <= 0) return sequences
+    return [...sequences.slice(idx), ...sequences.slice(0, idx)]
+  })()
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -530,18 +618,35 @@ const handlePreview = (sequence: Sequence) => {
                       ? ` by ${issueStatus.current_issue.approved_by}`
                       : ''}
                   </span>
+                ) : issueStatus.current_issue.skipped ? (
+                  <span className="text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full">
+                    Skipped — will not send
+                  </span>
                 ) : (
-                  <button
-                    onClick={function () {
-                      handleApproveIssue(issueStatus.current_issue.key)
-                    }}
-                    disabled={approvingIssue !== null}
-                    className="bg-black text-white px-4 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50"
-                  >
-                    {approvingIssue === issueStatus.current_issue.key
-                      ? 'Approving…'
-                      : `Approve ${issueStatus.current_issue.month_name} issue — start sending`}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={function () {
+                        handleApproveIssue(issueStatus.current_issue.key)
+                      }}
+                      disabled={approvingIssue !== null || skippingIssue !== null}
+                      className="bg-black text-white px-4 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50"
+                    >
+                      {approvingIssue === issueStatus.current_issue.key
+                        ? 'Approving…'
+                        : `Approve ${issueStatus.current_issue.month_name} issue — start sending`}
+                    </button>
+                    <button
+                      onClick={function () {
+                        handleSkipIssue(issueStatus.current_issue.key)
+                      }}
+                      disabled={approvingIssue !== null || skippingIssue !== null}
+                      className="border px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition disabled:opacity-50"
+                    >
+                      {skippingIssue === issueStatus.current_issue.key
+                        ? 'Skipping…'
+                        : `Skip ${issueStatus.current_issue.month_name}`}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -563,6 +668,10 @@ const handlePreview = (sequence: Sequence) => {
                     {issueStatus.next_issue.approved_by
                       ? ` by ${issueStatus.next_issue.approved_by}`
                       : ''}
+                  </span>
+                ) : issueStatus.next_issue.skipped ? (
+                  <span className="text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full">
+                    Skipped — will not send
                   </span>
                 ) : (
                   <button
@@ -597,13 +706,13 @@ const handlePreview = (sequence: Sequence) => {
       {/* EMAILS */}
       <div className="space-y-6">
 
-        {sequences.map((sequence, index) => (
+        {displaySequences.map((sequence, index) => (
           <div
             key={sequence.id}
             className="relative"
           >
 
-            {index !== sequences.length - 1 && (
+            {index !== displaySequences.length - 1 && (
               <div
                 className="absolute left-[31px] top-[76px] w-[2px] bg-gray-200"
                 style={{ height: 'calc(100% + 24px)' }}
@@ -1235,7 +1344,7 @@ const handlePreview = (sequence: Sequence) => {
 <EmailPreviewModal
   isOpen={previewOpen}
   onCloseAction={() => setPreviewOpen(false)}
-  html={previewHtml}
+  html={previewDisplayHtml}
   subject={previewSubject}
   bodyHtml={previewHtml}
   ctaText={null}

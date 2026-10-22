@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { Resend } from 'resend'
 import { buildEmailTemplate } from '@/lib/emailTemplates'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -38,6 +40,7 @@ export async function POST(req: Request) {
     }
 
     let html: string;
+    let attachments: any[] = [];
 
     // Check if body_html is already a fully-rendered email (from preview)
     // If so, send it directly without re-wrapping
@@ -50,6 +53,30 @@ export async function POST(req: Request) {
     if (isAlreadyRendered) {
       // Already a full email - send as-is
       html = body_html;
+      // Newsletter-design emails reference their hero + team photo
+      // as CID attachments (the same files the production processor
+      // attaches) — attach them here too, so the test renders in
+      // the recipient's inbox exactly like the real send.
+      try {
+        if (html.includes('cid:newsletter-hero')) {
+          attachments.push({
+            filename: 'hero.png',
+            content: readFileSync(join(process.cwd(), 'public', 'email-hero.b64'), 'utf8').trim(),
+            contentType: 'image/png',
+            contentId: 'newsletter-hero',
+          });
+        }
+        if (html.includes('cid:team-photo')) {
+          attachments.push({
+            filename: 'team-photo.jpg',
+            content: readFileSync(join(process.cwd(), 'public', 'team-photo.b64'), 'utf8').trim(),
+            contentType: 'image/jpeg',
+            contentId: 'team-photo',
+          });
+        }
+      } catch {
+        attachments = [];
+      }
     } else {
       // Raw content - build the template
       const admin = createClient(
@@ -97,6 +124,7 @@ export async function POST(req: Request) {
       to: user.email,
       subject,
       html,
+      ...(attachments.length ? { attachments } : {}),
     })
 
     return NextResponse.json({

@@ -19,7 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getIssueStatus, approveIssue } from '@/lib/newsletterIssue';
+import { getIssueStatus, approveIssue, skipIssue } from '@/lib/newsletterIssue';
 
 const NEWSLETTER_CAMPAIGN_ID = 'bb0b2174-639b-43fc-9f03-2bb289210de2';
 
@@ -243,6 +243,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === 'skip') {
+      const issue = typeof body.issue === 'string' ? body.issue : '';
+      const result = await skipIssue(supabase, issue);
+      return NextResponse.json({
+        action: 'skip',
+        issue,
+        skipped: true,
+        skipped_issues: result.skipped,
+        issue_status: await getIssueStatus(supabase),
+      });
+    }
+
     if (action === 'status') {
       const rows = await fetchAllRows(supabase, 'contact_campaigns', 'status', (q: any) =>
         q.eq('campaign_id', NEWSLETTER_CAMPAIGN_ID)
@@ -261,7 +273,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Body must be { action: 'pause' | 'resume' | 'status' } or { action: 'approve', issue: 'YYYY-MM' }.",
+          "Body must be { action: 'pause' | 'resume' | 'status' } or { action: 'approve' | 'skip', issue: 'YYYY-MM' }.",
       },
       { status: 400 }
     );

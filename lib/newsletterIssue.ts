@@ -160,6 +160,57 @@ export async function isIssueApproved(
   return approval.approved;
 }
 
+// Skipped issues (Tim, 2026-10-22): an issue Tim has decided not to
+// send at all — e.g. October 2026, which most subscribers already
+// received under the old drip before the Monthly Issue model. A
+// skip can never arm a send: approvals are rows in
+// newsletter_approvals, and this list lives elsewhere (a storage
+// JSON, the same pattern as the lawyer directory / Syngrafii
+// settings). A skipped issue simply stays unapproved forever; the
+// panel shows it as skipped instead of offering the Approve
+// button. Reads fail safe to "not skipped".
+const SKIPPED_ISSUES_PATH = 'system/newsletter-skipped-issues.json';
+
+export async function getSkippedIssues(
+  supabase: SupabaseClient
+): Promise<string[]> {
+  try {
+    const { data, error } = await supabase.storage
+      .from('client-documents')
+      .download(SKIPPED_ISSUES_PATH);
+    if (error || !data) return [];
+    const parsed = JSON.parse(await data.text());
+    const list = (parsed && parsed.skipped) || [];
+    return Array.isArray(list)
+      ? list.filter((k: any) => typeof k === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function skipIssue(
+  supabase: SupabaseClient,
+  issueKey: string
+): Promise<{ skipped: string[] }> {
+  if (!parseIssueKey(issueKey)) {
+    throw new Error(`Invalid issue key "${issueKey}" — expected YYYY-MM.`);
+  }
+  const skipped = await getSkippedIssues(supabase);
+  if (!skipped.includes(issueKey)) skipped.push(issueKey);
+  const { error } = await supabase.storage
+    .from('client-documents')
+    .upload(
+      SKIPPED_ISSUES_PATH,
+      JSON.stringify({ skipped }, null, 2),
+      { contentType: 'application/json', upsert: true }
+    );
+  if (error) {
+    throw new Error(`Could not record the skip: ${error.message}`);
+  }
+  return { skipped };
+}
+
 export type IssueInfo = {
   key: string;
   year: number;
@@ -170,6 +221,7 @@ export type IssueInfo = {
   approved: boolean;
   approved_at: string | null;
   approved_by: string | null;
+  skipped: boolean;
   approval_error?: string;
 };
 
@@ -209,9 +261,10 @@ export async function getIssueStatus(
     return row ? row.subject : null;
   };
 
-  const [curApproval, nxtApproval] = await Promise.all([
+  const [curApproval, nxtApproval, skippedIssues] = await Promise.all([
     getIssueApproval(supabase, curKey),
     getIssueApproval(supabase, nxtKey),
+    getSkippedIssues(supabase),
   ]);
 
   const { data: enrollmentRows } = await supabase
@@ -254,6 +307,7 @@ export async function getIssueStatus(
       approved: approval.approved,
       approved_at: approval.approved_at,
       approved_by: approval.approved_by,
+      skipped: skippedIssues.includes(key),
     };
     if (approval.error) info.approval_error = approval.error;
     return info;

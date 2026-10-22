@@ -273,7 +273,7 @@ export async function GET(req: NextRequest) {
     // The Documents library (team-docs folders), for "add from library".
     if (url.searchParams.get("library")) {
       const files: any[] = [];
-      for (const folder of ["buyer", "seller"]) {
+      for (const folder of ["buyer", "seller", "renter"]) {
         const { data } = await supabase.storage
           .from(BUCKET)
           .list(`team-docs/${folder}`, { limit: 100 });
