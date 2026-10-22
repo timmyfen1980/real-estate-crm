@@ -423,6 +423,17 @@ export async function POST(req: NextRequest) {
 
     if (body.action === "update_deal") {
       const deal = body.deal || {};
+      // The iinked linkage (deal.syngrafii) is server-owned: a
+      // workspace autosave built from page state must never wipe it.
+      if (!deal.syngrafii) {
+        const { data: cur } = await supabase
+          .from("offer_packages")
+          .select("deal")
+          .eq("account_id", FC_ACCOUNT_ID)
+          .eq("id", id)
+          .maybeSingle();
+        if (cur?.deal?.syngrafii) deal.syngrafii = cur.deal.syngrafii;
+      }
       const prop = deal.property || {};
       const { error } = await supabase
         .from("offer_packages")
