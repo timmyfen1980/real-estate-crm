@@ -1233,3 +1233,259 @@ export async function buildForm123(
 ): Promise<{ bytes: Uint8Array; pages: number }> {
   return buildNoticeForm(deal, paragraphs, templateBytes, "123", "waiver");
 }
+
+// ---------------------------------------------------------------------------
+// Form 120 — Amendment to Agreement of Purchase and Sale.
+// Header (buyer / seller / agreement date / property) plus the
+// Delete: and Insert: ruled areas on page 1 (17 lines each, mapped
+// from the blank's geometry 2026-10-22) and the irrevocability on
+// page 2. Signatures, acceptance and the acknowledgement blocks are
+// completion-time and stay blank.
+// ---------------------------------------------------------------------------
+
+const AMEND_DELETE_LINES = [
+  "any necessary changes 11",
+  "any necessary changes 12",
+  "any necessary changes 16",
+  "any necessary changes 17",
+  "any necessary changes 18",
+  "any necessary changes 19",
+  "any necessary changes 20",
+  "d",
+  "ffffff",
+  "fffff",
+  "z",
+  "zz",
+  "zzz",
+  "dd",
+  "ddd",
+  "dddd.0",
+  "dddd.1",
+];
+const AMEND_INSERT_LINES = [
+  "fff",
+  "ffff",
+  "ffffffff",
+  "g",
+  "gg",
+  "ggg",
+  "dddddd",
+  "ddddd",
+  "dddddddd",
+  "f",
+  "ff",
+  "h",
+  "hhh",
+  "hhhh",
+  "hh",
+  "gggg",
+  "ggggg",
+];
+
+// Vertical calibration for the 120 / 161 (measured 2026-10-22 audit:
+// 120 values floated +2.7, 161 floated +3.4, target +0.5).
+const AMEND_CALIBRATION = -2.2;
+const DISCLOSURE_CALIBRATION = -2.9;
+
+export function validateAmendment(deal: any): string[] {
+  const missing: string[] = [];
+  req(deal, "buyers", missing);
+  req(deal, "sellers", missing);
+  req(deal, "property.address", missing);
+  reqDate(deal, "agreement_date", missing);
+  const a = deal?.amendment || {};
+  const hasDelete = typeof a.delete_text === "string" && a.delete_text.trim().length > 0;
+  const hasInsert = typeof a.insert_text === "string" && a.insert_text.trim().length > 0;
+  if (!hasDelete && !hasInsert) {
+    missing.push("amendment text (what to Delete and/or Insert)");
+  }
+  return missing;
+}
+
+function torontoDayParts(offsetDays: number): { day: string; month: string; year: string } {
+  const d = new Date(Date.now() + offsetDays * 86400000);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || "";
+  return { day: get("day"), month: get("month"), year: get("year").slice(2) };
+}
+
+function wrapToLines(
+  text: string,
+  font: PDFFont,
+  fields: string[],
+  what: string,
+  widths?: number[]
+): string[] {
+  // Per-line wrap widths (some first lines start after a printed
+  // caption and are narrower — an over-wide line makes pdf-lib shrink
+  // the font to fit, which reads as a defect).
+  const widthAt = (i: number) =>
+    widths && widths.length ? widths[Math.min(i, widths.length - 1)] : 512;
+  const wrapped: string[] = [];
+  const paras = String(text || "")
+    .split(/\n{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const para of paras) {
+    if (wrapped.length) wrapped.push("");
+    // Wrap word by word against the width of the line being filled.
+    let cur = "";
+    for (const wd of para.split(/\s+/)) {
+      const t = cur ? cur + " " + wd : wd;
+      if (font.widthOfTextAtSize(t, 10) > widthAt(wrapped.length) && cur) {
+        wrapped.push(cur);
+        cur = wd;
+      } else {
+        cur = t;
+      }
+    }
+    if (cur) wrapped.push(cur);
+  }
+  if (wrapped.length > fields.length) {
+    throw new Error(
+      `The ${what} needs ${wrapped.length} lines but the form has ${fields.length} — shorten the text and try again.`
+    );
+  }
+  return wrapped;
+}
+
+export async function buildForm120(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  createdCount = 0;
+  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const form = doc.getForm();
+  const setText = (name: string, value?: string): void => {
+    if (!value) return;
+    try {
+      form.getTextField(name).setText(value);
+    } catch {
+      // a renamed/absent widget leaves the value out rather than failing
+    }
+  };
+  const join = (arr: string[]) => (arr || []).join(" and ");
+  const prop = deal.property || {};
+  const ad = deal.agreement_date || {};
+  const a = deal.amendment || {};
+
+  setText("BUYER", join(deal.buyers));
+  setText("SELLER", join(deal.sellers));
+  setText("zzzzz", ad.day);
+  setText("zzzz", ad.month);
+  setText("for use in the Province of Ontario", ad.year);
+  setText("concerning the property known as", [prop.address, prop.city].filter(Boolean).join(", "));
+  setText("tt", prop.legal_description);
+
+  const delLines = wrapToLines(a.delete_text, helvetica, AMEND_DELETE_LINES, "Delete text");
+  AMEND_DELETE_LINES.forEach((name, i) => setText(name, delLines[i]));
+  const insLines = wrapToLines(a.insert_text, helvetica, AMEND_INSERT_LINES, "Insert text");
+  AMEND_INSERT_LINES.forEach((name, i) => setText(name, insLines[i]));
+
+  // Irrevocability (page 2): the amending party's deadline for the
+  // other side to accept. Defaults: the Buyer, 11:59 p.m. tomorrow.
+  const irr = a.irrevocable || {};
+  const idd =
+    irr.date && (irr.date.day || irr.date.month || irr.date.year)
+      ? irr.date
+      : torontoDayParts(1);
+  setText("SellerBuyer", irr.by || "Buyer");
+  setText("ampm", irr.time || "11:59 p.m.");
+  setText("ccc", idd.day);
+  setText("c", idd.month);
+  setText("cc", idd.year);
+
+  if (AMEND_CALIBRATION) {
+    const fields: Record<string, { dy: number }> = {};
+    for (const name of [
+      "BUYER", "SELLER", "zzzzz", "zzzz", "for use in the Province of Ontario",
+      "concerning the property known as", "tt",
+      ...AMEND_DELETE_LINES, ...AMEND_INSERT_LINES,
+      "SellerBuyer", "ampm", "ccc", "c", "cc",
+    ]) {
+      fields[name] = { dy: AMEND_CALIBRATION };
+    }
+    applyCalibration(form, { default_dy: 0, fields });
+  }
+  form.updateFieldAppearances(helvetica);
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
+  return { bytes, pages: 2 };
+}
+
+// ---------------------------------------------------------------------------
+// Form 161 — Registrant Disclosure of Interest (Disposition).
+// Used rarely: when the registrant (or a related person) has an
+// interest in the property being sold. Header (registrant /
+// designation / brokerage / property), the EXPLANATION of the
+// interest, and the disclosure of facts affecting value. Signature,
+// date, title and the buyer acknowledgement are signing-time.
+// ---------------------------------------------------------------------------
+
+const DISCLOSURE_EXPLANATION_LINES = ["form161.2.1", "form161.3.0", "form161.3.1"];
+const DISCLOSURE_FACT_LINES = ["form161.4.0.0", "form161.4.0.1", "form161.4.0.2", "form161.4.0.3"];
+
+export function validateDisclosure(deal: any): string[] {
+  const missing: string[] = [];
+  req(deal, "property.address", missing);
+  const d = deal?.disclosure || {};
+  const hasExplanation = typeof d.explanation === "string" && d.explanation.trim().length > 0;
+  const hasFacts = typeof d.facts === "string" && d.facts.trim().length > 0;
+  if (!hasExplanation && !hasFacts) {
+    missing.push("disclosure.explanation (the nature of the interest — or the facts)");
+  }
+  return missing;
+}
+
+export async function buildForm161(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  createdCount = 0;
+  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const form = doc.getForm();
+  const setText = (name: string, value?: string): void => {
+    if (!value) return;
+    try {
+      form.getTextField(name).setText(value);
+    } catch {
+      // a renamed/absent widget leaves the value out rather than failing
+    }
+  };
+  const prop = deal.property || {};
+  const d = deal.disclosure || {};
+  const sb = deal.selling_brokerage || {};
+
+  setText("form161.0.0", d.registrant || sb.agent);
+  setText("form161.0.1", d.designation || "Salesperson");
+  setText("form161.1.0", d.brokerage || sb.brokerage);
+  setText("form161.1.1", [prop.address, prop.city].filter(Boolean).join(", "));
+  setText("form161.2.0", prop.legal_description);
+
+  const expLines = wrapToLines(d.explanation, helvetica, DISCLOSURE_EXPLANATION_LINES, "explanation", [400, 450, 450]);
+  DISCLOSURE_EXPLANATION_LINES.forEach((name, i) => setText(name, expLines[i]));
+  const factLines = wrapToLines(d.facts, helvetica, DISCLOSURE_FACT_LINES, "disclosure of facts");
+  DISCLOSURE_FACT_LINES.forEach((name, i) => setText(name, factLines[i]));
+
+  if (DISCLOSURE_CALIBRATION) {
+    const fields: Record<string, { dy: number }> = {};
+    for (const name of [
+      "form161.0.0", "form161.0.1", "form161.1.0", "form161.1.1", "form161.2.0",
+      ...DISCLOSURE_EXPLANATION_LINES, ...DISCLOSURE_FACT_LINES,
+    ]) {
+      fields[name] = { dy: DISCLOSURE_CALIBRATION };
+    }
+    applyCalibration(form, { default_dy: 0, fields });
+  }
+  form.updateFieldAppearances(helvetica);
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
+  return { bytes, pages: 1 };
+}

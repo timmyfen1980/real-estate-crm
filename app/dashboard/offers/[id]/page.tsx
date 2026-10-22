@@ -61,7 +61,7 @@ export default function PrepareOfferPage() {
   // across the top are its forms, all fed by the same answers below)
   const params = useParams()
   const packageId = String((params as any)?.id || '')
-  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'library' | 'files'>('offer')
+  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'library' | 'files'>('offer')
   const [pkgLoaded, setPkgLoaded] = useState(false)
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
@@ -77,8 +77,6 @@ export default function PrepareOfferPage() {
   const [previewName, setPreviewName] = useState('')
   const [actionNote, setActionNote] = useState('')
   const [confirmRemove, setConfirmRemove] = useState('')
-  const [libFiles, setLibFiles] = useState<any[]>([])
-  const [libLoaded, setLibLoaded] = useState(false)
   const [coopRepresentation, setCoopRepresentation] = useState('coop')
   const [coopPayBasis, setCoopPayBasis] = useState('mls')
   const [coopPayText, setCoopPayText] = useState('')
@@ -95,6 +93,18 @@ export default function PrepareOfferPage() {
   const [wavExtra, setWavExtra] = useState('')
   const [wavPlace, setWavPlace] = useState('')
   const [wavDate, setWavDate] = useState(todayToronto())
+  const [amdDelete, setAmdDelete] = useState('')
+  const [amdInsert, setAmdInsert] = useState('')
+  const [amdBy, setAmdBy] = useState('Buyer')
+  const [amdTime, setAmdTime] = useState('11:59 p.m.')
+  const [amdDate, setAmdDate] = useState(() =>
+    new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+  )
+  const [dscRegistrant, setDscRegistrant] = useState('')
+  const [dscDesignation, setDscDesignation] = useState('Salesperson')
+  const [dscBrokerage, setDscBrokerage] = useState('')
+  const [dscExplanation, setDscExplanation] = useState('')
+  const [dscFacts, setDscFacts] = useState('')
   const [synSends, setSynSends] = useState<any[]>([])
   const pkgFileRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -114,6 +124,15 @@ export default function PrepareOfferPage() {
   // from each person's profile (Account page) so they're kept in
   // exactly one place.
   const [teamAgents, setTeamAgents] = useState(TEAM_AGENTS)
+  // Deep link from the Offers page ("Add from the team library" picker):
+  // /dashboard/offers/<id>#waiver opens that later-stage form directly.
+  useEffect(() => {
+    const h = window.location.hash.replace('#', '')
+    if (h === 'nof' || h === 'waiver' || h === 'amend' || h === 'disclosure') {
+      setTab(h)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     ;(async () => {
       try {
@@ -470,6 +489,18 @@ export default function PrepareOfferPage() {
     if (wav.extra_text) setWavExtra(wav.extra_text)
     if (wav.dated?.place) setWavPlace(wav.dated.place)
     if (wav.dated?.date) setWavDate(joinDate(wav.dated.date))
+    const amd = deal.amendment || {}
+    if (amd.delete_text) setAmdDelete(amd.delete_text)
+    if (amd.insert_text) setAmdInsert(amd.insert_text)
+    if (amd.irrevocable?.by) setAmdBy(amd.irrevocable.by)
+    if (amd.irrevocable?.time) setAmdTime(amd.irrevocable.time)
+    if (amd.irrevocable?.date) setAmdDate(joinDate(amd.irrevocable.date))
+    const dsc = deal.disclosure || {}
+    if (dsc.registrant) setDscRegistrant(dsc.registrant)
+    if (dsc.designation) setDscDesignation(dsc.designation)
+    if (dsc.brokerage) setDscBrokerage(dsc.brokerage)
+    if (dsc.explanation) setDscExplanation(dsc.explanation)
+    if (dsc.facts) setDscFacts(dsc.facts)
     setSynInfo(deal.syngrafii || null)
     setSynSends(
       Array.isArray(deal.syngrafii_sends)
@@ -636,29 +667,6 @@ export default function PrepareOfferPage() {
     }
   }
 
-  const loadLibrary = async () => {
-    if (libLoaded) return
-    try {
-      const res = await fetch('/api/offers/packages?library=1')
-      const data = await res.json()
-      if (data.ok) setLibFiles(data.files || [])
-    } catch {
-      /* library unavailable */
-    }
-    setLibLoaded(true)
-  }
-
-  const attachLibrary = async (f: any) => {
-    setActionNote('')
-    try {
-      const data = await pkgAct({ action: 'attach_library', id: packageId, path: f.path, name: f.name })
-      setPkgDocs(data.documents || [])
-      setActionNote(`Added ${f.name} to this package — see Package Files.`)
-    } catch (e: any) {
-      setActionNote(e.message)
-    }
-  }
-
   const onPkgAddFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -758,6 +766,18 @@ export default function PrepareOfferPage() {
           extra_text: wavExtra || undefined,
           dated: { place: wavPlace || undefined, date: splitDate(wavDate) },
         },
+        amendment: {
+          delete_text: amdDelete || undefined,
+          insert_text: amdInsert || undefined,
+          irrevocable: { by: amdBy, time: amdTime || undefined, date: splitDate(amdDate) },
+        },
+        disclosure: {
+          registrant: dscRegistrant || undefined,
+          designation: dscDesignation,
+          brokerage: dscBrokerage || undefined,
+          explanation: dscExplanation || undefined,
+          facts: dscFacts || undefined,
+        },
         client: pkgClient || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
@@ -795,7 +815,11 @@ export default function PrepareOfferPage() {
             ? '124'
             : tab === 'waiver'
               ? '123'
-              : null
+              : tab === 'amend'
+                ? '120'
+                : tab === 'disclosure'
+                  ? '161'
+                  : null
 
   const formLabel = (): string =>
     tab === 'offer'
@@ -806,7 +830,11 @@ export default function PrepareOfferPage() {
           ? 'Form 320 — Confirmation of Co-operation'
           : tab === 'nof'
             ? 'Form 124 — Notice of Fulfillment'
-            : 'Form 123 — Waiver'
+            : tab === 'waiver'
+              ? 'Form 123 — Waiver'
+              : tab === 'amend'
+                ? 'Form 120 — Amendment'
+                : 'Form 161 — Disclosure of Interest'
 
   const surfaceFile = (data: any) => {
     const f = (data.files || [])[0]
@@ -989,7 +1017,7 @@ export default function PrepareOfferPage() {
       if (document.visibilityState !== 'hidden') return
       const t = tabRef.current
       const f =
-        t === 'offer' ? '100' : t === '801' ? '801' : t === 'coop' ? '320' : t === 'nof' ? '124' : t === 'waiver' ? '123' : null
+        t === 'offer' ? '100' : t === '801' ? '801' : t === 'coop' ? '320' : t === 'nof' ? '124' : t === 'waiver' ? '123' : t === 'amend' ? '120' : t === 'disclosure' ? '161' : null
       if (f) void silentSavePdf(f, sigRef.current, true)
     }
     document.addEventListener('visibilitychange', onVis)
@@ -1128,8 +1156,6 @@ export default function PrepareOfferPage() {
               ['offer', 'Offer — Form 100'],
               ['801', 'Form 801'],
               ['coop', 'Confirmation — 320'],
-              ['nof', 'Fulfillment — 124'],
-              ['waiver', 'Waiver — 123'],
               ['library', 'Add from Library'],
               ['files', `Package Files${pkgDocs.length ? ` (${pkgDocs.length})` : ''}`],
             ] as const
@@ -1151,10 +1177,12 @@ export default function PrepareOfferPage() {
                 setGenError('')
                 setActionNote('')
                 setPartialNote('')
-                if (key === 'library') loadLibrary()
               }}
               className={`px-4 py-2 rounded-full text-sm border transition ${
-                tab === key ? 'bg-black text-white' : 'hover:bg-gray-100'
+                tab === key ||
+                (key === 'library' && ['nof', 'waiver', 'amend', 'disclosure'].includes(tab))
+                  ? 'bg-black text-white'
+                  : 'hover:bg-gray-100'
               }`}
             >
               {label}
@@ -1952,33 +1980,170 @@ export default function PrepareOfferPage() {
           </div>
         </div>
 
-        {/* LIBRARY */}
-        <div className={tab === 'library' ? sectionCls : 'hidden'}>
-          <h2 className={h2Cls}>Add from the Library</h2>
+        {/* AMENDMENT */}
+        <div className={tab === 'amend' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Amendment — Form 120</h2>
           <p className="text-sm text-gray-600">
-            Anything from your Documents folders attaches to this package as-is — disclosures
-            and the like. Mark it signed under Package Files when the signed copy comes back.
+            Changes the signed agreement — a closing-date move, a price change, anything agreed
+            after acceptance. Say what comes out under Delete and what replaces it under Insert,
+            in the agreement's own words. The buyer, seller, property and original agreement date
+            come from the Offer tab.
           </p>
-          {!libLoaded && <p className="text-sm text-gray-400">Loading the library…</p>}
-          {libLoaded && libFiles.length === 0 && (
-            <p className="text-sm text-gray-400">No library files found.</p>
-          )}
-          <div className="space-y-2">
-            {libFiles.map((f) => (
-              <div key={f.path} className="flex items-center gap-2 border rounded-lg px-3 py-2">
-                <span className="text-sm">
-                  {f.name}
-                  <span className="text-gray-400"> · {f.folder} folder</span>
-                </span>
-                <button
-                  onClick={() => attachLibrary(f)}
-                  className="ml-auto text-xs border rounded-md px-2 py-1 hover:bg-gray-100 transition whitespace-nowrap"
-                >
-                  Add to package
-                </button>
-              </div>
-            ))}
+          <div>
+            <label className={labelCls}>Delete (the wording being removed)</label>
+            <textarea
+              className={inputCls}
+              rows={3}
+              value={amdDelete}
+              onChange={(e) => setAmdDelete(e.target.value)}
+              placeholder="e.g. The Completion Date in the Agreement of Purchase and Sale is December 15, 2026."
+            />
           </div>
+          <div>
+            <label className={labelCls}>Insert (the replacement wording)</label>
+            <textarea
+              className={inputCls}
+              rows={3}
+              value={amdInsert}
+              onChange={(e) => setAmdInsert(e.target.value)}
+              placeholder="e.g. The Completion Date in the Agreement of Purchase and Sale is December 22, 2026."
+            />
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>This amendment is irrevocable by</label>
+              <select className={inputCls} value={amdBy} onChange={(e) => setAmdBy(e.target.value)}>
+                <option value="Buyer">Buyer</option>
+                <option value="Seller">Seller</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Until (time)</label>
+              <input className={inputCls} value={amdTime} onChange={(e) => setAmdTime(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>On (date)</label>
+              <input type="date" className={inputCls} value={amdDate} onChange={(e) => setAmdDate(e.target.value)} />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">
+            Signatures, the acceptance line and the acknowledgement blocks stay blank — they're
+            completed when the amendment is signed and delivered.
+          </p>
+        </div>
+
+        {/* DISCLOSURE */}
+        <div className={tab === 'disclosure' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Disclosure of Interest — Form 161</h2>
+          <p className="text-sm text-gray-600">
+            Used rarely — when you (or a related person: spouse, family, a company you control)
+            have an interest in the property being sold. TRESA requires this disclosure before an
+            offer is made. The registrant and brokerage default to the selling side of this deal.
+          </p>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Registrant name</label>
+              <input
+                className={inputCls}
+                value={dscRegistrant}
+                onChange={(e) => setDscRegistrant(e.target.value)}
+                placeholder="Selling agent (auto)"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Registered as</label>
+              <select className={inputCls} value={dscDesignation} onChange={(e) => setDscDesignation(e.target.value)}>
+                <option value="Salesperson">Salesperson</option>
+                <option value="Broker">Broker</option>
+                <option value="Broker of Record">Broker of Record</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Brokerage</label>
+              <input
+                className={inputCls}
+                value={dscBrokerage}
+                onChange={(e) => setDscBrokerage(e.target.value)}
+                placeholder="Selling brokerage (auto)"
+              />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Explanation — the nature of the interest</label>
+            <textarea
+              className={inputCls}
+              rows={3}
+              value={dscExplanation}
+              onChange={(e) => setDscExplanation(e.target.value)}
+              placeholder="e.g. The Registrant is the spouse of the Seller and therefore has an indirect interest in the Property as a related person under TRESA."
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Facts affecting the value of the property</label>
+            <textarea
+              className={inputCls}
+              rows={3}
+              value={dscFacts}
+              onChange={(e) => setDscFacts(e.target.value)}
+              placeholder="A full disclosure of all facts within your knowledge that affect or will affect the value — or that there are none beyond the listing materials."
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            Signatures, dates and the buyer acknowledgement stay blank — they're completed when
+            the disclosure is signed and delivered to the buyer.
+          </p>
+        </div>
+
+        {/* LIBRARY — the later-stage forms live here (Tim, 2026-10-22):
+            the waiver, the amendment, the notice of fulfillment and
+            the disclosure. NOT the team documents list — other files
+            go in through Package Files. */}
+        <div className={tab === 'library' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Add from Library — later-stage forms</h2>
+          <p className="text-sm text-gray-600">
+            These forms come after the offer is signed. Each one is completed right here in
+            this package and saved into it, so it can be sent for signature on its own
+            later — a week after acceptance is fine.
+          </p>
+          <div className="space-y-2">
+            {(
+              [
+                ['nof', '124', 'Notice of Fulfillment — Form 124', 'When the buyer fulfils a condition — financing, inspection.'],
+                ['waiver', '123', 'Waiver — Form 123', 'When the buyer waives a condition instead of fulfilling it.'],
+                ['amend', '120', 'Amendment — Form 120', 'Changes the signed agreement — a closing-date move, a price change.'],
+                ['disclosure', '161', 'Disclosure of Interest — Form 161', 'Rare — when you or a related person have an interest in the property.'],
+              ] as const
+            ).map(([key, code, label, blurb]) => {
+              const inPkg = pkgDocs.some((d) => d.form === code)
+              return (
+                <div key={key} className="flex items-center gap-2 border rounded-lg px-3 py-2">
+                  <span className="text-sm">
+                    {label}
+                    <span className="text-gray-400"> · {blurb}</span>
+                    {inPkg && <span className="text-green-700 font-medium"> · In this package ✓</span>}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setTab(key as any)
+                      setResults([])
+                      setPreviewUrl('')
+                      setMissing([])
+                      setGenError('')
+                      setActionNote('')
+                      setPartialNote('')
+                    }}
+                    className="ml-auto text-xs border rounded-md px-2 py-1 hover:bg-gray-100 transition whitespace-nowrap"
+                  >
+                    {inPkg ? 'Open / edit' : 'Start'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-500">
+            Looking for a team document or any other file? Those go in through Package
+            Files (“Add a file”) instead.
+          </p>
         </div>
 
         {/* PACKAGE FILES */}

@@ -23,8 +23,7 @@ export default function OffersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
-  const [libFor, setLibFor] = useState('')
-  const [libFiles, setLibFiles] = useState<Array<{ name: string; folder?: string; path: string }>>([])
+  const [formsFor, setFormsFor] = useState('')
   const [confirmRemove, setConfirmRemove] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const addTarget = useRef<string>('')
@@ -153,45 +152,12 @@ export default function OffersPage() {
     }
   }
 
-  const openLibrary = async (pkg: any) => {
-    if (libFor === pkg.id) {
-      setLibFor('')
-      return
-    }
-    setLibFor(pkg.id)
-    setLibFiles([])
-    try {
-      const res = await fetch('/api/offers/packages?library=1')
-      const data = await res.json()
-      if (data.ok) {
-        // The library API returns file objects ({ name, folder, path }).
-        // This page once treated them as plain path strings and crashed
-        // rendering them (f.split on an object) — normalize defensively.
-        const files = (data.files || [])
-          .map((f: any) =>
-            typeof f === 'string' ? { name: f.split('/').pop() || f, path: f } : f
-          )
-          .filter((f: any) => f && typeof f.path === 'string')
-        setLibFiles(files)
-      }
-    } catch {
-      /* the library list is a convenience */
-    }
-  }
-
-  const attachFromLibrary = async (pkg: any, file: { name: string; path: string }) => {
-    setBusyId(pkg.id)
-    try {
-      const data = await act({ action: 'attach_library', id: pkg.id, path: file.path, name: file.name })
-      setPackages((prev) =>
-        prev.map((p) => (p.id === pkg.id ? { ...p, documents: data.documents } : p))
-      )
-      setLibFor('')
-    } catch (e: any) {
-      alert(e.message)
-    } finally {
-      setBusyId('')
-    }
+  // "Add from the team library" (Tim, 2026-10-22): NOT the team
+  // documents list — this opens the same later-stage forms picker as
+  // "Add from Library" inside the package (124 / 123 / 120 / 161).
+  // Picking one deep-links into the package at that form.
+  const toggleForms = (pkg: any) => {
+    setFormsFor((prev) => (prev === pkg.id ? '' : pkg.id))
   }
 
   const docChip = (pkg: any, doc: any) => (
@@ -358,7 +324,7 @@ export default function OffersPage() {
                   + Add a form or file
                 </button>
                 <button
-                  onClick={() => openLibrary(pkg)}
+                  onClick={() => toggleForms(pkg)}
                   disabled={busyId === pkg.id}
                   className="text-sm border px-3 py-1.5 rounded-md hover:bg-gray-100 transition disabled:opacity-50"
                 >
@@ -383,26 +349,34 @@ export default function OffersPage() {
                 </button>
               </div>
 
-              {libFor === pkg.id && (
+              {formsFor === pkg.id && (
                 <div className="border rounded-lg p-3 bg-gray-50">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    Team library — click a file to add a copy to this package
+                    Later-stage forms — pick one to complete it inside this package
                   </p>
-                  {libFiles.length === 0 && (
-                    <p className="text-sm text-gray-400">Loading the library…</p>
-                  )}
                   <div className="flex flex-wrap gap-2">
-                    {libFiles.map((f) => (
-                      <button
-                        key={f.path}
-                        onClick={() => attachFromLibrary(pkg, f)}
-                        disabled={busyId === pkg.id}
-                        className="text-sm border bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-100 transition disabled:opacity-50"
+                    {(
+                      [
+                        ['nof', '124', 'Notice of Fulfillment — Form 124'],
+                        ['waiver', '123', 'Waiver — Form 123'],
+                        ['amend', '120', 'Amendment — Form 120'],
+                        ['disclosure', '161', 'Disclosure of Interest — Form 161'],
+                      ] as const
+                    ).map(([hash, code, label]) => (
+                      <Link
+                        key={hash}
+                        href={`/dashboard/offers/${pkg.id}#${hash}`}
+                        className="text-sm border bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-100 transition"
                       >
-                        {f.name || f.path.split('/').pop()}
-                      </button>
+                        {label}
+                        {docs.some((d) => d.form === code) ? ' ✓ in package' : ''}
+                      </Link>
                     ))}
                   </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    The same four forms as “Add from Library” inside the package — completed
+                    after the offer is signed, and each can be sent for signature on its own.
+                  </p>
                 </div>
               )}
             </div>

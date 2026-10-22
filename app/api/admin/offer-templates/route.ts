@@ -12,7 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const BUCKET = "client-documents";
 const DIR = "system/offer-templates";
-const NAMES = ["form100", "form801", "form320", "form324", "form124", "form123", "form120"] as const;
+const NAMES = ["form100", "form801", "form320", "form324", "form124", "form123", "form120", "form161"] as const;
 
 function unauthorized(req: NextRequest): boolean {
   const authHeader = req.headers.get("authorization") || "";
