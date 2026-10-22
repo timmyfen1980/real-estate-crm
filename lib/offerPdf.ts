@@ -37,6 +37,9 @@ const REQ_DATE_POS: Record<string, [number, number]> = {
 };
 
 // Schedule A (page 6) geometry
+// Header values sink ~1.9pt below their printed lines (measured
+// 2026-10-21) — created a touch higher to land on the line.
+const SCHED_HEADER_DY = 1.9;
 const SCHED_X0 = 60;
 const SCHED_X1 = 552;
 const SCHED_Y_TOP = 249; // field top (text area starts ~262)
@@ -48,7 +51,7 @@ const SCHED_HEADER = {
   buyers: [77, 132, 560, 146],
   sellers: [77, 155, 560, 169],
   property: [145, 178, 571, 192],
-  day: [264, 201, 302, 215],
+  day: [247, 201, 290, 215],
   month: [325, 201, 480, 215],
   year: [537, 201, 571, 215],
 };
@@ -220,12 +223,16 @@ function createField(
   name: string,
   rectTop: number[],
   value: string,
-  opts: { size?: number; multiline?: boolean } = {}
+  opts: { size?: number; multiline?: boolean; dy?: number } = {}
 ): void {
   const unique = `${name}_${createdCount++}`;
   const field = form.createTextField(unique);
   if (opts.multiline) field.enableMultiline();
-  const r = rectTL(rectTop);
+  // dy raises the field on the page (top-origin rects: subtract to raise).
+  const shifted = opts.dy
+    ? [rectTop[0], rectTop[1] - opts.dy, rectTop[2], rectTop[3] - opts.dy]
+    : rectTop;
+  const r = rectTL(shifted);
   field.addToPage(page, {
     ...r,
     borderWidth: 0,
@@ -289,6 +296,115 @@ function mappedPair(
 }
 
 // ---------------------------------------------------------------------------
+// Vertical calibration (measured 2026-10-21 against the printed lines)
+//
+// pdf-lib anchors each value to its field rect, and the templates' rects
+// don't all sit on their printed lines: Form 801 values land ~2.3pt too
+// LOW, Form 320 values ~2.5pt too HIGH, and a few Form 100 rows float.
+// Each mapping carries a "calibration" block: a form-wide default_dy
+// (points; positive raises the text on the page) plus per-field
+// overrides keyed by semantic name (or the exact output field name).
+// Shifting the widget rect shifts the rendered value 1:1 (verified), and
+// the click target moves with it — imperceptible at these sizes.
+// ---------------------------------------------------------------------------
+
+function applyCalibration(
+  form: PDFForm,
+  cal: any,
+  semToRaw?: Record<string, string>
+): void {
+  if (!cal) return;
+  const def = Number(cal.default_dy || 0);
+  const per: Record<string, any> = cal.fields || {};
+  for (const field of form.getFields()) {
+    const name = field.getName();
+    let tf: any;
+    try {
+      tf = form.getTextField(name);
+    } catch {
+      continue; // not a text field
+    }
+    let spec = per[name];
+    if (!spec) {
+      // Created fields carry a uniqueness suffix (f801_<sem>_3, rea_hst_0…)
+      const noCount = name.replace(/_\d+$/, "");
+      if (noCount !== name) spec = per[noCount];
+      if (!spec) {
+        const stripped = noCount.replace(/^(f801_|f320_|f324_|rea_)/, "");
+        if (stripped !== noCount) spec = per[stripped];
+      }
+    }
+    if (!spec && semToRaw) {
+      for (const [sem, raw] of Object.entries(semToRaw)) {
+        if (raw === name && per[sem]) {
+          spec = per[sem];
+          break;
+        }
+      }
+    }
+    const dy = spec?.dy != null ? Number(spec.dy) : def;
+    const dx = Number(spec?.dx || 0);
+    const dw = Number(spec?.dw || 0);
+    if (!dy && !dx && !dw) continue;
+    try {
+      for (const w of tf.acroField.getWidgets()) {
+        const r = w.getRectangle();
+        w.setRectangle({
+          x: r.x + dx,
+          y: r.y + dy,
+          width: r.width + dw,
+          height: r.height,
+        });
+      }
+    } catch {
+      // a field that resists shifting simply keeps its old placement
+    }
+  }
+}
+
+// The 320/324 blanks' tick for some boxes is a ZapfDingbats glyph
+// appearance that common renderers draw as nothing — the box LOOKS
+// unticked even with /AS and /V set (verified 2026-10-21 on
+// chkOpt_CoOp / chkOpt_CBrokComm / chkOpt_CoOp2, while the vector-drawn
+// chkOpt_CBrokComm2 tick renders fine). Replace the on-state appearance
+// of every box we tick with a self-drawn vector check: same look as the
+// boxes that work, no font dependency, flattens cleanly.
+function replaceTickAppearance(doc: PDFDocument, widget: any, onState: string): void {
+  try {
+    const r = widget.getRectangle();
+    const W = r.width;
+    const H = r.height;
+    const x1 = W * 0.2, y1 = H * 0.44;
+    const x2 = W * 0.42, y2 = H * 0.2;
+    const x3 = W * 0.84, y3 = H * 0.8;
+    const content =
+      `q 0 0 0 RG 1.9 w 1 J 1 j ` +
+      `${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l ` +
+      `${x3.toFixed(2)} ${y3.toFixed(2)} l S Q`;
+    const stream = (doc.context as any).flateStream(content, {
+      Type: PDFName.of("XObject"),
+      Subtype: PDFName.of("Form"),
+      BBox: (doc.context as any).obj([0, 0, W, H]),
+      Resources: (doc.context as any).obj({}),
+    });
+    const ref = doc.context.register(stream);
+    let ap = widget.dict.lookup(PDFName.of("AP"));
+    if (!ap || typeof ap.set !== "function") {
+      ap = (doc.context as any).obj({});
+      widget.dict.set(PDFName.of("AP"), ap);
+    }
+    let n = ap.lookup(PDFName.of("N"));
+    if (!n || typeof n.set !== "function") {
+      n = (doc.context as any).obj({});
+      ap.set(PDFName.of("N"), n);
+    }
+    n.set(PDFName.of(onState), ref);
+  } catch {
+    // the /AS + /V tick still stands; only the drawn check is skipped
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Schedule A chunking
 // ---------------------------------------------------------------------------
 
@@ -342,12 +458,12 @@ function schedHeaderFields(
 ): void {
   const prop = deal.property;
   const ad = deal.agreement_date;
-  createField(doc, form, page, `rea_${tag}_buyers`, SCHED_HEADER.buyers, (deal.buyers as string[]).join(" and "), { size: 10 });
-  createField(doc, form, page, `rea_${tag}_sellers`, SCHED_HEADER.sellers, (deal.sellers as string[]).join(" and "), { size: 10 });
-  createField(doc, form, page, `rea_${tag}_property`, SCHED_HEADER.property, `${prop.address}, ${prop.city}, Ontario`, { size: 9 });
-  createField(doc, form, page, `rea_${tag}_day`, SCHED_HEADER.day, ad.day, { size: 10 });
-  createField(doc, form, page, `rea_${tag}_month`, SCHED_HEADER.month, ad.month, { size: 10 });
-  createField(doc, form, page, `rea_${tag}_year`, SCHED_HEADER.year, ad.year, { size: 10 });
+  createField(doc, form, page, `rea_${tag}_buyers`, SCHED_HEADER.buyers, (deal.buyers as string[]).join(" and "), { size: 10, dy: SCHED_HEADER_DY });
+  createField(doc, form, page, `rea_${tag}_sellers`, SCHED_HEADER.sellers, (deal.sellers as string[]).join(" and "), { size: 10, dy: SCHED_HEADER_DY });
+  createField(doc, form, page, `rea_${tag}_property`, SCHED_HEADER.property, `${prop.address}, ${prop.city}, Ontario`, { size: 9, dy: SCHED_HEADER_DY });
+  createField(doc, form, page, `rea_${tag}_day`, SCHED_HEADER.day, ad.day, { size: 10, dy: SCHED_HEADER_DY });
+  createField(doc, form, page, `rea_${tag}_month`, SCHED_HEADER.month, ad.month, { size: 10, dy: SCHED_HEADER_DY });
+  createField(doc, form, page, `rea_${tag}_year`, SCHED_HEADER.year, ad.year, { size: 10, dy: SCHED_HEADER_DY });
 }
 
 function fixFooter(
@@ -522,6 +638,13 @@ export async function buildForm100(
     }
   }
 
+  const semToRaw100: Record<string, string> = {};
+  for (const [sem, m] of Object.entries(mapping100 as any)) {
+    if (m && typeof m === "object" && (m as any).blank) {
+      semToRaw100[sem] = (m as any).blank;
+    }
+  }
+  applyCalibration(form, (mapping100 as any).calibration, semToRaw100);
   form.updateFieldAppearances(helvetica);
   const bytes = await doc.save();
   return { bytes, pages: total };
@@ -597,6 +720,7 @@ export async function buildForm801(
   D("listing_brokerage", deal.listing_brokerage.brokerage);
   D("listing_sales_rep", deal.listing_brokerage.agent);
 
+  applyCalibration(form, (mapping801 as any).form801_offer_summary?.calibration);
   form.updateFieldAppearances(helvetica);
   const bytes = await doc.save();
   return { bytes, pages: 1 };
@@ -694,7 +818,10 @@ async function buildCoopForm(
           : [];
         const match = keys.includes(wanted);
         w.dict.set(PDFName.of("AS"), PDFName.of(match ? wanted : "Off"));
-        if (match) ok = true;
+        if (match) {
+          ok = true;
+          replaceTickAppearance(doc, w, wanted);
+        }
       }
       if (ok) field.acroField.dict.set(PDFName.of("V"), PDFName.of(wanted));
       return ok;
@@ -813,6 +940,7 @@ async function buildCoopForm(
     D("coop_print_name", sb.agent);
   }
 
+  applyCalibration(form, (mapping320 as any).form320_confirmation?.calibration);
   form.updateFieldAppearances(helvetica);
   const bytes = await doc.save();
   return { bytes, pages: 2 };

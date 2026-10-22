@@ -479,16 +479,6 @@
    314
   ]
  },
- "txtSignerSig": {
-  "blank": "q",
-  "dist": 31.5,
-  "rect": [
-   415,
-   362,
-   559,
-   375
-  ]
- },
  "txtl_broker": {
   "blank": "qqqq",
   "dist": 0.5,
@@ -500,7 +490,7 @@
   ]
  },
  "txtl_brkphone": {
-  "blank": "qq",
+  "blank": "q",
   "dist": 42.0,
   "rect": [
    417,
@@ -510,7 +500,7 @@
   ]
  },
  "txtl_brkagent": {
-  "blank": "qqq",
+  "blank": "TelNo",
   "dist": 115.0,
   "rect": [
    138,
@@ -519,18 +509,8 @@
    415
   ]
  },
- "txtl_brkname": {
-  "blank": "TelNo",
-  "dist": 128.0,
-  "rect": [
-   50,
-   381,
-   560,
-   394
-  ]
- },
  "txts_broker": {
-  "blank": "TelNo_2",
+  "blank": "qqq",
   "dist": 53.0,
   "rect": [
    50,
@@ -540,7 +520,7 @@
   ]
  },
  "txts_brkphone": {
-  "blank": "undefined_5",
+  "blank": "qq",
   "dist": 114.5,
   "rect": [
    495,
@@ -550,22 +530,12 @@
   ]
  },
  "txts_brkagent": {
-  "blank": "Cdfabgfz",
+  "blank": "TelNo_2",
   "dist": 115.5,
   "rect": [
    59,
    499,
    218,
-   510
-  ]
- },
- "txts_brkname": {
-  "blank": "iykgjhn",
-  "dist": 101.0,
-  "rect": [
-   329,
-   499,
-   487,
    510
   ]
  },
@@ -788,5 +758,23 @@
    579,
    452
   ]
+ },
+ "calibration": {
+  "default_dy": 0,
+  "fields": {
+   "txtp_propincludes": {
+    "dy": -2.5
+   },
+   "txtp_propexcludes": {
+    "dy": -2.5
+   },
+   "txtp_LeasedItems": {
+    "dy": -2.5
+   },
+   "rea_hst": {
+    "dy": -1.8
+   }
+  },
+  "note": "Measured 2026-10-21: page 1 sits correctly (dy 0); the page-2 inclusions/exclusions/rentals rows float ~2.5-2.8pt high; the created HST line floats ~1.8pt."
  }
 }

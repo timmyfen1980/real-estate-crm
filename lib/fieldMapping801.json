@@ -1,6 +1,6 @@
 {
  "form801_offer_summary": {
-  "title": "OREA Form 801 \u2014 Offer Summary Document (for use with Agreement of Purchase and Sale)",
+  "title": "OREA Form 801 — Offer Summary Document (for use with Agreement of Purchase and Sale)",
   "source": "NOT in timmyfen1980/REA (verified via full recursive tree of the repo, 400 entries, zero 801 hits; the app's /form_pdfs/801.pdf was also never committed). Rects measured from the official OREA Form 801 (Revised Sept 2015) sample layout; the 2020 version has identical field geometry.",
   "fields": {
    "real_property_address": {
@@ -588,10 +588,22 @@
    "txtp_city": "real_property_address (city part)",
    "txtp_state": "real_property_address (province part)",
    "txtp_zipcode": "real_property_address (postal code part)"
+  },
+  "calibration": {
+   "default_dy": 2.3,
+   "fields": {
+    "real_property_address": {
+     "dy": 4.3
+    },
+    "buyer_names": {
+     "dy": 3.8
+    }
+   },
+   "note": "Measured 2026-10-21: 801 values sat ~2.3pt below their dotted lines (taller address/name rects ~4). Positive dy raises the value on the page."
   }
  },
  "notes": [
-  "Form 801 is the Offer Summary Document \u2014 a 1-page cover sheet the BUYING brokerage completes (mandatory in full) as evidence of a written signed offer; the LISTING brokerage completes the receiving section. It is NOT the Confirmation of Co-operation and Representation (that is OREA Form 320).",
+  "Form 801 is the Offer Summary Document — a 1-page cover sheet the BUYING brokerage completes (mandatory in full) as evidence of a written signed offer; the LISTING brokerage completes the receiving section. It is NOT the Confirmation of Co-operation and Representation (that is OREA Form 320).",
   "No fillable 801 exists in the repo or publicly (OREA forms are member-only via WEBForms/PropTx); all 'blank' values are null. The direct-draw filler (fill_direct2.py pattern) only needs rects, so this map is still fillable.",
   "Date fragments (day/month/year pieces) and the outcome checkboxes are positioned from dotted-line runs; sub-day rects are approximate within ~10pt."
  ]
