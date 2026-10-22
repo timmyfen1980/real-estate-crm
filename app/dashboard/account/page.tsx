@@ -37,6 +37,9 @@ const [emailHeaderUrl, setEmailHeaderUrl] = useState<string | null>(null)
   const [profileEditing, setProfileEditing] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
 const [userRole, setUserRole] = useState<string | null>(null)
+  const [msConnected, setMsConnected] = useState<boolean | null>(null)
+  const [msEmail, setMsEmail] = useState('')
+  const [msBusy, setMsBusy] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -115,6 +118,45 @@ setOriginalData(loaded)
 
     loadData()
   }, [router])
+
+  // Outlook (Microsoft 365) connection state for this user
+  useEffect(() => {
+    const loadMs = async () => {
+      try {
+        const res = await fetch('/api/microsoft/status')
+        const data = await res.json()
+        if (data && data.ok) {
+          setMsConnected(!!data.connected)
+          setMsEmail(data.email || '')
+        } else {
+          setMsConnected(false)
+        }
+      } catch {
+        setMsConnected(false)
+      }
+    }
+    loadMs()
+
+    const result = new URLSearchParams(window.location.search).get('outlook')
+    if (result === 'connected') {
+      setMessage('Outlook connected — your Microsoft 365 mailbox is linked to your CRM account.')
+    } else if (result === 'error') {
+      setMessage('Outlook connection did not complete. Please try Connect Outlook again.')
+    }
+  }, [])
+
+  const handleMsDisconnect = async () => {
+    setMsBusy(true)
+    try {
+      await fetch('/api/microsoft/disconnect', { method: 'POST' })
+      setMsConnected(false)
+      setMsEmail('')
+      setMessage('Outlook disconnected.')
+    } catch {
+      setMessage('Could not disconnect Outlook — please try again.')
+    }
+    setMsBusy(false)
+  }
 
   const hasChanges =
   originalData &&
@@ -449,6 +491,44 @@ const renderHeroImageBlock = () => (
               )}
             </div>
           </div>
+        </div>
+
+        <div className="border border-black p-10 mb-12">
+          <h2 className="text-xl font-semibold mb-4">Outlook (Microsoft 365)</h2>
+          <p className="text-sm text-gray-500 mb-8">
+            Connect your own Microsoft 365 mailbox so the CRM can work with
+            your email and calendar, the same way it does for Tim. You sign
+            in with Microsoft directly — your password never touches the CRM.
+          </p>
+
+          {msConnected === null ? (
+            <p className="text-sm text-gray-500">Checking connection…</p>
+          ) : msConnected ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Connected</p>
+                <p className="text-sm text-gray-500">{msEmail}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleMsDisconnect}
+                disabled={msBusy}
+                className="text-sm underline"
+              >
+                {msBusy ? 'Disconnecting…' : 'Disconnect'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = '/api/microsoft/connect'
+              }}
+              className="px-6 py-3 bg-black text-white text-sm font-medium hover:bg-gray-900 transition rounded-md"
+            >
+              Connect Outlook
+            </button>
+          )}
         </div>
 
         {/* Everything below unchanged */}
