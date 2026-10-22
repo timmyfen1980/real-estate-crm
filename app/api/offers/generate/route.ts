@@ -23,9 +23,12 @@ import {
   buildForm801,
   buildForm320,
   buildForm324,
+  buildForm123,
+  buildForm124,
   validateDeal,
   validate801,
   validate320,
+  validateNotice,
 } from "@/lib/offerPdf";
 import library from "@/lib/clauseLibrary.json";
 
@@ -71,7 +74,7 @@ async function authorized(req: NextRequest): Promise<boolean> {
 }
 
 async function loadTemplate(
-  name: "form100" | "form801" | "form320" | "form324"
+  name: "form100" | "form801" | "form320" | "form324" | "form123" | "form124"
 ): Promise<Uint8Array | null> {
   const { data, error } = await serviceClient()
     .storage.from(BUCKET)
@@ -163,6 +166,69 @@ function resolveClauses(
     paragraphs.push(t);
   }
   return { paragraphs, missing };
+}
+
+// Body text for the Form 124 (Notice of Fulfillment) and Form 123
+// (Waiver): quote the condition clauses the buyer is fulfilling or
+// waiving — the same wording Schedule A carries, including the
+// workspace's condition-term edits — then any extra text verbatim.
+function noticeParagraphs(
+  deal: any,
+  key: "fulfillment" | "waiver",
+  clauseBlanks: Record<string, Record<string, string | string[]>>
+): string[] {
+  const n = deal?.[key] || {};
+  const codes: string[] = Array.isArray(n.conditions) ? n.conditions.map(String) : [];
+  const ORDINALS = [
+    "",
+    "first",
+    "second",
+    "third",
+    "fourth",
+    "fifth",
+    "sixth",
+    "seventh",
+    "eighth",
+    "ninth",
+    "tenth",
+  ];
+  const paragraphs: string[] = [];
+  for (const code of codes) {
+    const std = ((library as any).standards as any[]).find(
+      (s) => (s.code || s.id) === code
+    );
+    if (!std) continue;
+    let t = String(std.text);
+    if (code === "B" || code === "C") {
+      const terms =
+        (deal.condition_terms || {})[code === "B" ? "financing" : "inspection"] || {};
+      const days = parseInt(String(terms.days ?? ""), 10);
+      if (days >= 1 && days <= 10 && days !== 5) {
+        t = t.split("fifth banking day").join(`${ORDINALS[days]} banking day`);
+      }
+      const time = String(terms.time || "").trim();
+      if (time && time !== "6:00 p.m.") {
+        t = t.split("6:00 p.m.").join(time);
+      }
+    }
+    t = t.split("INSERT NAME").join(deal.inspector_name || "");
+    t = t.split("INSERT DATE").join(deal.inspection_deadline || "");
+    const blanks = clauseBlanks[code] || {};
+    t = t.replace(/INSERT [A-Z][A-Z /]+/g, (m) =>
+      typeof blanks[m] === "string" ? (blanks[m] as string) : m
+    );
+    paragraphs.push(t);
+  }
+  const extra = typeof n.extra_text === "string" ? n.extra_text.trim() : "";
+  if (extra) {
+    paragraphs.push(
+      ...extra
+        .split(/\n{2,}/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+  }
+  return paragraphs;
 }
 
 // Fill the structural pieces a partial deal may lack so the PDF builder
@@ -331,6 +397,8 @@ export async function POST(req: NextRequest) {
     if (forms.includes("801")) missing.push(...validate801(deal));
     if (forms.includes("320")) missing.push(...validate320(deal));
     if (forms.includes("324")) missing.push(...validate320(deal));
+    if (forms.includes("124")) missing.push(...validateNotice(deal, "fulfillment"));
+    if (forms.includes("123")) missing.push(...validateNotice(deal, "waiver"));
 
     let paragraphs: string[] = [];
     if (forms.includes("100")) {
@@ -418,6 +486,46 @@ export async function POST(req: NextRequest) {
       files.push({
         form: "324",
         filename: `Form 324 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("124")) {
+      const tpl = await loadTemplate("form124");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 124 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm124(
+        deal,
+        noticeParagraphs(deal, "fulfillment", body.clauseBlanks || {}),
+        tpl
+      );
+      files.push({
+        form: "124",
+        filename: `Form 124 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("123")) {
+      const tpl = await loadTemplate("form123");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 123 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm123(
+        deal,
+        noticeParagraphs(deal, "waiver", body.clauseBlanks || {}),
+        tpl
+      );
+      files.push({
+        form: "123",
+        filename: `Form 123 - ${addr}.pdf`,
         pages,
         base64: Buffer.from(bytes).toString("base64"),
       });

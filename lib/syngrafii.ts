@@ -251,14 +251,34 @@ export async function flattenPdfBytes(
 
 export async function fileExecutedPackage(
   supabase: any,
-  pkg: any
+  pkg: any,
+  synPackageId?: string
 ): Promise<{ filed: string[] }> {
   const filed: string[] = [];
-  const syn = pkg?.deal?.syngrafii;
+  // A package can be sent to iinked several times over its life — the
+  // offer itself first, then a Notice of Fulfillment or Waiver days
+  // later (Tim, 2026-10-22). Every send is recorded in
+  // deal.syngrafii_sends; deal.syngrafii mirrors the latest send.
+  // Resolve which send executed: the one the caller names, else latest.
+  const sends: any[] = Array.isArray(pkg?.deal?.syngrafii_sends)
+    ? pkg.deal.syngrafii_sends
+    : pkg?.deal?.syngrafii
+      ? [pkg.deal.syngrafii]
+      : [];
+  const syn = synPackageId
+    ? sends.find((s: any) => s?.package_id === synPackageId)
+    : pkg?.deal?.syngrafii;
   if (!syn?.package_id || !Array.isArray(syn.docs) || !syn.docs.length) {
     return { filed };
   }
   const docs: any[] = Array.isArray(pkg.documents) ? [...pkg.documents] : [];
+  // Only an executed send carrying the Agreement itself flips the
+  // package to 'signed' — a later fulfillment/waiver send must not
+  // disturb the status of an already-signed deal.
+  const isApsSend = syn.docs.some((sent: any) => {
+    const orig = (pkg.documents || []).find((d: any) => d.path === sent.path);
+    return orig && ["100", "101", "102"].includes(String(orig.form));
+  });
   const stamp = Date.now();
   for (const sent of syn.docs) {
     if (!sent?.document_id || !sent?.path) continue;
@@ -314,10 +334,22 @@ export async function fileExecutedPackage(
     }
   }
   if (filed.length) {
-    const deal = { ...(pkg.deal || {}), syngrafii: { ...syn, state: "executed", filed_at: new Date().toISOString() } };
+    const stamp2 = new Date().toISOString();
+    const executedSyn = { ...syn, state: "executed", filed_at: stamp2 };
+    const deal: any = { ...(pkg.deal || {}) };
+    deal.syngrafii_sends = sends.map((s: any) =>
+      s?.package_id === syn.package_id ? executedSyn : s
+    );
+    if (deal.syngrafii?.package_id === syn.package_id) {
+      deal.syngrafii = executedSyn;
+    }
     const { error } = await supabase
       .from("offer_packages")
-      .update({ documents: docs, status: "signed", deal })
+      .update({
+        documents: docs,
+        status: isApsSend ? "signed" : pkg.status || "out",
+        deal,
+      })
       .eq("id", pkg.id);
     if (error) throw new Error(error.message);
   }

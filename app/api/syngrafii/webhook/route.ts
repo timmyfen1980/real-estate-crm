@@ -61,19 +61,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: action || "unknown" });
   }
   try {
+    // A CRM package may be sent to iinked several times (offer first,
+    // then a fulfillment/waiver later), and an executed first send
+    // flips the package status — so match on ANY recorded send, in any
+    // package status.
     const { data: rows, error } = await supabase
       .from("offer_packages")
       .select("id,deal,documents,status")
-      .eq("account_id", FC_ACCOUNT_ID)
-      .eq("status", "out");
+      .eq("account_id", FC_ACCOUNT_ID);
     if (error) throw new Error(error.message);
-    const pkg = (rows || []).find(
-      (r: any) => (r.deal || {}).syngrafii?.package_id === packageId
-    );
+    const pkg = (rows || []).find((r: any) => {
+      const d = r.deal || {};
+      if (d.syngrafii?.package_id === packageId) return true;
+      return (Array.isArray(d.syngrafii_sends) ? d.syngrafii_sends : []).some(
+        (s: any) => s?.package_id === packageId
+      );
+    });
     if (!pkg) {
       return NextResponse.json({ ok: true, ignored: "untracked package" });
     }
-    const res = await fileExecutedPackage(supabase, pkg);
+    const res = await fileExecutedPackage(supabase, pkg, packageId);
     return NextResponse.json({ ok: true, filed: res.filed });
   } catch (e: any) {
     // 500 so iinked retries — filing is idempotent.

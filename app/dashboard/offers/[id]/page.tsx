@@ -61,7 +61,7 @@ export default function PrepareOfferPage() {
   // across the top are its forms, all fed by the same answers below)
   const params = useParams()
   const packageId = String((params as any)?.id || '')
-  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'library' | 'files'>('offer')
+  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'library' | 'files'>('offer')
   const [pkgLoaded, setPkgLoaded] = useState(false)
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
@@ -84,6 +84,18 @@ export default function PrepareOfferPage() {
   const [coopPayText, setCoopPayText] = useState('')
   const [coopShare, setCoopShare] = useState('')
   const [coopBasis, setCoopBasis] = useState('of the purchase price')
+  // Post-acceptance forms (124 Notice of Fulfillment / 123 Waiver):
+  // which conditions the notice covers, any extra text printed after
+  // the quoted conditions, and the DATED line (defaults to today).
+  const [fulConditions, setFulConditions] = useState<string[]>([])
+  const [fulExtra, setFulExtra] = useState('')
+  const [fulPlace, setFulPlace] = useState('')
+  const [fulDate, setFulDate] = useState(todayToronto())
+  const [wavConditions, setWavConditions] = useState<string[]>([])
+  const [wavExtra, setWavExtra] = useState('')
+  const [wavPlace, setWavPlace] = useState('')
+  const [wavDate, setWavDate] = useState(todayToronto())
+  const [synSends, setSynSends] = useState<any[]>([])
   const pkgFileRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedSig = useRef('')
@@ -448,7 +460,24 @@ export default function PrepareOfferPage() {
       setBlankArrays(ba)
     }
     if (deal.client) setPkgClient(deal.client)
+    const ful = deal.fulfillment || {}
+    if (Array.isArray(ful.conditions)) setFulConditions(ful.conditions.map(String))
+    if (ful.extra_text) setFulExtra(ful.extra_text)
+    if (ful.dated?.place) setFulPlace(ful.dated.place)
+    if (ful.dated?.date) setFulDate(joinDate(ful.dated.date))
+    const wav = deal.waiver || {}
+    if (Array.isArray(wav.conditions)) setWavConditions(wav.conditions.map(String))
+    if (wav.extra_text) setWavExtra(wav.extra_text)
+    if (wav.dated?.place) setWavPlace(wav.dated.place)
+    if (wav.dated?.date) setWavDate(joinDate(wav.dated.date))
     setSynInfo(deal.syngrafii || null)
+    setSynSends(
+      Array.isArray(deal.syngrafii_sends)
+        ? deal.syngrafii_sends
+        : deal.syngrafii
+          ? [deal.syngrafii]
+          : []
+    )
   }
 
   const pkgAct = async (body: any) => {
@@ -470,6 +499,13 @@ export default function PrepareOfferPage() {
         setPkgDocs(Array.isArray(data.package.documents) ? data.package.documents : [])
         setPkgStatus(data.package.status || 'draft')
         setSynInfo(data.package.deal?.syngrafii || null)
+        setSynSends(
+          Array.isArray(data.package.deal?.syngrafii_sends)
+            ? data.package.deal.syngrafii_sends
+            : data.package.deal?.syngrafii
+              ? [data.package.deal.syngrafii]
+              : []
+        )
       }
     } catch {
       /* leave as-is */
@@ -712,6 +748,16 @@ export default function PrepareOfferPage() {
           pay_basis: coopPayBasis,
           pay_text: coopPayText || undefined,
         },
+        fulfillment: {
+          conditions: fulConditions,
+          extra_text: fulExtra || undefined,
+          dated: { place: fulPlace || undefined, date: splitDate(fulDate) },
+        },
+        waiver: {
+          conditions: wavConditions,
+          extra_text: wavExtra || undefined,
+          dated: { place: wavPlace || undefined, date: splitDate(wavDate) },
+        },
         client: pkgClient || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
@@ -739,14 +785,28 @@ export default function PrepareOfferPage() {
   }
 
   const formForTab = (): string | null =>
-    tab === 'offer' ? '100' : tab === '801' ? '801' : tab === 'coop' ? '320' : null
+    tab === 'offer'
+      ? '100'
+      : tab === '801'
+        ? '801'
+        : tab === 'coop'
+          ? '320'
+          : tab === 'nof'
+            ? '124'
+            : tab === 'waiver'
+              ? '123'
+              : null
 
   const formLabel = (): string =>
     tab === 'offer'
       ? 'Form 100 — the Offer'
       : tab === '801'
         ? 'Form 801'
-        : 'Form 320 — Confirmation of Co-operation'
+        : tab === 'coop'
+          ? 'Form 320 — Confirmation of Co-operation'
+          : tab === 'nof'
+            ? 'Form 124 — Notice of Fulfillment'
+            : 'Form 123 — Waiver'
 
   const surfaceFile = (data: any) => {
     const f = (data.files || [])[0]
@@ -855,7 +915,7 @@ export default function PrepareOfferPage() {
       // Forms whose PDF is already in the package count as saved at
       // the hydrated signature — no need to regenerate them untouched.
       const have = new Set(pkgDocs.map((d: any) => String(d.form)))
-      for (const f of ['100', '801', '320']) {
+      for (const f of ['100', '801', '320', '124', '123']) {
         if (have.has(f)) pdfSig.current[f] = dealSignature
       }
       return
@@ -928,7 +988,8 @@ export default function PrepareOfferPage() {
     const onVis = () => {
       if (document.visibilityState !== 'hidden') return
       const t = tabRef.current
-      const f = t === 'offer' ? '100' : t === '801' ? '801' : t === 'coop' ? '320' : null
+      const f =
+        t === 'offer' ? '100' : t === '801' ? '801' : t === 'coop' ? '320' : t === 'nof' ? '124' : t === 'waiver' ? '123' : null
       if (f) void silentSavePdf(f, sigRef.current, true)
     }
     document.addEventListener('visibilitychange', onVis)
@@ -1067,6 +1128,8 @@ export default function PrepareOfferPage() {
               ['offer', 'Offer — Form 100'],
               ['801', 'Form 801'],
               ['coop', 'Confirmation — 320'],
+              ['nof', 'Fulfillment — 124'],
+              ['waiver', 'Waiver — 123'],
               ['library', 'Add from Library'],
               ['files', `Package Files${pkgDocs.length ? ` (${pkgDocs.length})` : ''}`],
             ] as const
@@ -1758,6 +1821,137 @@ export default function PrepareOfferPage() {
           </p>
         </div>
 
+        {/* NOF — FORM 124 */}
+        <div className={tab === 'nof' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Notice of Fulfillment of Conditions — Form 124</h2>
+          <p className="text-sm text-gray-600">
+            Sent after acceptance when the buyer has fulfilled a condition. The form quotes the
+            condition word-for-word from the offer (including the deadline answers on the Offer
+            tab). The receipt block at the bottom stays blank — the other side completes it when
+            the notice is delivered to them.
+          </p>
+          <div>
+            <label className={labelCls}>Condition(s) fulfilled</label>
+            <div className="space-y-2">
+              {(
+                [
+                  ['B', 'Financing condition (Clause B)'],
+                  ['C', 'Home inspection condition (Clause C)'],
+                ] as const
+              ).map(([code, label]) => (
+                <label key={code} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={fulConditions.includes(code)}
+                    onChange={(e) =>
+                      setFulConditions(
+                        e.target.checked
+                          ? [...fulConditions, code]
+                          : fulConditions.filter((c) => c !== code)
+                      )
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              The form's lines fit one full condition — when both are ready, the usual practice
+              is one notice per condition.
+            </p>
+          </div>
+          <div>
+            <label className={labelCls}>Additional text (optional — printed after the quoted condition)</label>
+            <textarea
+              className={inputCls}
+              rows={3}
+              value={fulExtra}
+              onChange={(e) => setFulExtra(e.target.value)}
+              placeholder="Anything else the notice should say, in your words"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Dated at (place)</label>
+              <input
+                className={inputCls}
+                placeholder={city || 'City'}
+                value={fulPlace}
+                onChange={(e) => setFulPlace(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Date signed</label>
+              <input type="date" className={inputCls} value={fulDate} onChange={(e) => setFulDate(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        {/* WAIVER — FORM 123 */}
+        <div className={tab === 'waiver' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Waiver — Form 123</h2>
+          <p className="text-sm text-gray-600">
+            Sent after acceptance when the buyer waives a condition instead of fulfilling it.
+            The form quotes the condition word-for-word from the offer. The receipt block at the
+            bottom stays blank — the other side completes it on delivery.
+          </p>
+          <div>
+            <label className={labelCls}>Condition(s) waived</label>
+            <div className="space-y-2">
+              {(
+                [
+                  ['B', 'Financing condition (Clause B)'],
+                  ['C', 'Home inspection condition (Clause C)'],
+                ] as const
+              ).map(([code, label]) => (
+                <label key={code} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={wavConditions.includes(code)}
+                    onChange={(e) =>
+                      setWavConditions(
+                        e.target.checked
+                          ? [...wavConditions, code]
+                          : wavConditions.filter((c) => c !== code)
+                      )
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              The form's lines fit one full condition — one waiver per condition is the usual
+              practice.
+            </p>
+          </div>
+          <div>
+            <label className={labelCls}>Additional text (optional — printed after the quoted condition)</label>
+            <textarea
+              className={inputCls}
+              rows={3}
+              value={wavExtra}
+              onChange={(e) => setWavExtra(e.target.value)}
+              placeholder="Anything else the waiver should say, in your words"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Dated at (place)</label>
+              <input
+                className={inputCls}
+                placeholder={city || 'City'}
+                value={wavPlace}
+                onChange={(e) => setWavPlace(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Date signed</label>
+              <input type="date" className={inputCls} value={wavDate} onChange={(e) => setWavDate(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
         {/* LIBRARY */}
         <div className={tab === 'library' ? sectionCls : 'hidden'}>
           <h2 className={h2Cls}>Add from the Library</h2>
@@ -1958,6 +2152,65 @@ export default function PrepareOfferPage() {
                   </button>
                 </div>
               )}
+              {synSends.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    Sent to iinked from this package
+                  </p>
+                  <div className="space-y-2">
+                    {synSends.map((s: any) => (
+                      <div
+                        key={s.package_id}
+                        className="flex flex-wrap items-center gap-2 border rounded-md bg-white px-2 py-1.5 text-sm"
+                      >
+                        <span className="min-w-0">
+                          {(s.docs || []).map((d: any) => d.filename).filter(Boolean).join(', ') ||
+                            'Documents'}
+                          <span className="text-gray-400">
+                            {s.prepared_at
+                              ? ` · prepared ${new Date(s.prepared_at).toLocaleString()}`
+                              : ''}
+                          </span>
+                        </span>
+                        <span className="ml-auto font-medium">{s.state || 'prepared'}</span>
+                        <button
+                          disabled={synChecking}
+                          onClick={async () => {
+                            setSynChecking(true)
+                            try {
+                              const data = await pkgAct({
+                                action: 'signature_status',
+                                id: packageId,
+                                syngrafii_package_id: s.package_id,
+                              })
+                              if (Array.isArray(data.documents)) setPkgDocs(data.documents)
+                              if (Array.isArray(data.sends)) setSynSends(data.sends)
+                              if (data.status) setPkgStatus(data.status)
+                              setActionNote(
+                                data.state === 'executed'
+                                  ? `iinked: fully signed.${data.filed?.length ? ` Filed back: ${data.filed.join(', ')}.` : ' Signed copies are already filed here.'}`
+                                  : `iinked status: ${data.state}.`
+                              )
+                              refreshPkg()
+                            } catch (e: any) {
+                              setActionNote(e.message)
+                            } finally {
+                              setSynChecking(false)
+                            }
+                          }}
+                          className="text-xs border rounded-md px-2 py-1 bg-white hover:bg-gray-100 transition disabled:opacity-50"
+                        >
+                          Check status
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Each send is its own iinked package — the offer first, then a fulfillment
+                    or waiver later, each signed and filed separately.
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                   Signers (in signing order)
@@ -2044,6 +2297,7 @@ export default function PrepareOfferPage() {
                         docs: data.docs,
                         prepared_at: new Date().toISOString(),
                       })
+                      if (Array.isArray(data.sends)) setSynSends(data.sends)
                       setPkgStatus('out')
                       if (data.edit_link) {
                         window.open(data.edit_link, '_blank')

@@ -423,16 +423,20 @@ export async function POST(req: NextRequest) {
 
     if (body.action === "update_deal") {
       const deal = body.deal || {};
-      // The iinked linkage (deal.syngrafii) is server-owned: a
-      // workspace autosave built from page state must never wipe it.
-      if (!deal.syngrafii) {
+      // The iinked linkage (deal.syngrafii + deal.syngrafii_sends) is
+      // server-owned: a workspace autosave built from page state must
+      // never wipe it.
+      if (!deal.syngrafii || !deal.syngrafii_sends) {
         const { data: cur } = await supabase
           .from("offer_packages")
           .select("deal")
           .eq("account_id", FC_ACCOUNT_ID)
           .eq("id", id)
           .maybeSingle();
-        if (cur?.deal?.syngrafii) deal.syngrafii = cur.deal.syngrafii;
+        if (cur?.deal?.syngrafii && !deal.syngrafii) deal.syngrafii = cur.deal.syngrafii;
+        if (cur?.deal?.syngrafii_sends && !deal.syngrafii_sends) {
+          deal.syngrafii_sends = cur.deal.syngrafii_sends;
+        }
       }
       const prop = deal.property || {};
       const { error } = await supabase
@@ -652,10 +656,21 @@ export async function POST(req: NextRequest) {
         state: "draft",
         prepared_at: new Date().toISOString(),
       };
-      const deal = { ...(pkg.deal || {}), syngrafii: synInfo };
+      // Multi-send (Tim, 2026-10-22): the offer goes out first, then a
+      // Notice of Fulfillment / Waiver days later from the same package.
+      // Every send is kept in deal.syngrafii_sends; deal.syngrafii
+      // mirrors the latest. A signed package stays 'signed' when a
+      // follow-on document goes out.
+      const prevSends: any[] = Array.isArray(pkg.deal?.syngrafii_sends)
+        ? pkg.deal.syngrafii_sends
+        : pkg.deal?.syngrafii
+          ? [pkg.deal.syngrafii]
+          : [];
+      const sends = [...prevSends, synInfo];
+      const deal = { ...(pkg.deal || {}), syngrafii: synInfo, syngrafii_sends: sends };
       const { error: updErr } = await supabase
         .from("offer_packages")
-        .update({ deal, status: "out" })
+        .update({ deal, status: pkg.status === "signed" ? "signed" : "out" })
         .eq("id", id);
       if (updErr) throw new Error(updErr.message);
       let editLink: string | null = null;
@@ -671,6 +686,7 @@ export async function POST(req: NextRequest) {
         edit_link: editLink,
         link_error: linkError,
         docs: docMap,
+        sends,
       });
     }
 
@@ -683,7 +699,18 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!pkg) return NextResponse.json({ ok: false, error: "Package not found." }, { status: 404 });
-      const syn = (pkg.deal || {}).syngrafii;
+      const deal0 = pkg.deal || {};
+      const sends0: any[] = Array.isArray(deal0.syngrafii_sends)
+        ? deal0.syngrafii_sends
+        : deal0.syngrafii
+          ? [deal0.syngrafii]
+          : [];
+      // A specific send can be checked by its iinked package id; the
+      // default is the latest send.
+      const targetId = String(body.syngrafii_package_id || "") || deal0.syngrafii?.package_id || "";
+      const syn =
+        sends0.find((s: any) => s?.package_id === targetId) ||
+        (deal0.syngrafii?.package_id === targetId ? deal0.syngrafii : null);
       if (!syn?.package_id) {
         return NextResponse.json({ ok: false, error: "This package has not been sent to iinked." }, { status: 400 });
       }
@@ -696,12 +723,22 @@ export async function POST(req: NextRequest) {
           .select("id,deal,documents,status")
           .eq("id", id)
           .maybeSingle();
-        const res = await fileExecutedPackage(supabase, fresh.data || pkg);
+        const res = await fileExecutedPackage(supabase, fresh.data || pkg, syn.package_id);
         filed = res.filed;
+      } else if (state !== String(syn.state || "")) {
+        // Keep the send's stored state honest between checks.
+        const deal1: any = { ...deal0 };
+        deal1.syngrafii_sends = sends0.map((s: any) =>
+          s?.package_id === syn.package_id ? { ...s, state } : s
+        );
+        if (deal1.syngrafii?.package_id === syn.package_id) {
+          deal1.syngrafii = { ...deal1.syngrafii, state };
+        }
+        await supabase.from("offer_packages").update({ deal: deal1 }).eq("id", id);
       }
       const { data: after } = await supabase
         .from("offer_packages")
-        .select("documents,status")
+        .select("documents,status,deal")
         .eq("id", id)
         .maybeSingle();
       return NextResponse.json({
@@ -710,6 +747,7 @@ export async function POST(req: NextRequest) {
         filed,
         documents: after?.documents || pkg.documents,
         status: after?.status || pkg.status,
+        sends: (after?.deal || {}).syngrafii_sends || sends0,
       });
     }
 

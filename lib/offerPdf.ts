@@ -1031,3 +1031,205 @@ export async function buildForm324(
     item4b2: ["chkOpt_MultiRep1", "1"],
   });
 }
+
+// ---------------------------------------------------------------------------
+// Forms 124 / 123 — Notice of Fulfillment of Conditions / Waiver.
+// Post-acceptance forms: they live in the same offer package as the
+// 100/801/320 and are usually generated (and sent for signature) days
+// after the offer itself. Both blanks are one page with the same
+// layout — header (buyer / seller / real property / agreement date),
+// a ruled body area of 18 single-line fields quoting the condition(s),
+// a DATED line, signature blocks (left for ink / iinked spots) and a
+// receipt block that stays blank for the receiving side to complete.
+// Field names differ per form; the tables below were mapped from the
+// blanks' geometry 2026-10-22.
+// ---------------------------------------------------------------------------
+
+interface NoticeFields {
+  buyer: string;
+  seller: string;
+  prop1: string;
+  prop2: string;
+  day: string;
+  month: string;
+  year: string;
+  lines: string[];
+  dPlace: string;
+  dTime: string;
+  dDay: string;
+  dMonth: string;
+  dYear: string;
+  printName: string;
+}
+
+const NOTICE_FIELDS: Record<"124" | "123", NoticeFields> = {
+  "124": {
+    buyer: "form124.0.0",
+    seller: "form124.0.1",
+    prop1: "form124.1.0",
+    prop2: "form124.1.1",
+    day: "form124.2.1",
+    month: "form124.2.0",
+    year: "form124.3.0",
+    lines: [
+      ...Array.from({ length: 16 }, (_, i) => `form124.3.1.${i}`),
+      "form124.3.1.16.0",
+      "form124.3.1.16.1",
+    ],
+    dPlace: "form124.4.0",
+    dTime: "form124.4.1",
+    dDay: "form124.5.0",
+    dMonth: "form124.5.1",
+    dYear: "form124.6.0",
+    printName: "form124.10.1",
+  },
+  "123": {
+    buyer: "form123.0.0",
+    seller: "form123.0.1",
+    prop1: "form123.1.0",
+    prop2: "form123.1.1",
+    day: "form123.2.0",
+    month: "form123.2.1",
+    year: "form123.3.0",
+    lines: [
+      ...Array.from({ length: 14 }, (_, i) => `form123.3.1.${i}`),
+      "form123.3.1.14.0",
+      "form123.3.1.14.1",
+      "form123.3.1.14.2",
+      "form123.3.1.14.3",
+    ],
+    dPlace: "form123.9.1",
+    dTime: "form123.9.0",
+    dDay: "form123.8.1",
+    dMonth: "form123.8.0",
+    dYear: "form123.7.1",
+    printName: "form123.4.0.1.0",
+  },
+};
+
+// Vertical calibration for the notice forms, measured against the
+// printed dotted lines (audit 2026-10-22). Filled in after measurement.
+const NOTICE_CALIBRATION: Record<"124" | "123", number> = {
+  "124": -3.2,
+  "123": -3.2,
+};
+
+export function validateNotice(deal: any, key: "fulfillment" | "waiver"): string[] {
+  const missing: string[] = [];
+  req(deal, "buyers", missing);
+  req(deal, "sellers", missing);
+  req(deal, "property.address", missing);
+  reqDate(deal, "agreement_date", missing);
+  const n = deal?.[key] || {};
+  const hasConditions = Array.isArray(n.conditions) && n.conditions.length > 0;
+  const hasText = typeof n.extra_text === "string" && n.extra_text.trim().length > 0;
+  if (!hasConditions && !hasText) {
+    missing.push(
+      key === "fulfillment"
+        ? "fulfillment.conditions (which conditions are fulfilled — or add text)"
+        : "waiver.conditions (which conditions are waived — or add text)"
+    );
+  }
+  return missing;
+}
+
+function torontoTodayParts(): { day: string; month: string; year: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || "";
+  return { day: get("day"), month: get("month"), year: get("year").slice(2) };
+}
+
+async function buildNoticeForm(
+  deal: any,
+  paragraphs: string[],
+  templateBytes: Uint8Array,
+  kind: "124" | "123",
+  key: "fulfillment" | "waiver"
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  createdCount = 0;
+  const F = NOTICE_FIELDS[kind];
+  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const form = doc.getForm();
+  const setText = (name: string, value?: string): void => {
+    if (!value) return;
+    try {
+      form.getTextField(name).setText(value);
+    } catch {
+      // a renamed/absent widget leaves the value out rather than failing
+    }
+  };
+  const join = (arr: string[]) => (arr || []).join(" and ");
+  const prop = deal.property || {};
+  const ad = deal.agreement_date || {};
+
+  setText(F.buyer, join(deal.buyers));
+  setText(F.seller, join(deal.sellers));
+  setText(F.prop1, [prop.address, prop.city].filter(Boolean).join(", "));
+  setText(F.prop2, prop.legal_description);
+  setText(F.day, ad.day);
+  setText(F.month, ad.month);
+  setText(F.year, ad.year);
+
+  // Body: quote the condition(s) across the ruled lines, pre-wrapped
+  // (pdf-lib's own wrapping overflows single-line fields).
+  const wrapped: string[] = [];
+  paragraphs.forEach((para, i) => {
+    if (i > 0) wrapped.push("");
+    wrapped.push(...wrapText(para, helvetica, 10, 512));
+  });
+  if (wrapped.length > F.lines.length) {
+    throw new Error(
+      `The ${kind === "124" ? "notice" : "waiver"} text needs ${wrapped.length} lines but the form has ${F.lines.length} — shorten the text and try again.`
+    );
+  }
+  F.lines.forEach((name, i) => setText(name, wrapped[i]));
+
+  // DATED line: the day the buyer signs (defaults to today, Toronto).
+  const n = deal[key] || {};
+  const dated = n.dated || {};
+  const dd = dated.date && (dated.date.day || dated.date.month || dated.date.year)
+    ? dated.date
+    : torontoTodayParts();
+  setText(F.dPlace, dated.place || prop.city);
+  if (dated.time) setText(F.dTime, String(dated.time));
+  setText(F.dDay, dd.day);
+  setText(F.dMonth, dd.month);
+  setText(F.dYear, dd.year);
+  // The signers' printed names under the receipt acknowledgement.
+  setText(F.printName, join(deal.buyers));
+
+  const dy = NOTICE_CALIBRATION[kind];
+  if (dy) {
+    const fields: Record<string, { dy: number }> = {};
+    for (const name of [F.buyer, F.seller, F.prop1, F.prop2, F.day, F.month, F.year, ...F.lines, F.dPlace, F.dTime, F.dDay, F.dMonth, F.dYear, F.printName]) {
+      fields[name] = { dy };
+    }
+    applyCalibration(form, { default_dy: 0, fields });
+  }
+  form.updateFieldAppearances(helvetica);
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
+  return { bytes, pages: 1 };
+}
+
+export async function buildForm124(
+  deal: any,
+  paragraphs: string[],
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildNoticeForm(deal, paragraphs, templateBytes, "124", "fulfillment");
+}
+
+export async function buildForm123(
+  deal: any,
+  paragraphs: string[],
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildNoticeForm(deal, paragraphs, templateBytes, "123", "waiver");
+}
