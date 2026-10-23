@@ -58,9 +58,11 @@ export default function ClientFileDetailPage() {
     lastName: string;
     occupation: string;
     licenceNumber: string;
+    licenceExpiry: string;
     needName: boolean;
     needOccupation: boolean;
     needLicence: boolean;
+    needExpiry: boolean;
     licenceNote: boolean;
   }>(null);
   const [fintracFixBusy, setFintracFixBusy] = useState(false);
@@ -786,25 +788,28 @@ export default function ClientFileDetailPage() {
   const handleGenerate630 = async () => {
     const { data: contact } = await supabase
       .from('contacts')
-      .select('first_name, last_name, occupation, licence_number')
+      .select('first_name, last_name, occupation, licence_number, licence_expiry')
       .eq('id', file.crm_contact_id)
       .single();
     const needName = !contact?.first_name && !contact?.last_name;
     const needOccupation = !contact?.occupation;
     const needLicence = !contact?.licence_number;
+    const needExpiry = !contact?.licence_expiry;
     if (needLicence && !idDocReceived) {
       alert('Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.');
       return;
     }
-    if (needName || needOccupation || needLicence) {
+    if (needName || needOccupation || needLicence || needExpiry) {
       setFintracFix({
         firstName: contact?.first_name || '',
         lastName: contact?.last_name || '',
         occupation: contact?.occupation || '',
         licenceNumber: contact?.licence_number || '',
+        licenceExpiry: contact?.licence_expiry || '',
         needName,
         needOccupation,
         needLicence,
+        needExpiry,
         licenceNote: needLicence && idDocReceived,
       });
       return;
@@ -825,6 +830,9 @@ export default function ClientFileDetailPage() {
     }
     if (fintracFix.needLicence && fintracFix.licenceNumber.trim()) {
       update.licence_number = fintracFix.licenceNumber.trim();
+    }
+    if (fintracFix.needExpiry && fintracFix.licenceExpiry) {
+      update.licence_expiry = fintracFix.licenceExpiry;
     }
     if (Object.keys(update).length === 0) {
       alert('Fill in at least one of the fields, or Cancel.');
@@ -1754,6 +1762,17 @@ export default function ClientFileDetailPage() {
                       automatically — type it in from the licence.
                     </p>
                   )}
+                </div>
+              )}
+              {fintracFix.needExpiry && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Licence expiry date (goes on the FINTRAC 630)</label>
+                  <input
+                    type="date"
+                    value={fintracFix.licenceExpiry}
+                    onChange={(e) => setFintracFix({ ...fintracFix, licenceExpiry: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
                 </div>
               )}
             </div>
