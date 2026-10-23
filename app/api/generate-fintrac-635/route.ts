@@ -110,15 +110,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to upload: ' + uploadErr.message }, { status: 500 });
     }
 
-    const docRecord: any = {
-      contact_id: contact_id,
-      document_name: `FINTRAC Form 635 - ${fullName}`,
-      file_path: storagePath,
-      document_type: 'fintrac_635',
-    };
-    if (client_file_id) docRecord.client_file_id = client_file_id;
-
-    await supabase.from('client_documents').insert(docRecord);
+    // File the generated form into the client file's documents
+    // (fixed 2026-10-23: this used to insert columns that don't
+    // exist on client_documents — contact_id / document_name /
+    // file_path — so the insert failed silently and no document
+    // ever appeared in the file even though the route reported
+    // success). Now it completes the file's FINTRAC 635 checklist
+    // row when one exists, or appends a row to the file's last
+    // stage when it doesn't.
+    if (client_file_id) {
+      const { data: cf } = await supabase
+        .from('client_files')
+        .select('checklist_types')
+        .eq('id', client_file_id)
+        .single();
+      const primaryType = (cf?.checklist_types || [])[0] || null;
+      const { data: rows } = await supabase
+        .from('client_documents')
+        .select('id, document, form, checklist_type, stage_index')
+        .eq('client_file_id', client_file_id);
+      const all: any[] = rows || [];
+      const match = all.find(
+        (r: any) =>
+          (r.form || '').includes('635') ||
+          (r.document || '').includes('Receipt of Funds')
+      );
+      if (match) {
+        await supabase
+          .from('client_documents')
+          .update({
+            status: 'received',
+            file_url: storagePath,
+            received_at: new Date().toISOString(),
+            received_via: 'generated',
+          })
+          .eq('id', match.id);
+      } else if (primaryType) {
+        const siblings = all.filter((r: any) => r.checklist_type === primaryType);
+        const lastStage = siblings.reduce((m: number, r: any) => Math.max(m, r.stage_index || 0), 0);
+        await supabase.from('client_documents').insert({
+          client_file_id,
+          checklist_type: primaryType,
+          stage_index: lastStage,
+          document: `FINTRAC Form 635 - ${fullName}`,
+          form: 'FINTRAC Form 635',
+          required: 'required',
+          status: 'received',
+          file_url: storagePath,
+          received_at: new Date().toISOString(),
+          received_via: 'generated',
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,

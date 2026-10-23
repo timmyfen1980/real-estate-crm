@@ -357,6 +357,27 @@ export default function ClientFileDetailPage() {
   const stages = activeTab ? CHECKLISTS[activeTab].stages : [];
   const received = tabDocs.filter((d) => ['received', 'waived', 'na'].includes(d.status)).length;
 
+  // FINTRAC state (Tim, 2026-10-23): a 630/635 counts as done only
+  // when a generated form is actually filed in this file's
+  // documents — the buttons used to be permanently green whether
+  // or not anything existed.
+  const fintracFiled = (num: string, docName: string) =>
+    docs.some(
+      (d) =>
+        ((d.form || '').includes(num) || (d.document || '').includes(docName)) &&
+        d.status === 'received' &&
+        !!d.file_url
+    );
+  const has630 = fintracFiled('630', 'Individual Identification');
+  const has635 = fintracFiled('635', 'Receipt of Funds');
+  const idDocReceived = docs.some((d) => {
+    const n = (d.document || '').toLowerCase();
+    return (
+      (n.includes('photo id') || n.includes('licence') || n.includes('license') || n.includes('passport')) &&
+      d.status === 'received'
+    );
+  });
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <Link href="/dashboard/checklists" className="text-sm text-blue-600 hover:underline">
@@ -397,7 +418,11 @@ export default function ClientFileDetailPage() {
                       .eq('id', file.crm_contact_id)
                       .single();
                     if (!contact?.licence_number) {
-                      alert('Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.');
+                      alert(
+                        idDocReceived
+                          ? "The licence is uploaded, but its details aren't on the contact yet — the ID reader didn't fill them in. Add the licence number on the contact (or have the client re-upload a clearer photo), then try again."
+                          : 'Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.'
+                      );
                       return;
                     }
                     if (!confirm('Generate FINTRAC Form 630 for the linked contact?')) return;
@@ -415,9 +440,9 @@ export default function ClientFileDetailPage() {
                       alert(err.message || 'Failed to generate form.');
                     }
                   }}
-                  className="mb-2 ml-2 px-3 py-1.5 text-xs text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg border border-green-200"
+                  className={has630 ? "mb-2 ml-2 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "mb-2 ml-2 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
                 >
-                  630
+                  {has630 ? '✓ 630' : '630'}
                 </button>
                 <button
                   onClick={async () => {
@@ -427,7 +452,11 @@ export default function ClientFileDetailPage() {
                       .eq('id', file.crm_contact_id)
                       .single();
                     if (!contact?.licence_number) {
-                      alert('Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.');
+                      alert(
+                        idDocReceived
+                          ? "The licence is uploaded, but its details aren't on the contact yet — the ID reader didn't fill them in. Add the licence number on the contact (or have the client re-upload a clearer photo), then try again."
+                          : 'Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.'
+                      );
                       return;
                     }
                     const amount = prompt('Funds amount (e.g. 25000):');
@@ -454,9 +483,9 @@ export default function ClientFileDetailPage() {
                       alert(err.message || 'Failed to generate form.');
                     }
                   }}
-                  className="mb-2 ml-1 px-3 py-1.5 text-xs text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg border border-green-200"
+                  className={has635 ? "mb-2 ml-1 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "mb-2 ml-1 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
                 >
-                  635
+                  {has635 ? '✓ 635' : '635'}
                 </button>
               </>
             )}
