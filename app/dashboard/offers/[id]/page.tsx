@@ -61,7 +61,7 @@ export default function PrepareOfferPage() {
   // across the top are its forms, all fed by the same answers below)
   const params = useParams()
   const packageId = String((params as any)?.id || '')
-  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'library' | 'files'>('offer')
+  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'rep' | 'library' | 'files'>('offer')
   const [pkgLoaded, setPkgLoaded] = useState(false)
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
@@ -112,6 +112,29 @@ export default function PrepareOfferPage() {
   const [dscBrokerage, setDscBrokerage] = useState('')
   const [dscExplanation, setDscExplanation] = useState('')
   const [dscFacts, setDscFacts] = useState('')
+  // Representation agreements (371 Buyer / 372 Tenant — Batch A):
+  // the answers feed deal.rep and the shared buildRepForm engine.
+  const [repKind, setRepKind] = useState<'371' | '372'>('371')
+  const [repClient1, setRepClient1] = useState('')
+  const [repClient2, setRepClient2] = useState('')
+  const [repClientAddress, setRepClientAddress] = useState('')
+  const [repMunicipality, setRepMunicipality] = useState('')
+  const [repPostal, setRepPostal] = useState('')
+  const [repBrokerageAddress, setRepBrokerageAddress] = useState('')
+  const [repBrokerageAddress2, setRepBrokerageAddress2] = useState('')
+  const [repBrokeragePhone, setRepBrokeragePhone] = useState('')
+  const [repRep1, setRepRep1] = useState('')
+  const [repRep2, setRepRep2] = useState('')
+  const [repStartDate, setRepStartDate] = useState(todayToronto())
+  const [repStartTime, setRepStartTime] = useState('')
+  const [repEndDate, setRepEndDate] = useState('')
+  const [repPropType, setRepPropType] = useState('')
+  const [repGeo, setRepGeo] = useState('')
+  const [repCommPct, setRepCommPct] = useState('2.5')
+  const [repCommOther, setRepCommOther] = useState('')
+  const [repCommLease, setRepCommLease] = useState('')
+  const [repHoldover, setRepHoldover] = useState('90')
+  const [repSchedA, setRepSchedA] = useState('')
   const [synSends, setSynSends] = useState<any[]>([])
   const pkgFileRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -135,7 +158,7 @@ export default function PrepareOfferPage() {
   // /dashboard/offers/<id>#waiver opens that later-stage form directly.
   useEffect(() => {
     const h = window.location.hash.replace('#', '')
-    if (h === 'nof' || h === 'waiver' || h === 'amend' || h === 'disclosure') {
+    if (h === 'nof' || h === 'waiver' || h === 'amend' || h === 'disclosure' || h === 'rep') {
       setTab(h)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -508,6 +531,38 @@ export default function PrepareOfferPage() {
     if (dsc.brokerage) setDscBrokerage(dsc.brokerage)
     if (dsc.explanation) setDscExplanation(dsc.explanation)
     if (dsc.facts) setDscFacts(dsc.facts)
+    const rp = deal.rep || {}
+    if (rp.kind) setRepKind(rp.kind)
+    const rpClients = Array.isArray(rp.clients) ? rp.clients : []
+    if (rpClients[0]) setRepClient1(rpClients[0])
+    else if (Array.isArray(deal.buyers) && deal.buyers[0]) setRepClient1(deal.buyers[0])
+    if (rpClients[1]) setRepClient2(rpClients[1])
+    else if (Array.isArray(deal.buyers) && deal.buyers[1]) setRepClient2(deal.buyers[1])
+    if (rp.client_address) setRepClientAddress(rp.client_address)
+    if (rp.client_municipality) setRepMunicipality(rp.client_municipality)
+    if (rp.client_postal) setRepPostal(rp.client_postal)
+    if (rp.brokerage_address) setRepBrokerageAddress(rp.brokerage_address)
+    if (rp.brokerage_address2) setRepBrokerageAddress2(rp.brokerage_address2)
+    if (rp.brokerage_phone) setRepBrokeragePhone(rp.brokerage_phone)
+    const rpReps = Array.isArray(rp.designated_reps) ? rp.designated_reps : []
+    if (rpReps[0]) setRepRep1(rpReps[0])
+    if (rpReps[1]) setRepRep2(rpReps[1])
+    if (rp.term_start?.date || rp.term_start?.day) {
+      const j = joinDate(rp.term_start.date || rp.term_start)
+      if (j) setRepStartDate(j)
+    }
+    if (rp.term_start?.time) setRepStartTime(rp.term_start.time)
+    if (rp.term_end?.date || rp.term_end?.day) {
+      const j = joinDate(rp.term_end.date || rp.term_end)
+      if (j) setRepEndDate(j)
+    }
+    if (rp.property_type_use) setRepPropType(rp.property_type_use)
+    if (rp.geographic_location) setRepGeo(rp.geographic_location)
+    if (rp.commission_purchase_pct) setRepCommPct(rp.commission_purchase_pct)
+    if (rp.commission_purchase_other) setRepCommOther(rp.commission_purchase_other)
+    if (rp.commission_lease) setRepCommLease(rp.commission_lease)
+    if (rp.holdover_days) setRepHoldover(rp.holdover_days)
+    if (rp.schedule_a_text) setRepSchedA(rp.schedule_a_text)
     setSynInfo(deal.syngrafii || null)
     setSynSends(
       Array.isArray(deal.syngrafii_sends)
@@ -849,6 +904,26 @@ export default function PrepareOfferPage() {
           explanation: dscExplanation || undefined,
           facts: dscFacts || undefined,
         },
+        rep: {
+          kind: repKind,
+          clients: [repClient1, repClient2].map((s) => s.trim()).filter(Boolean),
+          client_address: repClientAddress || undefined,
+          client_municipality: repMunicipality || undefined,
+          client_postal: repPostal || undefined,
+          brokerage_address: repBrokerageAddress || undefined,
+          brokerage_address2: repBrokerageAddress2 || undefined,
+          brokerage_phone: repBrokeragePhone || undefined,
+          designated_reps: [repRep1, repRep2].map((s) => s.trim()).filter(Boolean),
+          term_start: { ...splitDate(repStartDate), time: repStartTime || undefined },
+          term_end: splitDate(repEndDate),
+          property_type_use: repPropType || undefined,
+          geographic_location: repGeo || undefined,
+          commission_purchase_pct: repCommPct || undefined,
+          commission_purchase_other: repCommOther || undefined,
+          commission_lease: repCommLease || undefined,
+          holdover_days: repHoldover || undefined,
+          schedule_a_text: repSchedA || undefined,
+        },
         client: pkgClient || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
@@ -890,7 +965,9 @@ export default function PrepareOfferPage() {
                 ? '120'
                 : tab === 'disclosure'
                   ? '161'
-                  : null
+                  : tab === 'rep'
+                    ? repKind
+                    : null
 
   const formLabel = (): string =>
     tab === 'offer'
@@ -905,7 +982,11 @@ export default function PrepareOfferPage() {
               ? 'Form 123 — Waiver'
               : tab === 'amend'
                 ? 'Form 120 — Amendment'
-                : 'Form 161 — Disclosure of Interest'
+                : tab === 'rep'
+                  ? repKind === '372'
+                    ? 'Form 372 — Tenant Representation Agreement'
+                    : 'Form 371 — Buyer Representation Agreement'
+                  : 'Form 161 — Disclosure of Interest'
 
   const surfaceFile = (data: any) => {
     const f = (data.files || [])[0]
@@ -1325,6 +1406,7 @@ export default function PrepareOfferPage() {
               ['offer', 'Offer — Form 100'],
               ['801', 'Form 801'],
               ['coop', 'Confirmation — 320'],
+              ['rep', 'Representation — 371/372'],
               ['library', 'Add from Library'],
               ['files', `Package Files${pkgDocs.length ? ` (${pkgDocs.length})` : ''}`],
             ] as const
@@ -2260,6 +2342,141 @@ export default function PrepareOfferPage() {
           <p className="text-xs text-gray-500">
             Signatures, dates and the buyer acknowledgement stay blank — they're completed when
             the disclosure is signed and delivered to the buyer.
+          </p>
+        </div>
+
+        {/* REPRESENTATION — Forms 371 (Buyer) / 372 (Tenant), designated
+            representation (the FC Group is always designated). The
+            answers live in deal.rep and feed buildRepForm. */}
+        <div className={tab === 'rep' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Representation Agreement — {repKind === '372' ? 'Form 372 (Tenant)' : 'Form 371 (Buyer)'}</h2>
+          <p className="text-sm text-gray-600">
+            Designated representation, as always for the FC Group. Client names prefill from the
+            offer's buyers — adjust if the agreement names differ. Signatures, initials and the
+            acknowledgement date stay blank for signing.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setRepKind('371')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${repKind === '371' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Buyer — Form 371
+            </button>
+            <button
+              onClick={() => setRepKind('372')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${repKind === '372' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Tenant — Form 372
+            </button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>{repKind === '372' ? 'Tenant 1' : 'Buyer 1'}</label>
+              <input className={inputCls} value={repClient1} onChange={(e) => setRepClient1(e.target.value)} placeholder="Full legal name" />
+            </div>
+            <div>
+              <label className={labelCls}>{repKind === '372' ? 'Tenant 2 (if any)' : 'Buyer 2 (if any)'}</label>
+              <input className={inputCls} value={repClient2} onChange={(e) => setRepClient2(e.target.value)} placeholder="Full legal name" />
+            </div>
+            <div>
+              <label className={labelCls}>Client address</label>
+              <input className={inputCls} value={repClientAddress} onChange={(e) => setRepClientAddress(e.target.value)} placeholder="Street address" />
+            </div>
+            {repKind === '371' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Municipality</label>
+                  <input className={inputCls} value={repMunicipality} onChange={(e) => setRepMunicipality(e.target.value)} placeholder="Whitby" />
+                </div>
+                <div>
+                  <label className={labelCls}>Postal code</label>
+                  <input className={inputCls} value={repPostal} onChange={(e) => setRepPostal(e.target.value)} placeholder="L1N 0A1" />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className={labelCls}>Designated representative 2 (if any)</label>
+                <input className={inputCls} value={repRep2} onChange={(e) => setRepRep2(e.target.value)} placeholder="Name, Designation" />
+              </div>
+            )}
+            <div>
+              <label className={labelCls}>Designated representative 1</label>
+              <input className={inputCls} value={repRep1} onChange={(e) => setRepRep1(e.target.value)} placeholder="Tim Fennessey, Salesperson" />
+            </div>
+            {repKind === '371' && (
+              <div>
+                <label className={labelCls}>Designated representative 2 (if any)</label>
+                <input className={inputCls} value={repRep2} onChange={(e) => setRepRep2(e.target.value)} placeholder="Name, Designation" />
+              </div>
+            )}
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Term starts</label>
+              <input type="date" className={inputCls} value={repStartDate} onChange={(e) => setRepStartDate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Commencing at (time, if any)</label>
+              <input className={inputCls} value={repStartTime} onChange={(e) => setRepStartTime(e.target.value)} placeholder="e.g. 12:00 p.m." />
+            </div>
+            <div>
+              <label className={labelCls}>Term expires (11:59 p.m.)</label>
+              <input type="date" className={inputCls} value={repEndDate} onChange={(e) => setRepEndDate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Property type / use</label>
+              <input className={inputCls} value={repPropType} onChange={(e) => setRepPropType(e.target.value)} placeholder="e.g. Residential resale" />
+            </div>
+            <div>
+              <label className={labelCls}>Geographic location</label>
+              <input className={inputCls} value={repGeo} onChange={(e) => setRepGeo(e.target.value)} placeholder="e.g. Durham Region" />
+            </div>
+            <div>
+              <label className={labelCls}>Holdover period (days)</label>
+              <input className={inputCls} value={repHoldover} onChange={(e) => setRepHoldover(e.target.value)} placeholder="90" />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Commission on a purchase — % of sale price</label>
+              <input className={inputCls} value={repCommPct} onChange={(e) => setRepCommPct(e.target.value)} placeholder="2.5" />
+            </div>
+            <div>
+              <label className={labelCls}>…or other purchase commission wording</label>
+              <input className={inputCls} value={repCommOther} onChange={(e) => setRepCommOther(e.target.value)} placeholder="Only if not a straight %" />
+            </div>
+            <div>
+              <label className={labelCls}>Commission on a lease</label>
+              <input className={inputCls} value={repCommLease} onChange={(e) => setRepCommLease(e.target.value)} placeholder="e.g. One month's rent plus HST" />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Brokerage address (line 1)</label>
+              <input className={inputCls} value={repBrokerageAddress} onChange={(e) => setRepBrokerageAddress(e.target.value)} placeholder="Brokerage street address" />
+            </div>
+            <div>
+              <label className={labelCls}>Brokerage address (line 2)</label>
+              <input className={inputCls} value={repBrokerageAddress2} onChange={(e) => setRepBrokerageAddress2(e.target.value)} placeholder="City, province, postal code" />
+            </div>
+            <div>
+              <label className={labelCls}>Brokerage phone</label>
+              <input className={inputCls} value={repBrokeragePhone} onChange={(e) => setRepBrokeragePhone(e.target.value)} placeholder="Brokerage phone" />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Schedule A — additional terms (one paragraph per line)</label>
+            <textarea
+              className={inputCls}
+              rows={4}
+              value={repSchedA}
+              onChange={(e) => setRepSchedA(e.target.value)}
+              placeholder="Anything beyond the printed agreement goes here — it prints on the Schedule A page under the client's name."
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            The brokerage name is fixed: RE/MAX HALLMARK FIRST GROUP REALTY LTD. Use Preview to
+            check the filled form, then Save to package.
           </p>
         </div>
 

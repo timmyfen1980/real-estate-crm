@@ -62,6 +62,16 @@ export default function ClientFileDetailPage() {
   // The mirrored contact (Tim, 2026-10-23): this page is where a
   // contact gets ready to be a client, so the contact's own facts
   // live here too — same record, editable from either place.
+  const [repPrep, setRepPrep] = useState<null | {
+    kind: '371' | '372';
+    designatedRep: string;
+    termStart: string;
+    termEnd: string;
+    commPct: string;
+    commLease: string;
+    holdover: string;
+  }>(null);
+  const [repBusy, setRepBusy] = useState(false);
   const [contact, setContact] = useState<any>(null);
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
@@ -191,6 +201,67 @@ export default function ClientFileDetailPage() {
     await navigator.clipboard.writeText(portalLink(file.portal_token));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const openRepPrep = () => {
+    if (!repKindHere) return;
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+    const end = (() => {
+      const [y, m, d] = today.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1 + 6, d));
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getUTCDate()).padStart(2, '0');
+      return `${dt.getUTCFullYear()}-${mm}-${dd}`;
+    })();
+    setRepPrep({
+      kind: repKindHere,
+      designatedRep: 'Tim Fennessey, Salesperson',
+      termStart: today,
+      termEnd: end,
+      commPct: '2.5',
+      commLease: '',
+      holdover: '90',
+    });
+  };
+
+  const submitRepPrep = async () => {
+    if (!repPrep || !file?.crm_contact_id) return;
+    setRepBusy(true);
+    try {
+      const res = await fetch('/api/client-files/generate-rep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: file.crm_contact_id,
+          client_file_id: file.id,
+          kind: repPrep.kind,
+          answers: {
+            designated_reps: [repPrep.designatedRep],
+            term_start: repPrep.termStart,
+            term_end: repPrep.termEnd,
+            commission_purchase_pct: repPrep.commPct,
+            commission_lease: repPrep.commLease || undefined,
+            holdover_days: repPrep.holdover,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const miss = Array.isArray(data.missing) && data.missing.length
+          ? ' Still needed: ' + data.missing.join('; ')
+          : '';
+        throw new Error((data.error || 'Preparation failed') + miss);
+      }
+      setRepPrep(null);
+      alert(
+        `Form ${repPrep.kind} prepared and saved to this client file — it's on the checklist row, ready to send for signature.`
+      );
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to prepare the agreement.');
+    } finally {
+      setRepBusy(false);
+    }
   };
 
   // Save the mirrored contact facts — writes to the SAME contacts
@@ -538,6 +609,12 @@ export default function ClientFileDetailPage() {
     (d.document || '').toLowerCase().includes('representation agreement')
   );
   const repReceived = repDocs.some((d) => d.status === 'received');
+  const repKindHere: '371' | '372' | null = (() => {
+    const f = (repDocs[0]?.form || '') + ' ' + (repDocs[0]?.document || '');
+    if (f.includes('371')) return '371';
+    if (f.includes('372')) return '372';
+    return null;
+  })();
   const readyChips: { label: string; done: boolean; todo: string }[] = [
     { label: 'Photo ID', done: idDocReceived, todo: 'needed' },
     { label: 'FINTRAC 630', done: has630, todo: 'not filed' },
@@ -796,6 +873,28 @@ export default function ClientFileDetailPage() {
                 {has635 ? '635 on file ✓' : '635 not filed yet'}
               </span>
             </div>
+
+            {/* Representation agreement — prepare the 371/372 from here */}
+            {repKindHere && (
+              <div className="mt-3 flex items-center flex-wrap gap-2 border-t pt-3">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
+                  Representation
+                </span>
+                <button
+                  onClick={openRepPrep}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"
+                >
+                  Prepare Form {repKindHere}
+                </button>
+                <span className="text-xs text-gray-500 ml-1">
+                  {repReceived
+                    ? 'Signed copy on file ✓'
+                    : repDocs[0]?.file_url
+                      ? 'Prepared — ready to send for signature'
+                      : 'Not prepared yet'}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -1030,6 +1129,91 @@ export default function ClientFileDetailPage() {
       </div>
 
       {/* Delete confirmation modal */}
+      {repPrep && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold">
+              Prepare Form {repPrep.kind} — {repPrep.kind === '372' ? 'Tenant' : 'Buyer'} Representation Agreement
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Filled from the contact details above. The prepared copy lands on the checklist
+              row, ready to send for signature — for anything unusual, use the Representation
+              tab in the offer workspace instead.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium">Designated representative</label>
+                <input
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  value={repPrep.designatedRep}
+                  onChange={(e) => setRepPrep({ ...repPrep, designatedRep: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Term starts</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={repPrep.termStart}
+                    onChange={(e) => setRepPrep({ ...repPrep, termStart: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Term expires</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={repPrep.termEnd}
+                    onChange={(e) => setRepPrep({ ...repPrep, termEnd: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Commission on purchase — %</label>
+                  <input
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={repPrep.commPct}
+                    onChange={(e) => setRepPrep({ ...repPrep, commPct: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Holdover (days)</label>
+                  <input
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={repPrep.holdover}
+                    onChange={(e) => setRepPrep({ ...repPrep, holdover: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Commission on a lease (if any)</label>
+                <input
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="e.g. One month's rent plus HST"
+                  value={repPrep.commLease}
+                  onChange={(e) => setRepPrep({ ...repPrep, commLease: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2 justify-end">
+              <button
+                onClick={() => setRepPrep(null)}
+                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitRepPrep}
+                disabled={repBusy}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+              >
+                {repBusy ? 'Preparing…' : `Prepare Form ${repPrep.kind}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {fintracFix && file.crm_contact_id && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-sm w-full">
