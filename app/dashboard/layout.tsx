@@ -244,31 +244,19 @@ setNewLeadsCount(newLeads || 0)
           const res = await fetch('/api/admin/newsletter-issue')
           if (res.ok) {
             const issueData = await res.json()
-            const cur = issueData?.current_issue
-            const nxt = issueData?.next_issue
-            const sent = issueData?.sent_this_month
+            // The +1 is the newsletter approval task. It exists
+            // only while an undecided issue is inside its approval
+            // window (opens the 20th of the month before the
+            // issue — Tim, 2026-10-23), which is exactly what
+            // pending_issue reports.
+            const pending = issueData?.pending_issue
             if (
-              cur &&
-              nxt &&
-              typeof cur.approved === 'boolean' &&
-              typeof nxt.approved === 'boolean' &&
-              typeof cur.month_name === 'string' &&
-              typeof nxt.month_name === 'string' &&
-              typeof sent === 'number' &&
-              !cur.approval_error &&
-              !nxt.approval_error
+              pending &&
+              typeof pending.approved === 'boolean' &&
+              typeof pending.month_name === 'string' &&
+              !pending.approval_error
             ) {
-              const torontoDay = Number(
-                new Intl.DateTimeFormat('en-CA', {
-                  timeZone: 'America/Toronto',
-                  day: 'numeric',
-                }).format(new Date())
-              )
-              if (!cur.approved && sent === 0) {
-                outstandingTasks += 1
-              } else if (!nxt.approved && torontoDay >= 18) {
-                outstandingTasks += 1
-              }
+              outstandingTasks += 1
             }
           }
         } catch {

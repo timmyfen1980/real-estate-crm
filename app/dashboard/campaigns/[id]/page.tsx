@@ -67,6 +67,8 @@ type NewsletterIssueStatus = {
   current_issue: NewsletterIssueInfo
   next_issue: NewsletterIssueInfo
   pending_issue: NewsletterIssueInfo | null
+  queued_issue: NewsletterIssueInfo | null
+  pending_opens_on: string | null
   enrollments: { total: number; active: number; paused: number }
   sent_this_month: number
 }
@@ -638,6 +640,26 @@ const handlePreview = async (sequence: Sequence) => {
                         ? 'Skipping…'
                         : `Skip ${pendingIssue.month_name}`}
                     </button>
+                  </div>
+                </div>
+              ) : issueStatus.queued_issue ? (
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    {issueStatus.queued_issue.month_name}{' '}
+                    {issueStatus.queued_issue.year} issue
+                  </div>
+
+                  <div className="text-sm text-gray-500">
+                    {issueStatus.queued_issue.subject || 'No content yet'}
+                    {' • Approval opens '}
+                    {issueStatus.pending_opens_on
+                      ? new Date(
+                          issueStatus.pending_opens_on + 'T12:00:00'
+                        ).toLocaleDateString('en-CA', {
+                          month: 'long',
+                          day: 'numeric',
+                        })
+                      : ''}
                   </div>
                 </div>
               ) : (

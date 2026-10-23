@@ -57,6 +57,34 @@ export function torontoYearMonth(date: Date): { year: number; month: number } {
   return { year, month };
 }
 
+// 'YYYY-MM-DD' for `date` in America/Toronto.
+export function torontoDateStr(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  let y = '';
+  let m = '';
+  let d = '';
+  for (const p of parts) {
+    if (p.type === 'year') y = p.value;
+    if (p.type === 'month') m = p.value;
+    if (p.type === 'day') d = p.value;
+  }
+  return `${y}-${m}-${d}`;
+}
+
+// The approval window for an issue opens on the 20th of the month
+// BEFORE the issue month (Tim, 2026-10-23): the 'Approve December'
+// task must not appear until Nov 20.
+export function approvalOpensOn(year: number, month: number): string {
+  const m = month === 1 ? 12 : month - 1;
+  const y = month === 1 ? year - 1 : year;
+  return `${y}-${String(m).padStart(2, '0')}-20`;
+}
+
 export function currentIssueKey(now: Date = new Date()): string {
   const { year, month } = torontoYearMonth(now);
   return issueKeyFor(year, month);
@@ -231,6 +259,8 @@ export type IssueStatus = {
   current_issue: IssueInfo;
   next_issue: IssueInfo;
   pending_issue: IssueInfo | null;
+  queued_issue: IssueInfo | null;
+  pending_opens_on: string | null;
   enrollments: {
     total: number;
     active: number;
@@ -315,14 +345,17 @@ export async function getIssueStatus(
   // shows ONLY the next issue still waiting on a decision — the
   // first month from the current issue onward that is neither
   // approved nor skipped — and decided issues leave the panel
-  // entirely. Approve November and the panel becomes December
-  // waiting on approval, and so on. That front-of-queue issue is
-  // `pending_issue`. `next_issue` keeps its first-undecided-after-
-  // current meaning for the sidebar / dashboard smart-task rules,
-  // with the plain calendar-next issue as its fallback.
+  // entirely. Approve November and December becomes the front of
+  // the queue (`queued_issue`) — but it only turns into the
+  // actionable `pending_issue` once its approval window opens on
+  // the 20th of the month before (Tim, 2026-10-23), so nothing
+  // asks for December's approval in October. `next_issue` keeps
+  // its first-undecided-after-current meaning, with the plain
+  // calendar-next issue as its fallback.
   let calendarNext: IssueInfo | null = null;
   let nextInfo: IssueInfo | null = null;
-  let pendingInfo: IssueInfo | null = null;
+  let queuedInfo: IssueInfo | null = null;
+  let queuedOpensOn: string | null = null;
   for (let ahead = 0; ahead <= 12; ahead++) {
     const m = ((month - 1 + ahead) % 12) + 1;
     const y = year + Math.floor((month - 1 + ahead) / 12);
@@ -339,7 +372,10 @@ export async function getIssueStatus(
           );
     if (ahead === 1) calendarNext = info;
     if (!info.approved && !info.skipped) {
-      if (!pendingInfo) pendingInfo = info;
+      if (!queuedInfo) {
+        queuedInfo = info;
+        queuedOpensOn = approvalOpensOn(y, m);
+      }
       if (ahead >= 1) {
         nextInfo = info;
         break;
@@ -347,12 +383,24 @@ export async function getIssueStatus(
     }
   }
 
+  // The front of the queue becomes the pending (actionable) issue
+  // only once its approval window has opened — the 20th of the
+  // month before the issue (Tim, 2026-10-23). Before that, the
+  // panel and the approval task stay quiet; `queued_issue` and
+  // `pending_opens_on` say what is in line and when it opens.
+  const pendingInfo =
+    queuedInfo && queuedOpensOn && torontoDateStr(now) >= queuedOpensOn
+      ? queuedInfo
+      : null;
+
   return {
     campaign_id: NEWSLETTER_CAMPAIGN_ID,
     generated_at: now.toISOString(),
     current_issue: currentInfo,
     next_issue: nextInfo || calendarNext || currentInfo,
     pending_issue: pendingInfo,
+    queued_issue: queuedInfo,
+    pending_opens_on: queuedOpensOn,
     enrollments: counts,
     sent_this_month: sentCount || 0,
   };

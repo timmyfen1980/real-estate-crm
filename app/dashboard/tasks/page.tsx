@@ -66,31 +66,18 @@ export default function TasksPage() {
         const res = await fetch('/api/admin/newsletter-issue')
         if (res.ok) {
           const issueData = await res.json()
-          const cur = issueData?.current_issue
-          const nxt = issueData?.next_issue
-          const sent = issueData?.sent_this_month
+          // The pinned approval task exists only while an
+          // undecided issue is inside its approval window (opens
+          // the 20th of the month before the issue — Tim,
+          // 2026-10-23). pending_issue is exactly that issue.
+          const pending = issueData?.pending_issue
           if (
-            cur &&
-            nxt &&
-            typeof cur.approved === 'boolean' &&
-            typeof nxt.approved === 'boolean' &&
-            typeof cur.month_name === 'string' &&
-            typeof nxt.month_name === 'string' &&
-            typeof sent === 'number' &&
-            !cur.approval_error &&
-            !nxt.approval_error
+            pending &&
+            typeof pending.approved === 'boolean' &&
+            typeof pending.month_name === 'string' &&
+            !pending.approval_error
           ) {
-            const torontoDay = Number(
-              new Intl.DateTimeFormat('en-CA', {
-                timeZone: 'America/Toronto',
-                day: 'numeric',
-              }).format(new Date())
-            )
-            if (!cur.approved && sent === 0) {
-              setNewsletterTask(cur.month_name)
-            } else if (!nxt.approved && torontoDay >= 18) {
-              setNewsletterTask(nxt.month_name)
-            }
+            setNewsletterTask(pending.month_name)
           }
         }
       } catch {
