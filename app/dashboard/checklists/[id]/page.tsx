@@ -59,6 +59,13 @@ export default function ClientFileDetailPage() {
     licenceNote: boolean;
   }>(null);
   const [fintracFixBusy, setFintracFixBusy] = useState(false);
+  // The mirrored contact (Tim, 2026-10-23): this page is where a
+  // contact gets ready to be a client, so the contact's own facts
+  // live here too — same record, editable from either place.
+  const [contact, setContact] = useState<any>(null);
+  const [editingContact, setEditingContact] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [cForm, setCForm] = useState<Record<string, string>>({});
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
@@ -80,6 +87,29 @@ export default function ClientFileDetailPage() {
     }
     setFile(fileData as ClientFile);
     setActiveTab((fileData as ClientFile).checklist_types[0] || null);
+    if ((fileData as ClientFile).crm_contact_id) {
+      const { data: cData } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', (fileData as ClientFile).crm_contact_id)
+        .single();
+      if (cData) {
+        setContact(cData);
+        setCForm({
+          phone: cData.phone || '',
+          email: cData.email || '',
+          address: cData.address || '',
+          city: cData.city || '',
+          province: cData.province || '',
+          postal_code: cData.postal_code || '',
+          birthday: (cData.birthday || cData.date_of_birth || '').slice(0, 10),
+          licence_number: cData.licence_number || '',
+          licence_province: cData.licence_province || '',
+          licence_expiry: (cData.licence_expiry || '').slice(0, 10),
+          occupation: cData.occupation || '',
+        });
+      }
+    }
     // Populate deal form
     const f = fileData as ClientFile;
     setFAddress(f.property_address || '');
@@ -161,6 +191,42 @@ export default function ClientFileDetailPage() {
     await navigator.clipboard.writeText(portalLink(file.portal_token));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Save the mirrored contact facts — writes to the SAME contacts
+  // record the contact page edits, so both places always agree.
+  const handleSaveContact = async () => {
+    if (!file?.crm_contact_id) return;
+    setSavingContact(true);
+    const clean = (v: string) => {
+      const t = (v || '').trim();
+      return t === '' ? null : t;
+    };
+    const { data, error } = await supabase
+      .from('contacts')
+      .update({
+        phone: clean(cForm.phone),
+        email: clean(cForm.email),
+        address: clean(cForm.address),
+        city: clean(cForm.city),
+        province: clean(cForm.province),
+        postal_code: clean(cForm.postal_code),
+        birthday: clean(cForm.birthday),
+        licence_number: clean(cForm.licence_number),
+        licence_province: clean(cForm.licence_province),
+        licence_expiry: clean(cForm.licence_expiry),
+        occupation: clean(cForm.occupation),
+      })
+      .eq('id', file.crm_contact_id)
+      .select()
+      .single();
+    setSavingContact(false);
+    if (error) {
+      alert('Could not save the contact details: ' + error.message);
+      return;
+    }
+    if (data) setContact(data);
+    setEditingContact(false);
   };
 
   const handleSaveDeal = async () => {
@@ -468,6 +534,33 @@ export default function ClientFileDetailPage() {
     await runGenerate630();
   };
 
+  const repDocs = docs.filter((d) =>
+    (d.document || '').toLowerCase().includes('representation agreement')
+  );
+  const repReceived = repDocs.some((d) => d.status === 'received');
+  const readyChips: { label: string; done: boolean; todo: string }[] = [
+    { label: 'Photo ID', done: idDocReceived, todo: 'needed' },
+    { label: 'FINTRAC 630', done: has630, todo: 'not filed' },
+    { label: 'FINTRAC 635', done: has635, todo: 'not filed' },
+    ...(repDocs.length
+      ? [{ label: 'Representation agreement', done: repReceived, todo: 'agent to send' }]
+      : []),
+    { label: 'Client portal', done: !!file.portal_enabled, todo: 'not enabled' },
+  ];
+  const contactFields: { key: string; label: string; type?: string; fintrac?: boolean }[] = [
+    { key: 'phone', label: 'Phone' },
+    { key: 'email', label: 'Email' },
+    { key: 'address', label: 'Address' },
+    { key: 'city', label: 'City' },
+    { key: 'province', label: 'Province' },
+    { key: 'postal_code', label: 'Postal code' },
+    { key: 'birthday', label: 'Date of birth', type: 'date', fintrac: true },
+    { key: 'licence_number', label: "Driver's licence #", fintrac: true },
+    { key: 'licence_province', label: 'Licence province' },
+    { key: 'licence_expiry', label: 'Licence expiry', type: 'date' },
+    { key: 'occupation', label: 'Occupation', fintrac: true },
+  ];
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <Link href="/dashboard/checklists" className="text-sm text-blue-600 hover:underline">
@@ -497,6 +590,153 @@ export default function ClientFileDetailPage() {
             >
               Delete file
             </button>
+          </div>
+        </div>
+        {/* Readiness strip — the one-glance answer to "what's still
+            needed before this contact is a ready client?" */}
+        <div className="mt-5 border-t pt-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Client readiness
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {readyChips.map((c) => (
+              <span
+                key={c.label}
+                className={
+                  c.done
+                    ? 'text-xs px-2.5 py-1.5 rounded-full border bg-green-50 border-green-300 text-green-800 font-medium'
+                    : 'text-xs px-2.5 py-1.5 rounded-full border bg-amber-50 border-amber-300 text-amber-800'
+                }
+              >
+                {c.done ? '✓ ' : '○ '}
+                {c.label}
+                {!c.done && <span className="text-amber-600"> — {c.todo}</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Client portal panel */}
+        <div className="mt-5 border rounded-xl p-4 bg-gray-50">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Client Portal
+          </p>
+            {!file.portal_enabled ? (
+              <button
+                onClick={handleEnablePortal}
+                disabled={portalBusy}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+              >
+                {portalBusy ? 'Generating…' : 'Enable Client Portal'}
+              </button>
+            ) : (
+              <div>
+                <p className="text-xs text-green-700 font-medium mb-2">✓ Client portal enabled</p>
+                <button
+                  onClick={copyPortalLink}
+                  className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200"
+                >
+                  {copied ? 'Copied!' : 'Copy Client Link'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!file?.portal_token) return;
+                    const link = portalLink(file.portal_token);
+                    const msg = `Hi! Could you please upload a photo of your driver's licence here: ${link} — click on "Government photo ID" and upload a clear photo. Thanks!`;
+                    await navigator.clipboard.writeText(msg);
+                    alert('ID request message copied — paste it into a text or email.');
+                  }}
+                  className="mt-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium hover:bg-blue-200"
+                >
+                  Copy ID Request
+                </button>
+                <p className="text-xs text-gray-500 mt-2">
+                  Send this link to the client — they can view their checklist and upload documents.
+                </p>
+              </div>
+            )}        </div>
+
+        {/* Contact details — mirrors the contact record (same data,
+            editable from either place) */}
+        {file.crm_contact_id && contact && (
+          <div className="mt-5 border-t pt-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">
+                Contact Details
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  the same record as the contact page — edits here update it there too
+                </span>
+              </h3>
+              <div className="flex gap-2">
+                <Link
+                  href={`/dashboard/contacts/${file.crm_contact_id}`}
+                  className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                >
+                  Open full contact →
+                </Link>
+                {!editingContact ? (
+                  <button
+                    onClick={() => setEditingContact(true)}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    Edit details
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleSaveContact}
+                      disabled={savingContact}
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                    >
+                      {savingContact ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setEditingContact(false)}
+                      className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+              {contactFields.map((f) => {
+                const val = (cForm[f.key] || '').trim();
+                return (
+                  <div key={f.key}>
+                    <p className="text-xs text-gray-400">
+                      {f.label}
+                      {f.fintrac && (
+                        <span className="ml-1 text-[10px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded">
+                          FINTRAC
+                        </span>
+                      )}
+                    </p>
+                    {editingContact ? (
+                      <input
+                        type={f.type || 'text'}
+                        value={cForm[f.key] || ''}
+                        onChange={(e) => setCForm({ ...cForm, [f.key]: e.target.value })}
+                        className="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      />
+                    ) : val ? (
+                      <p className="text-sm text-gray-800 mt-0.5">{val}</p>
+                    ) : f.fintrac && !has630 ? (
+                      <p className="text-sm text-amber-600 mt-0.5">— needed for the 630</p>
+                    ) : (
+                      <p className="text-sm text-gray-400 mt-0.5">—</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* FINTRAC forms live with the facts they feed on */}
+            <div className="mt-4 flex items-center flex-wrap gap-2 border-t pt-3">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
+                FINTRAC
+              </span>
             {file.crm_contact_id && (
               <>
                 <button
@@ -550,42 +790,14 @@ export default function ClientFileDetailPage() {
                 </button>
               </>
             )}
-            {!file.portal_enabled ? (
-              <button
-                onClick={handleEnablePortal}
-                disabled={portalBusy}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-              >
-                {portalBusy ? 'Generating…' : 'Enable Client Portal'}
-              </button>
-            ) : (
-              <div>
-                <p className="text-xs text-green-700 font-medium mb-2">✓ Client portal enabled</p>
-                <button
-                  onClick={copyPortalLink}
-                  className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200"
-                >
-                  {copied ? 'Copied!' : 'Copy Client Link'}
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!file?.portal_token) return;
-                    const link = portalLink(file.portal_token);
-                    const msg = `Hi! Could you please upload a photo of your driver's licence here: ${link} — click on "Government photo ID" and upload a clear photo. Thanks!`;
-                    await navigator.clipboard.writeText(msg);
-                    alert('ID request message copied — paste it into a text or email.');
-                  }}
-                  className="mt-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium hover:bg-blue-200"
-                >
-                  Copy ID Request
-                </button>
-                <p className="text-xs text-gray-500 mt-2 max-w-[220px]">
-                  Send this link to the client — they can view their checklist and upload documents.
-                </p>
-              </div>
-            )}
+              <span className="text-xs text-gray-500 ml-1">
+                {has630 ? '630 on file ✓' : '630 not filed yet'}
+                {' · '}
+                {has635 ? '635 on file ✓' : '635 not filed yet'}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Deal info - editable */}
         <div className="mt-6">

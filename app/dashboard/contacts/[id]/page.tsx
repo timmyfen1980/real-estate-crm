@@ -293,14 +293,23 @@ if (checklistData && checklistData.length > 0) {
   const fileIds = checklistData.map((f: any) => f.id);
   const { data: docsData } = await supabase
     .from('client_documents')
-    .select('client_file_id, status')
+    .select('client_file_id, status, document')
     .in('client_file_id', fileIds);
 
-  const progressMap: Record<string, { total: number; received: number }> = {};
+  const progressMap: Record<string, { total: number; received: number; idOk: boolean; f630: boolean; f635: boolean; repExists: boolean; repOk: boolean }> = {};
   (docsData || []).forEach((d: any) => {
-    if (!progressMap[d.client_file_id]) progressMap[d.client_file_id] = { total: 0, received: 0 };
+    if (!progressMap[d.client_file_id]) progressMap[d.client_file_id] = { total: 0, received: 0, idOk: false, f630: false, f635: false, repExists: false, repOk: false };
     progressMap[d.client_file_id].total += 1;
-    if (['received', 'waived', 'na'].includes(d.status)) progressMap[d.client_file_id].received += 1;
+    const done = ['received', 'waived', 'na'].includes(d.status);
+    if (done) progressMap[d.client_file_id].received += 1;
+    const dn = (d.document || '').toLowerCase();
+    if (done && (dn.includes('licence') || dn.includes('license') || dn.includes('photo id') || dn.includes('identification'))) progressMap[d.client_file_id].idOk = true;
+    if (done && dn.includes('fintrac') && dn.includes('630')) progressMap[d.client_file_id].f630 = true;
+    if (done && dn.includes('fintrac') && dn.includes('635')) progressMap[d.client_file_id].f635 = true;
+    if (dn.includes('representation agreement')) {
+      progressMap[d.client_file_id].repExists = true;
+      if (done) progressMap[d.client_file_id].repOk = true;
+    }
   });
 
   setChecklistFiles(
@@ -1572,6 +1581,26 @@ const handleSave = async () => {
                   <p className="text-xs text-gray-500 mt-1">
                     {f.progress.received} of {f.progress.total} documents
                   </p>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {([
+                      ['Photo ID', f.progress.idOk],
+                      ['FINTRAC 630', f.progress.f630],
+                      ['FINTRAC 635', f.progress.f635],
+                      ...(f.progress.repExists ? [['Representation agreement', f.progress.repOk] as [string, boolean]] : []),
+                    ] as [string, boolean][]).map(([label, ok]) => (
+                      <span
+                        key={label}
+                        className={
+                          ok
+                            ? 'text-[11px] px-2 py-0.5 rounded-full border bg-green-50 border-green-300 text-green-800 font-medium'
+                            : 'text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 border-amber-300 text-amber-800'
+                        }
+                      >
+                        {ok ? '✓ ' : '○ '}
+                        {label}
+                      </span>
+                    ))}
+                  </div>
                 </a>
               );
             })}
