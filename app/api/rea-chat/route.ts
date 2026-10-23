@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { validateDeal, validate801, validateRep } from "@/lib/offerPdf";
+import { validateDeal, validate801, validateRep, validateListing } from "@/lib/offerPdf";
 
 const FC_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 const MODEL = "gpt-4o-mini";
@@ -296,8 +296,17 @@ const DATE_PATHS = [
   "submitted.date",
   "rep.term_start",
   "rep.term_end",
+  "listing.term_start",
+  "listing.term_end",
 ];
-const NAME_PATHS = ["buyers", "sellers", "rep.clients", "rep.designated_reps"];
+const NAME_PATHS = [
+  "buyers",
+  "sellers",
+  "rep.clients",
+  "rep.designated_reps",
+  "listing.clients",
+  "listing.designated_reps",
+];
 const STANDARD_KEEP = ["A", "STD-SURVEY", "STD-VIEWINGS", "STD-WARRANTY", "ZB"];
 
 interface IntakeQuestion {
@@ -360,11 +369,14 @@ function textLines(t: any): string[] {
 
 // Collapse a validator's raw missing path ("irrevocable.date.day",
 // "rep.clients (buyer name(s))", "term_end.month") to the one
-// conversational question that covers it.
-function baseMissingPath(m: string): string {
+// conversational question that covers it. Both validateRep and
+// validateListing emit BARE term paths ("term_end.day") from reqDate,
+// so the listing caller passes scope "listing" to land them on the
+// listing agreement's term questions instead of the buyer agreement's.
+function baseMissingPath(m: string, scope?: string): string {
   const p = m.split(" (")[0].trim();
-  if (p.startsWith("term_start")) return "rep.term_start";
-  if (p.startsWith("term_end")) return "rep.term_end";
+  if (p.startsWith("term_start")) return scope === "listing" ? "listing.term_start" : "rep.term_start";
+  if (p.startsWith("term_end")) return scope === "listing" ? "listing.term_end" : "rep.term_end";
   if (p === "rep.commission") return "rep.commission_purchase_pct";
   if (p.startsWith("submitted")) return "submitted";
   for (const dp of DATE_PATHS) {
@@ -443,6 +455,35 @@ function questionCatalogue(deal: any): IntakeQuestion[] {
       question: "Who are the designated representatives on the buyer agreement?",
     },
     { key: "rep.clients", question: "What are the buyers' full legal names for the agreement?" },
+    {
+      key: "listing.clients",
+      question:
+        "What are the sellers' full legal names for the listing agreement? (Say \"not yet\" if you don't have them — we can still draft the rest.)",
+    },
+    {
+      key: "listing.property_address",
+      question: "What's the property address for the listing agreement?",
+    },
+    {
+      key: "listing.designated_reps",
+      question: "Who are the designated representatives on the listing agreement?",
+    },
+    { key: "listing.term_start", question: "When should the listing agreement start?" },
+    {
+      key: "listing.term_end",
+      question: "The listing agreement starts today — how long should it run?",
+      options: ["6 months", "3 months", "12 months"],
+    },
+    { key: "listing.price", question: "What's the list price?" },
+    {
+      key: "listing.commission_total",
+      question:
+        "What's the total commission on the listing agreement? (5% is the usual total — or give me the exact wording instead.)",
+    },
+    {
+      key: "listing.holdover_days",
+      question: "How many days should the holdover period be on the listing agreement? (90 is the usual.)",
+    },
   ];
 }
 
@@ -457,13 +498,21 @@ function computeStillNeeded(deal: any, forms: string[]): IntakeQuestion[] {
   if (forms.includes("371")) {
     for (const m of validateRep(deal, "371")) missing.add(baseMissingPath(m));
   }
+  if (forms.includes("271")) {
+    for (const m of validateListing(deal, "271")) missing.add(baseMissingPath(m, "listing"));
+  }
   // The buyer agreement's clients are the buyers — never ask twice.
   if (Array.isArray(deal?.buyers) && deal.buyers.filter(Boolean).length) {
     missing.delete("rep.clients");
   }
+  // Same for the listing agreement: its clients are the sellers.
+  if (Array.isArray(deal?.sellers) && deal.sellers.filter(Boolean).length) {
+    missing.delete("listing.clients");
+  }
   // Seeded by default (workspace defaults) — covered by the read-back.
   missing.delete("rep.term_start");
   missing.delete("rep.designated_reps");
+  missing.delete("listing.designated_reps");
   const skipped: string[] = Array.isArray(deal?.intake_skipped) ? deal.intake_skipped : [];
   const out = questionCatalogue(deal).filter(
     (q) => missing.has(q.key) && !skipped.includes(q.key)
@@ -523,10 +572,17 @@ function buildSummary(deal: any, forms: string[]) {
     );
   }
   const rep = forms.includes("371") ? deal?.rep : null;
+  const listing = forms.includes("271") ? deal?.listing : null;
   return {
     property: [deal?.property?.address, deal?.property?.city].filter(Boolean).join(", "),
     buyers: (deal?.buyers || []).filter(Boolean).join(" and "),
-    sellers: (deal?.sellers || []).filter(Boolean).join(" and "),
+    sellers: (
+      Array.isArray(deal?.sellers) && deal.sellers.filter(Boolean).length
+        ? deal.sellers
+        : deal?.listing?.clients || []
+    )
+      .filter(Boolean)
+      .join(" and "),
     price: fmtMoney(deal?.price),
     deposit: [
       fmtMoney(deal?.deposit),
@@ -550,6 +606,25 @@ function buildSummary(deal: any, forms: string[]) {
           rep.geographic_location ? `covers ${rep.geographic_location}` : "",
           rep.term_start && rep.term_end
             ? `runs ${fmtSplitDate(rep.term_start)} to ${fmtSplitDate(rep.term_end)}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : undefined,
+    seller_agreement: listing
+      ? [
+          listing.price ? `listed at ${fmtMoney(listing.price)}` : "",
+          listing.commission_total_pct
+            ? `${listing.commission_total_pct}% total commission`
+            : listing.commission_total_other
+              ? `total commission: ${listing.commission_total_other}`
+              : "",
+          listing.commission_coop_pct
+            ? `${listing.commission_coop_pct}% to the co-operating brokerage`
+            : "",
+          listing.holdover_days ? `${listing.holdover_days}-day holdover` : "",
+          listing.term_start && listing.term_end
+            ? `runs ${fmtSplitDate(listing.term_start)} to ${fmtSplitDate(listing.term_end)}`
             : "",
         ]
           .filter(Boolean)
@@ -659,13 +734,43 @@ async function findExistingPackage(userId: string, deal: any) {
   return null;
 }
 
+// The deal.listing seed for a seller package — the SAME shape the
+// workspace's Listing tab assembles (buildDeal in offers/[id]), with
+// the workspace's own defaults: the agreement starts today, 5% total
+// commission, 2.5% to the co-operating brokerage, 90-day holdover.
+// Seeded defaults are always surfaced in the read-back summary.
+function seedListingBlock(opts: {
+  clients: string[];
+  propertyAddress?: string;
+  repName: string;
+  today: string;
+  listPrice?: any;
+}) {
+  const priceNum = Number(opts.listPrice);
+  return {
+    kind: "271",
+    clients: opts.clients,
+    ...(opts.propertyAddress ? { property_address: opts.propertyAddress } : {}),
+    designated_reps: [opts.repName],
+    term_start: splitIso(opts.today),
+    ...(Number.isFinite(priceNum) && priceNum > 0 ? { price: String(priceNum) } : {}),
+    commission_total_pct: "5",
+    commission_coop_pct: "2.5",
+    holdover_days: "90",
+  };
+}
+
 async function beginOfferIntake(
   args: any,
   ctx: { userId: string; name: string; origin: string }
 ) {
-  const forms: string[] = ["100"];
-  if (args?.include_bra) forms.push("371");
-  if (args?.include_801) forms.push("801");
+  // A seller package is the listing paperwork on its own: the Seller
+  // Representation Agreement (Form 271) is the package's core form and
+  // its questions come from validateListing — no offer is involved.
+  const isSeller = String(args?.package_type || "buyer").toLowerCase() === "seller";
+  const forms: string[] = isSeller ? ["271"] : ["100"];
+  if (!isSeller && args?.include_bra) forms.push("371");
+  if (!isSeller && args?.include_801) forms.push("801");
   const mls = String(args?.mls || "").trim();
   const query = String(args?.query || "").trim();
   let prefill: any = {};
@@ -727,9 +832,12 @@ async function beginOfferIntake(
   const buyers: string[] = Array.isArray(args?.buyer_names)
     ? args.buyer_names.map(String).map((s: string) => s.trim()).filter(Boolean)
     : [];
+  const sellersNamed: string[] = Array.isArray(args?.seller_names)
+    ? args.seller_names.map(String).map((s: string) => s.trim()).filter(Boolean)
+    : [];
   const deal: any = {
-    buyers,
-    sellers: [],
+    buyers: isSeller ? [] : buyers,
+    sellers: isSeller ? sellersNamed : [],
     property: {
       address: prefill.address || (mls ? "" : query),
       city: prefill.city || "",
@@ -741,26 +849,39 @@ async function beginOfferIntake(
       frontage_street: prefill.street_name || undefined,
       mls: mls || prefill.mls || undefined,
     },
-    agreement_date: splitIso(today),
-    deposit_holder: OUR_BROKERAGE,
-    irrevocable: { by: "The Buyer", time: "11:59 p.m.", date: splitIso(today) },
-    chattels: textLines(prefill.chattels),
-    exclusions: textLines(prefill.exclusions),
-    listing_brokerage: prefill.listing_brokerage
+    intake_forms: forms,
+    intake_list_price: prefill.list_price ? Number(prefill.list_price) : undefined,
+    package_preset: isSeller ? "seller" : "buyer",
+  };
+  if (!isSeller) {
+    deal.agreement_date = splitIso(today);
+    deal.deposit_holder = OUR_BROKERAGE;
+    deal.irrevocable = { by: "The Buyer", time: "11:59 p.m.", date: splitIso(today) };
+    deal.chattels = textLines(prefill.chattels);
+    deal.exclusions = textLines(prefill.exclusions);
+    deal.listing_brokerage = prefill.listing_brokerage
       ? {
           brokerage: String(prefill.listing_brokerage),
           agent: prefill.listing_agent || undefined,
           phone: prefill.listing_agent_phone || undefined,
         }
-      : undefined,
-    selling_brokerage: { brokerage: OUR_BROKERAGE, agent: ctx.name },
-    submitted: { via: "", time: "", date: splitIso(today) },
-    coop: prefill.coop_share
+      : undefined;
+    deal.selling_brokerage = { brokerage: OUR_BROKERAGE, agent: ctx.name };
+    deal.submitted = { via: "", time: "", date: splitIso(today) };
+    deal.coop = prefill.coop_share
       ? { share: String(prefill.coop_share), basis: "of the purchase price" }
-      : undefined,
-    intake_forms: forms,
-    intake_list_price: prefill.list_price ? Number(prefill.list_price) : undefined,
-  };
+      : undefined;
+  }
+  if (isSeller) {
+    deal.listing = seedListingBlock({
+      clients: sellersNamed,
+      propertyAddress:
+        [deal.property.address, deal.property.city].filter(Boolean).join(", ") || undefined,
+      repName: ctx.name,
+      today,
+      listPrice: prefill.list_price,
+    });
+  }
   if (forms.includes("371")) {
     deal.rep = {
       kind: "371",
@@ -809,6 +930,27 @@ async function beginOfferIntake(
           commission_purchase_pct: "",
           holdover_days: "90",
         };
+        dirty = true;
+      }
+      // Resuming with a listing agreement the package doesn't have yet:
+      // seed the listing block the same way a fresh seller intake does.
+      if (eForms.includes("271") && !eDeal.listing) {
+        const eSellers =
+          Array.isArray(eDeal.sellers) && eDeal.sellers.filter(Boolean).length
+            ? eDeal.sellers
+            : deal.sellers || [];
+        if (!Array.isArray(eDeal.sellers) || !eDeal.sellers.filter(Boolean).length) {
+          eDeal.sellers = eSellers;
+        }
+        eDeal.listing = seedListingBlock({
+          clients: eSellers,
+          propertyAddress:
+            [eDeal.property?.address, eDeal.property?.city].filter(Boolean).join(", ") ||
+            undefined,
+          repName: ctx.name,
+          today,
+          listPrice: eDeal.intake_list_price ?? deal.intake_list_price,
+        });
         dirty = true;
       }
       if (dirty) await savePackageDeal(existing.id, eDeal).catch(() => {});
@@ -951,6 +1093,25 @@ async function updateOfferFields(args: any) {
       setPath(deal, path, Number.isFinite(n) && n > 0 ? n : value);
       continue;
     }
+    if (path === "listing.price") {
+      // The workspace keeps the list price as a string — match its shape.
+      const n = Number(String(value).replace(/[^0-9.]/g, ""));
+      setPath(deal, path, Number.isFinite(n) && n > 0 ? String(n) : value);
+      continue;
+    }
+    if (path === "listing.commission_total") {
+      // One conversational answer covers the validator's pair: a bare
+      // percent lands in commission_total_pct; anything else is the
+      // alternate wording in commission_total_other.
+      const raw = String(value ?? "").trim();
+      const bare = raw.replace(/%\s*$/, "").trim();
+      if (raw && /^\d+(\.\d+)?$/.test(bare)) {
+        setPath(deal, "listing.commission_total_pct", bare);
+      } else if (raw) {
+        setPath(deal, "listing.commission_total_other", raw);
+      }
+      continue;
+    }
     if (path === "deposit_due") {
       setPath(deal, path, /upon acceptance/i.test(String(value)) ? "upon_acceptance" : String(value));
       continue;
@@ -977,6 +1138,16 @@ async function updateOfferFields(args: any) {
     !(Array.isArray(deal.rep.clients) && deal.rep.clients.filter(Boolean).length)
   ) {
     deal.rep.clients = deal.buyers;
+  }
+  // Same in step for the listing agreement: its clients ARE the
+  // sellers, whichever side of the deal they were answered on.
+  if (deal.listing) {
+    const sellersNow = Array.isArray(deal.sellers) ? deal.sellers.filter(Boolean) : [];
+    const clientsNow = Array.isArray(deal.listing.clients)
+      ? deal.listing.clients.filter(Boolean)
+      : [];
+    if (sellersNow.length && !clientsNow.length) deal.listing.clients = deal.sellers;
+    if (clientsNow.length && !sellersNow.length) deal.sellers = deal.listing.clients;
   }
   await savePackageDeal(packageId, deal);
   return intakeState(packageId, deal, forms);
@@ -1154,7 +1325,7 @@ const TOOLS = [
     function: {
       name: "find_contact",
       description:
-        "Look up a person in the team's CRM contacts by name (partial, case-insensitive). Use it whenever the user names a buyer, seller or tenant and says or implies they're a contact ('in my contacts', 'pull his information'), and during an intake when a named party isn't on the deal yet. Returns matches with email, phone, address and date of birth on file. On exactly one match during an intake, write the contact's full name into the deal with update_offer_fields (buyers — plus rep.clients when a buyer agreement is included) and briefly confirm what was pulled.",
+        "Look up a person in the team's CRM contacts by name (partial, case-insensitive). Use it whenever the user names a buyer, seller or tenant and says or implies they're a contact ('in my contacts', 'pull his information'), and during an intake when a named party isn't on the deal yet. Returns matches with email, phone, address and date of birth on file. On exactly one match during an intake, write the contact's full name into the deal with update_offer_fields (buyers — plus rep.clients when a buyer agreement is included; for a seller package: sellers — plus listing.clients) and briefly confirm what was pulled.",
       parameters: {
         type: "object",
         properties: {
@@ -1181,13 +1352,18 @@ const TOOLS = [
     function: {
       name: "begin_offer_intake",
       description:
-        "Start a guided offer intake (works the same by voice or text): creates the offer package, prefills the property from the listing feed, and returns still_needed plus next_question. Use this FIRST when the user asks you to put together an offer or a buyer package. Set include_bra=true when they mention buyer representation or a buyer package (adds Form 371 to the same intake). If it returns status choose_property, list the candidates, let the user pick, then call again with that mls. If it returns status existing_package, a package for that property is already on the go — follow its note (ask continue-or-fresh once; force_new=true only when they clearly want a fresh one). Once a package is started or resumed, never call this again for the same property.",
+        "Start a guided package intake (works the same by voice or text): creates the package, prefills the property from the listing feed, and returns still_needed plus next_question. Use this FIRST when the user asks you to put together an offer, a buyer package, or a seller package. Set include_bra=true when they mention buyer representation or a buyer package (adds Form 371 to the same intake). For a SELLER package — the listing paperwork for a property our team is selling — set package_type=\"seller\": the package is built around the Seller Representation Agreement (Form 271), the property is prefilled the same way, and seller_names seeds the sellers. If it returns status choose_property, list the candidates, let the user pick, then call again with that mls. If it returns status existing_package, a package for that property is already on the go — follow its note (ask continue-or-fresh once; force_new=true only when they clearly want a fresh one). Once a package is started or resumed, never call this again for the same property.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string", description: "The property address as the user said it" },
           mls: { type: "string", description: "MLS number / ListingKey, if given" },
+          package_type: {
+            type: "string",
+            description: "\"buyer\" (default — an offer, with a buyer agreement when include_bra is set) or \"seller\" (the Form 271 listing package)",
+          },
           buyer_names: { type: "array", items: { type: "string" } },
+          seller_names: { type: "array", items: { type: "string" } },
           include_bra: { type: "boolean" },
           include_801: { type: "boolean" },
           force_new: {
@@ -1204,7 +1380,7 @@ const TOOLS = [
     function: {
       name: "update_offer_fields",
       description:
-        "Record the user's answers into the intake package. ONE call carrying EVERY fact the user just gave — a single message usually answers several questions at once; never split facts across turns and never hold a fact back to ask about it. Dates as YYYY-MM-DD strings (rep.term_end may be {months: 6}); money as plain numbers; names as plain strings. Special paths: 'conditions' with value {choice: 'standard' | 'financing only' | 'inspection only' | 'none', financing_days, inspection_days} — 'all the standard conditions', 'the usual conditions' or 'the conditions that are typically in it' all mean {choice: 'standard'}: record it, and conditions will not be asked again; 'chattels' with a string or an array (if the user says 'standard' or 'the typical chattels and fixtures', pass exactly: 'All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.'); 'submitted' with {via, time} for the 801; and {path: '__skip', value: '<question key>'} when the user says skip / not yet. Returns the updated still_needed and next_question.",
+        "Record the user's answers into the intake package. ONE call carrying EVERY fact the user just gave — a single message usually answers several questions at once; never split facts across turns and never hold a fact back to ask about it. Dates as YYYY-MM-DD strings (rep.term_end and listing.term_end may be {months: 6}); money as plain numbers; names as plain strings. Seller-package answers use listing.* paths the same way (listing.commission_total takes a bare percent like \"5%\" or the exact commission wording). Special paths: 'conditions' with value {choice: 'standard' | 'financing only' | 'inspection only' | 'none', financing_days, inspection_days} — 'all the standard conditions', 'the usual conditions' or 'the conditions that are typically in it' all mean {choice: 'standard'}: record it, and conditions will not be asked again; 'chattels' with a string or an array (if the user says 'standard' or 'the typical chattels and fixtures', pass exactly: 'All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.'); 'submitted' with {via, time} for the 801; and {path: '__skip', value: '<question key>'} when the user says skip / not yet. Returns the updated still_needed and next_question.",
       parameters: {
         type: "object",
         properties: {
@@ -1325,7 +1501,11 @@ export async function POST(req: NextRequest) {
         `mention them plainly — the chat shows them as buttons under your message. ` +
         `GUIDED OFFER INTAKE: when they ask you to put together an offer — or a buyer package ` +
         `(buyer representation plus an offer) — call begin_offer_intake with the address or MLS# ` +
-        `they gave (include_bra=true for a buyer package). If it returns choose_property, list ` +
+        `they gave (include_bra=true for a buyer package). For a seller package — "put together ` +
+        `a seller package for <address>", the listing paperwork for a property we're selling — ` +
+        `call begin_offer_intake with package_type "seller" instead (seller_names when they name ` +
+        `the sellers); it builds the Seller Representation Agreement (Form 271) the same ` +
+        `question-by-question way. If it returns choose_property, list ` +
         `the candidates and call again with the picked mls. Then ask ONLY the next_question it ` +
         `returns, one question at a time, in plain words — never bundle questions and never ask ` +
         `for anything the tools already filled. Every time they answer, call update_offer_fields ` +
@@ -1333,8 +1513,8 @@ export async function POST(req: NextRequest) {
         `or text). Never invent a value they did not give. If they say skip or "not yet", record ` +
         `it with update_offer_fields {path: "__skip", value: "<question key>"} and move on. When ` +
         `next_question is null, call get_offer_status, read the summary back plainly — price, ` +
-        `deposit, closing, irrevocability, conditions, chattels, and the buyer agreement terms ` +
-        `if included, naming anything skipped as still to get — and ask them to confirm or ` +
+        `deposit, closing, irrevocability, conditions, chattels, and the buyer or seller ` +
+        `agreement terms if included, naming anything skipped as still to get — and ask them to confirm or ` +
         `correct it. Only after they confirm, call generate_offer_forms; if they correct ` +
         `something, update_offer_fields and read the summary back again. ` +
         `PROPERTY LOCK: once begin_offer_intake has started (or resumed) a package, the property is LOCKED for the rest of the conversation — never call begin_offer_intake or search_listings again for that property, and never ask them to confirm the property again. If a server note names an ACTIVE OFFER INTAKE with a package_id, use that package_id for every update_offer_fields / get_offer_status / generate_offer_forms call, and treat every message as answers to that intake. If your last message listed property candidates and they reply with one of them (an address, an MLS#, or a tapped suggestion), that IS their pick: call begin_offer_intake at once with that candidate's mls — never re-list the candidates and never ask them to confirm. ` +

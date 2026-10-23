@@ -15,8 +15,31 @@ const labelCls = 'block text-sm font-medium mb-1'
 const h2Cls = 'text-lg font-semibold'
 const sectionCls = 'space-y-4 border-t pt-8'
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+// Today's date in the engine's split shape ({day, month name, 2-digit
+// year}) — the same shape the workspace's splitDate produces, so a
+// seeded agreement term hydrates and fills identically.
+const splitToday = () => {
+  const now = new Date()
+  return {
+    day: String(now.getDate()).padStart(2, '0'),
+    month: MONTHS[now.getMonth()],
+    year: String(now.getFullYear()).slice(2),
+  }
+}
+
 export default function StartOfferPage() {
   const router = useRouter()
+
+  // Package preset — one-command packages: nobody should have to
+  // remember which forms belong together. The preset rides in the
+  // deal (package_preset + the seeded agreement block + intake_forms),
+  // so the package opens in the workspace with its forms started.
+  const [preset, setPreset] = useState<'buyer' | 'seller'>('buyer')
 
   // Client link
   const [clientQuery, setClientQuery] = useState('')
@@ -61,6 +84,9 @@ export default function StartOfferPage() {
   const [listingEmail, setListingEmail] = useState('')
   const [sheetDone, setSheetDone] = useState(false)
   const [schedBFile, setSchedBFile] = useState<File | null>(null)
+  // The feed's list price — a seller package seeds it onto the listing
+  // agreement; a buyer package just mentions it in the prefill note.
+  const [listPrice, setListPrice] = useState('')
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sheet upload
@@ -94,7 +120,11 @@ export default function StartOfferPage() {
     setClient(c)
     setClientMatches([])
     setClientQuery(c.name)
-    const next = [...buyers]
+    // The picked client fills the package's primary party — the
+    // buyers on a buyer package, the sellers on a seller package.
+    const names = preset === 'seller' ? sellers : buyers
+    const setNames = preset === 'seller' ? setSellers : setBuyers
+    const next = [...names]
     // Drop the name the picker itself placed earlier, wherever it
     // sits — but only if it's still exactly that name (a hand edit
     // of it is the agent's name now, and stays).
@@ -116,7 +146,7 @@ export default function StartOfferPage() {
         setClientFilledName(c.name)
       }
     }
-    setBuyers(next)
+    setNames(next)
   }
 
   const applyPrefill = (p: any, source: string) => {
@@ -134,6 +164,7 @@ export default function StartOfferPage() {
     if (p.coop_share) setCoopShare((prev) => prev || String(p.coop_share))
     if (p.street_name) setFrontageStreet((prev) => prev || String(p.street_name))
     if (p.street_side) setFrontageSide((prev) => prev || String(p.street_side))
+    if (p.list_price) setListPrice(String(p.list_price))
     setCandidates([])
     const listed = p.list_price
       ? ` Listed at $${Number(p.list_price).toLocaleString()} — the offer price gets set inside the package.`
@@ -295,9 +326,50 @@ export default function StartOfferPage() {
     setCreating(true)
     setCreateError('')
     try {
+      const buyerNames = buyers.map((s) => s.trim()).filter(Boolean)
+      const sellerNames = sellers.map((s) => s.trim()).filter(Boolean)
+      // The preset's half of the deal: which package this is, the
+      // forms it centres on, and the agreement block seeded in the
+      // exact shape the workspace assembles — so the workspace (and
+      // the Rea chat intake, which reads intake_forms) opens it with
+      // those forms already started. Defaults mirror the workspace's
+      // own (agreement starts today; 2.5% purchase commission and a
+      // 90-day holdover on the 371; 5% total / 2.5% co-op commission
+      // and a 90-day holdover on the 271).
+      const presetBlock =
+        preset === 'buyer'
+          ? {
+              package_preset: 'buyer',
+              intake_forms: ['100', '371'],
+              rep: {
+                kind: '371',
+                clients: buyerNames,
+                designated_reps: [] as string[],
+                term_start: splitToday(),
+                commission_purchase_pct: '2.5',
+                holdover_days: '90',
+              },
+            }
+          : {
+              package_preset: 'seller',
+              intake_forms: ['271'],
+              listing: {
+                kind: '271',
+                clients: sellerNames,
+                property_address:
+                  [address, city].filter(Boolean).join(', ') || undefined,
+                designated_reps: [] as string[],
+                term_start: splitToday(),
+                price: listPrice || undefined,
+                commission_total_pct: '5',
+                commission_coop_pct: '2.5',
+                holdover_days: '90',
+              },
+            }
       const deal = {
-        buyers: buyers.map((s) => s.trim()).filter(Boolean),
-        sellers: sellers.map((s) => s.trim()).filter(Boolean),
+        buyers: buyerNames,
+        sellers: sellerNames,
+        ...presetBlock,
         property: {
           address,
           city,
@@ -365,19 +437,77 @@ export default function StartOfferPage() {
 
   const canCreate = address.trim().length > 0
 
+  const nameGrid = (
+    label: string,
+    values: string[],
+    setAt: (i: number, v: string) => void,
+    prefix: string
+  ) => (
+    <div className="space-y-2">
+      <label className={labelCls}>{label}</label>
+      {values.map((b, i) => (
+        <input
+          key={i}
+          className={inputCls}
+          placeholder={`${prefix} ${i + 1}`}
+          value={b}
+          onChange={(e) => setAt(i, e.target.value)}
+        />
+      ))}
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gray-100 p-10 flex justify-center">
       <div className="bg-white w-full max-w-5xl rounded-2xl shadow-lg p-10 space-y-10">
         <div>
-          <h1 className="text-2xl font-bold">Prepare an Offer</h1>
+          <h1 className="text-2xl font-bold">
+            {preset === 'seller' ? 'Prepare a Listing' : 'Prepare an Offer'}
+          </h1>
           <p className="text-gray-500 mt-1">
-            Start with the two general questions — the property, and your buyers. That creates
-            the offer package; the forms (100, 801, Confirmation) live inside it as tabs.
+            {preset === 'seller'
+              ? 'Start with the property and your sellers. That creates the package with the listing agreement (Seller Representation Agreement, Form 271) inside it, ready to fill in.'
+              : 'Start with the two general questions — the property, and your buyers. That creates the offer package; the forms (100, 801, Confirmation) live inside it as tabs.'}
           </p>
         </div>
 
-        {/* PROPERTY */}
+        {/* PACKAGE PRESET */}
         <div className={sectionCls} style={{ borderTop: 'none', paddingTop: 0 }}>
+          <h2 className={h2Cls}>What are you putting together?</h2>
+          <div className="grid md:grid-cols-2 gap-3">
+            <button
+              onClick={() => setPreset('buyer')}
+              className={`text-left border rounded-lg px-4 py-3 transition ${
+                preset === 'buyer'
+                  ? 'border-black bg-gray-50'
+                  : 'border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <span className="font-medium">Buyer package</span>
+              <span className="block text-sm text-gray-500 mt-1">
+                The offer (Form 100) plus the Buyer Representation Agreement (Form 371) —
+                the usual package for a buyer client.
+              </span>
+            </button>
+            <button
+              onClick={() => setPreset('seller')}
+              className={`text-left border rounded-lg px-4 py-3 transition ${
+                preset === 'seller'
+                  ? 'border-black bg-gray-50'
+                  : 'border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <span className="font-medium">Seller package</span>
+              <span className="block text-sm text-gray-500 mt-1">
+                The Seller Representation Agreement (Form 271) — the listing paperwork
+                for a property you're selling.
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* PROPERTY */}
+        <div className={sectionCls}>
           <h2 className={h2Cls}>The property</h2>
           <div className="flex gap-2">
             <input
@@ -478,12 +608,16 @@ export default function StartOfferPage() {
 
         {/* WHO */}
         <div className={sectionCls}>
-          <h2 className={h2Cls}>Your buyers</h2>
+          <h2 className={h2Cls}>{preset === 'seller' ? 'Your sellers' : 'Your buyers'}</h2>
           <div>
             <label className={labelCls}>Link a client (optional)</label>
             <input
               className={inputCls}
-              placeholder="Search your contacts — they may already have a client file and a signed buyer rep…"
+              placeholder={
+                preset === 'seller'
+                  ? 'Search your contacts — they may already have a client file…'
+                  : 'Search your contacts — they may already have a client file and a signed buyer rep…'
+              }
               value={clientQuery}
               onChange={(e) => onClientQuery(e.target.value)}
             />
@@ -510,36 +644,25 @@ export default function StartOfferPage() {
               <p className="text-sm text-gray-600 mt-2">
                 Linked: <span className="font-medium">{client.name}</span>
                 {client.client_file_id
-                  ? ' — their signed rep agreement and ID live in their client file and can join the package.'
+                  ? preset === 'seller'
+                    ? ' — their ID and documents live in their client file and can join the package.'
+                    : ' — their signed rep agreement and ID live in their client file and can join the package.'
                   : ' — no client file yet; one can be started from the portal.'}
               </p>
             )}
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className={labelCls}>Buyer legal names</label>
-              {buyers.map((b, i) => (
-                <input
-                  key={i}
-                  className={inputCls}
-                  placeholder={`Buyer ${i + 1}`}
-                  value={b}
-                  onChange={(e) => setBuyerAt(i, e.target.value)}
-                />
-              ))}
-            </div>
-            <div className="space-y-2">
-              <label className={labelCls}>Seller legal names (if you have them)</label>
-              {sellers.map((s, i) => (
-                <input
-                  key={i}
-                  className={inputCls}
-                  placeholder={`Seller ${i + 1}`}
-                  value={s}
-                  onChange={(e) => setSellerAt(i, e.target.value)}
-                />
-              ))}
-            </div>
+            {preset === 'seller' ? (
+              <>
+                {nameGrid('Seller legal names', sellers, setSellerAt, 'Seller')}
+                {nameGrid('Buyer legal names (if you have them)', buyers, setBuyerAt, 'Buyer')}
+              </>
+            ) : (
+              <>
+                {nameGrid('Buyer legal names', buyers, setBuyerAt, 'Buyer')}
+                {nameGrid('Seller legal names (if you have them)', sellers, setSellerAt, 'Seller')}
+              </>
+            )}
           </div>
         </div>
 
@@ -550,7 +673,11 @@ export default function StartOfferPage() {
             disabled={creating || !canCreate}
             className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition disabled:opacity-50"
           >
-            {creating ? 'Creating…' : 'Create the offer package →'}
+            {creating
+              ? 'Creating…'
+              : preset === 'seller'
+                ? 'Create the seller package →'
+                : 'Create the offer package →'}
           </button>
           {!canCreate && (
             <p className="text-sm text-gray-500">

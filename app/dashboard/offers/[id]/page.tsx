@@ -67,6 +67,7 @@ export default function PrepareOfferPage() {
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
   const [pkgClient, setPkgClient] = useState<any>(null)
+  const [pkgPreset, setPkgPreset] = useState('')
   const [dealLinked, setDealLinked] = useState<any>(null)
   const [dealSuggestions, setDealSuggestions] = useState<any[]>([])
   const [dealPrefill, setDealPrefill] = useState<any>(null)
@@ -527,6 +528,12 @@ export default function PrepareOfferPage() {
 
   const hydrate = (deal: any) => {
     if (!deal) return
+    if (deal.package_preset) {
+      setPkgPreset(deal.package_preset)
+      // A seller package is the listing paperwork — land on that tab
+      // instead of the (empty) offer tab.
+      if (deal.package_preset === 'seller') setTab('listing')
+    }
     const p = deal.property || {}
     if (Array.isArray(deal.buyers)) setBuyers([...deal.buyers, '', '', '', ''].slice(0, 4))
     if (Array.isArray(deal.sellers)) setSellers([...deal.sellers, '', '', '', ''].slice(0, 4))
@@ -1277,6 +1284,7 @@ export default function PrepareOfferPage() {
           reasons: admReasons || undefined,
         },
         client: pkgClient || undefined,
+        package_preset: pkgPreset || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
         condition_terms: {
