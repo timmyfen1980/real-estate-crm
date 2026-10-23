@@ -27,6 +27,8 @@ export default function ClientFileDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ChecklistType | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [idSending, setIdSending] = useState(false);
+  const [idSentTo, setIdSentTo] = useState('');
   const [copied, setCopied] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const [showDeal, setShowDeal] = useState(false);
@@ -418,12 +420,28 @@ export default function ClientFileDetailPage() {
     setEditingContact(false);
   };
 
-  const copyIdRequest = async () => {
-    if (!file?.portal_token) return;
-    const link = portalLink(file.portal_token);
-    const msg = `Hi! Could you please upload a photo of your driver's licence here: ${link} — click on "Government photo ID" and upload a clear photo. Thanks!`;
-    await navigator.clipboard.writeText(msg);
-    alert('ID request message copied — paste it into a text or email.');
+  // Send the ID request by email (Tim, 2026-10-23: a send link, not
+  // a copy link). The route enables the portal first if needed.
+  const sendIdRequest = async () => {
+    if (!file) return;
+    setIdSending(true);
+    try {
+      const res = await fetch('/api/client-files/send-id-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_file_id: file.id }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        alert(out?.error || 'Could not send the ID request.');
+        return;
+      }
+      setIdSentTo(out.sent_to || '');
+    } catch {
+      alert('Could not send the ID request.');
+    } finally {
+      setIdSending(false);
+    }
   };
 
   const scrollToDocs = () => {
@@ -955,10 +973,11 @@ export default function ClientFileDetailPage() {
                 {copied ? 'Copied!' : 'Copy Client Link'}
               </button>
               <button
-                onClick={copyIdRequest}
-                className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium hover:bg-blue-200"
+                onClick={() => void sendIdRequest()}
+                disabled={idSending}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
               >
-                Copy ID Request
+                {idSending ? 'Sending…' : idSentTo ? `✓ ID request sent to ${idSentTo}` : 'Send ID Request'}
               </button>
             </>
           )}
