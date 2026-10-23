@@ -460,9 +460,9 @@ export default function ClientFileDetailPage() {
       return;
     }
     const depositDefault = (fDeposit || '').replace(/[$,]/g, '').trim();
-    const amount = prompt('Funds amount (e.g. 25000):', depositDefault);
+    const amount = prompt('How much was received? (e.g. 25000)', depositDefault);
     if (!amount) return;
-    const method = prompt('Method (electronic, in_person, or mail):', 'electronic');
+    const method = prompt('How did the funds arrive? Type one of: electronic, in_person, mail', 'electronic');
     if (!method) return;
     try {
       const res = await fetch('/api/generate-fintrac-635', {
@@ -880,14 +880,14 @@ export default function ClientFileDetailPage() {
     if (form.includes('630') || name.includes('Individual Identification')) {
       return (
         <button onClick={() => void handleGenerate630()} className={btn}>
-          Fill ID Record (630)
+          Fill in the ID Record (Form 630)
         </button>
       );
     }
     if (form.includes('635') || name.includes('Receipt of Funds')) {
       return (
         <button onClick={() => handleGenerate635()} className={btn}>
-          Fill Receipt of Funds (635)
+          Fill in the Receipt of Funds (Form 635)
         </button>
       );
     }
@@ -989,6 +989,17 @@ export default function ClientFileDetailPage() {
               </button>
             </>
           )}
+          {!file.portal_enabled ? (
+            <p className="w-full text-xs text-gray-500 mt-1">
+              This gives the client their own secure page for uploading documents. Turn it on,
+              then Send ID Request (right here) emails them for their photo ID.
+            </p>
+          ) : !idSentTo ? (
+            <p className="w-full text-xs text-gray-500 mt-1">
+              Next step: Send ID Request emails the client a link to upload their photo ID —
+              it lands back on this checklist when they send it.
+            </p>
+          ) : null}
         </div>
 
       </div>
