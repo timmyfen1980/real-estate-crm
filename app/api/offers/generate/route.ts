@@ -29,6 +29,8 @@ import {
   buildForm161,
   buildForm371,
   buildForm372,
+  buildForm271,
+  buildForm272,
   validateDeal,
   validate801,
   validate320,
@@ -36,6 +38,7 @@ import {
   validateAmendment,
   validateDisclosure,
   validateRep,
+  validateListing,
 } from "@/lib/offerPdf";
 import library from "@/lib/clauseLibrary.json";
 
@@ -81,7 +84,7 @@ async function authorized(req: NextRequest): Promise<boolean> {
 }
 
 async function loadTemplate(
-  name: "form100" | "form801" | "form320" | "form324" | "form123" | "form124" | "form120" | "form161" | "form371" | "form372"
+  name: "form100" | "form801" | "form320" | "form324" | "form123" | "form124" | "form120" | "form161" | "form371" | "form372" | "form271" | "form272"
 ): Promise<Uint8Array | null> {
   const { data, error } = await serviceClient()
     .storage.from(BUCKET)
@@ -410,6 +413,8 @@ export async function POST(req: NextRequest) {
     if (forms.includes("161")) missing.push(...validateDisclosure(deal));
     if (forms.includes("371")) missing.push(...validateRep(deal, "371"));
     if (forms.includes("372")) missing.push(...validateRep(deal, "372"));
+    if (forms.includes("271")) missing.push(...validateListing(deal, "271"));
+    if (forms.includes("272")) missing.push(...validateListing(deal, "272"));
 
     let paragraphs: string[] = [];
     if (forms.includes("100")) {
@@ -603,6 +608,40 @@ export async function POST(req: NextRequest) {
       files.push({
         form: "372",
         filename: `Form 372 - ${clientName}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("271")) {
+      const tpl = await loadTemplate("form271");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 271 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm271(deal, tpl);
+      const clientName = String((deal.listing?.clients || []).filter(Boolean)[0] || addr).replace(/[^\w\- ]+/g, "").trim();
+      files.push({
+        form: "271",
+        filename: `Form 271 - ${clientName}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("272")) {
+      const tpl = await loadTemplate("form272");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 272 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm272(deal, tpl);
+      const clientName = String((deal.listing?.clients || []).filter(Boolean)[0] || addr).replace(/[^\w\- ]+/g, "").trim();
+      files.push({
+        form: "272",
+        filename: `Form 272 - ${clientName}.pdf`,
         pages,
         base64: Buffer.from(bytes).toString("base64"),
       });

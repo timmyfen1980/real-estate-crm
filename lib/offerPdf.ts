@@ -1851,3 +1851,388 @@ export async function buildForm372(
 ): Promise<{ bytes: Uint8Array; pages: number }> {
   return buildRepForm(deal, templateBytes, "372");
 }
+
+// ---------------------------------------------------------------------------
+// LISTING AGREEMENTS — Form 271 (Seller Designated Representation,
+// Authority to Offer for Sale) and Form 272 (Landlord Designated
+// Representation, Authority to Offer for Lease). Batch B, 2026-10-23.
+// Same conventions as the rep forms: designated representation only,
+// signatures/initials/dates-of-signing left blank, field names mapped
+// from the blanks' geometry (SkySlope auto-names are meaningless).
+// Answers live in deal.listing. The price/rent WORDS line is derived
+// from the figures automatically (same number, spelled out) unless a
+// price_words override is supplied.
+// Note: the 272's renewal/option commission line on page 2 has NO
+// fillable field on the blank — cover it in Schedule A if needed.
+// ---------------------------------------------------------------------------
+
+const LISTING_SCHED_271: string[] = [
+    "Text59.0",
+    "Text59.1",
+    "Text59.2",
+    "Text59.3",
+    "Text59.4",
+    "Text59.5",
+    "Text59.6",
+    "Text59.7",
+    "Text59.8",
+    "Text59.9",
+    "Text59.10",
+    "Text59.11",
+    "Text59.12",
+    "Text59.13",
+    "Text59.14",
+    "Text59.15",
+    "Text59.16",
+    "Text59.17",
+    "Text59.18",
+    "Text59.19",
+    "Text59.20",
+    "Text59.21",
+    "Text59.22",
+    "Text59.23",
+    "Text59.24",
+    "Text59.25",
+    "Text59.26",
+    "Text59.27",
+    "Text59.28",
+    "Text59.29",
+    "Text59.30",
+    "Text59.31.0",
+    "Text59.31.1",
+  ];
+
+const LISTING_SCHED_272: string[] = [
+    "Text1.0",
+    "Text1.1",
+    "Text1.2",
+    "Text1.3",
+    "Text1.4",
+    "Text1.5",
+    "Text1.6",
+    "Text1.7",
+    "Text1.8",
+    "Text1.9",
+    "Text1.10",
+    "Text1.11",
+    "Text1.12",
+    "Text1.13",
+    "Text1.14",
+    "Text1.15",
+    "Text1.16",
+    "Text1.17",
+    "Text1.18",
+    "Text1.19",
+    "Text1.20",
+    "Text1.21",
+    "Text1.22",
+    "Text1.23",
+    "Text1.24",
+    "Text1.25",
+    "Text1.26",
+    "Text1.27",
+    "Text1.28",
+    "Text1.29",
+    "Text1.30",
+    "Text1.31",
+    "Text1.32",
+    "Text1.33",
+  ];
+
+interface ListingFields {
+  brokerage_name: string[];
+  brokerage_address: string;
+  brokerage_phone: string;
+  client_name: string[];
+  designated_rep: string[];
+  property: string[];
+  property_widths: number[];
+  term_start_time: string;
+  term_start_day: string;
+  term_start_month: string;
+  term_start_year: string;
+  term_end_day: string;
+  term_end_month: string;
+  term_end_year: string;
+  price_figures: string;
+  price_words: string;
+  commission_total_pct: string;
+  commission_total_other: string[];
+  commission_total_other_widths: number[];
+  commission_total_text: string[];
+  commission_total_text_widths: number[];
+  commission_coop_pct: string;
+  commission_coop_other: string;
+  commission_coop_text: string;
+  commission_purchase_pct: string;
+  commission_purchase_other: string;
+  holdover_days: string;
+  insurance_rep_name: string;
+  schedule_a_lines: string[];
+}
+
+const LISTING_FIELDS_271: ListingFields = {
+  brokerage_name: ["BROKERAGE 1", "Text47"],
+  brokerage_address: "BROKERAGE 2",
+  brokerage_phone: "the Listing Brokerage Tel No",
+  client_name: ["Text1", "SELLER"],
+  designated_rep: ["DESIGNATED REPRESENTATIVES 1", "DESIGNATED REPRESENTATIVES 2"],
+  property: [
+    "In consideration of the Listing Brokerage listing the real property for sale known as",
+    "Text2",
+  ],
+  property_widths: [246, 477],
+  term_start_time: "Text6",
+  term_start_day: "Text5",
+  term_start_month: "Text4",
+  term_start_year: "Text3",
+  term_end_day: "Text9",
+  term_end_month: "Text8",
+  term_end_year: "Text7",
+  price_figures: "Text10",
+  price_words: "Text11",
+  commission_total_pct:
+    "for any valid offer to purchase the Property from any source whatsoever obtained during the Listing Period as may be acceptable to the Seller The",
+  commission_total_other: ["Text53", "of the sale price of the Property or"],
+  commission_total_other_widths: [110, 223],
+  commission_total_text: [],
+  commission_total_text_widths: [],
+  commission_coop_pct: "cooperating brokerage a commission of",
+  commission_coop_other: "of the sale price of the Property or_2",
+  commission_coop_text: "",
+  commission_purchase_pct: "",
+  commission_purchase_other: "",
+  holdover_days: "Text21",
+  insurance_rep_name: "DECLARATION OF INSURANCE",
+  schedule_a_lines: LISTING_SCHED_271,
+};
+
+const LISTING_FIELDS_272: ListingFields = {
+  brokerage_name: ["BROKERAGE 1", "Text2"],
+  brokerage_address: "BROKERAGE 2",
+  brokerage_phone: "the Brokerage Tel No",
+  client_name: ["Text49", "LANDLORD"],
+  designated_rep: ["DESIGNATED REPRESENTATIVES 1", "DESIGNATED REPRESENTATIVES 2"],
+  property: [
+    "In consideration of the Listing Brokerage listing the real property for lease known as",
+    "Text7",
+  ],
+  property_widths: [247, 475],
+  term_start_time: "Text8",
+  term_start_day: "Text9",
+  term_start_month: "Text10",
+  term_start_year: "Text11",
+  term_end_day: "Text12",
+  term_end_month: "Text13",
+  term_end_year: "Text14",
+  price_figures: "Text17",
+  price_words: "Text18",
+  commission_total_pct: "",
+  commission_total_other: [],
+  commission_total_other_widths: [],
+  commission_total_text: ["Text22", "Text28"],
+  commission_total_text_widths: [260, 292],
+  commission_coop_pct: "",
+  commission_coop_other: "",
+  commission_coop_text: "brokerage and to offer to pay the cooperating brokerage a commission of",
+  commission_purchase_pct: "Text29",
+  commission_purchase_other: "Text30",
+  holdover_days: "Text27",
+  insurance_rep_name: "Name of SalespersonBrokerBroker of Record",
+  schedule_a_lines: LISTING_SCHED_272,
+};
+
+const NUM_ONES = [
+  "Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+  "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+  "Seventeen", "Eighteen", "Nineteen",
+];
+const NUM_TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+function numWordsUnder1000(n: number): string {
+  const parts: string[] = [];
+  const h = Math.floor(n / 100);
+  const rest = n % 100;
+  if (h) parts.push(`${NUM_ONES[h]} Hundred`);
+  if (rest >= 20) {
+    const t = Math.floor(rest / 10);
+    const o = rest % 10;
+    parts.push(o ? `${NUM_TENS[t]}-${NUM_ONES[o]}` : NUM_TENS[t]);
+  } else if (rest > 0) {
+    parts.push(NUM_ONES[rest]);
+  }
+  return parts.join(" ");
+}
+
+// "784900" -> "Seven Hundred Eighty-Four Thousand Nine Hundred".
+// Returns "" when the value is not a plain whole-dollar number.
+export function priceToWords(raw: string): string {
+  const digits = String(raw || "").replace(/[$,\s]/g, "");
+  if (!/^\d+$/.test(digits)) return "";
+  let n = parseInt(digits, 10);
+  if (!Number.isFinite(n) || n < 0) return "";
+  if (n === 0) return "Zero";
+  const groups: [number, string][] = [
+    [1000000000, "Billion"],
+    [1000000, "Million"],
+    [1000, "Thousand"],
+  ];
+  const parts: string[] = [];
+  for (const [value, label] of groups) {
+    if (n >= value) {
+      parts.push(`${numWordsUnder1000(Math.floor(n / value))} ${label}`);
+      n = n % value;
+    }
+  }
+  if (n > 0) parts.push(numWordsUnder1000(n));
+  return parts.join(" ");
+}
+
+export function validateListing(deal: any, kind: "271" | "272"): string[] {
+  const missing: string[] = [];
+  const L = deal?.listing || {};
+  if (!Array.isArray(L.clients) || L.clients.filter(Boolean).length === 0) {
+    missing.push(kind === "271" ? "listing.clients (seller name(s))" : "listing.clients (landlord name(s))");
+  }
+  if (!L.property_address) missing.push("listing.property_address");
+  if (!Array.isArray(L.designated_reps) || L.designated_reps.filter(Boolean).length === 0) {
+    missing.push("listing.designated_reps (designated representative(s))");
+  }
+  reqDate(L, "term_start", missing);
+  reqDate(L, "term_end", missing);
+  if (!L.price) missing.push(kind === "271" ? "listing.price (list price)" : "listing.price (rent)");
+  if (kind === "271") {
+    if (!L.commission_total_pct && !L.commission_total_other) {
+      missing.push("listing.commission_total (a total commission % or alternate wording)");
+    }
+  } else if (!L.commission_total) {
+    missing.push("listing.commission_total (the total commission wording)");
+  }
+  if (!L.holdover_days) missing.push("listing.holdover_days");
+  return missing;
+}
+
+async function buildListingForm(
+  deal: any,
+  templateBytes: Uint8Array,
+  kind: "271" | "272"
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  createdCount = 0;
+  const F = kind === "271" ? LISTING_FIELDS_271 : LISTING_FIELDS_272;
+  const L = deal.listing || {};
+  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const form = doc.getForm();
+  const setText = (name: string, value?: string): void => {
+    if (!name || value === undefined || value === null || String(value) === "") return;
+    try {
+      const field = form.getTextField(name);
+      field.setText(String(value));
+      try {
+        (field as any).acroField.dict.set(PDFName.of("DA"), PDFString.of("/Helv 10 Tf 0 g"));
+      } catch {
+        // appearance falls back to auto sizing
+      }
+    } catch {
+      // a renamed/absent widget leaves the value out rather than failing
+    }
+  };
+  const setAll = (names: string[], value?: string): void => {
+    for (const n of names) setText(n, value);
+  };
+  const join = (arr: string[]) => (arr || []).filter(Boolean).join(" and ");
+
+  // Header — brokerage (name repeats on the Schedule A page).
+  setAll(F.brokerage_name, L.brokerage_name || "RE/MAX HALLMARK FIRST GROUP REALTY LTD.");
+  setText(F.brokerage_address, L.brokerage_address);
+  setText(F.brokerage_phone, L.brokerage_phone);
+
+  // Client (seller / landlord) + designated reps.
+  setAll(F.client_name, join(L.clients));
+  (L.designated_reps || []).forEach((r: string, i: number) => setText(F.designated_rep[i], r));
+  setText(F.insurance_rep_name, (L.designated_reps || [])[0]);
+
+  // Property — wraps across the two ruled lines after "known as".
+  fillRuledLines(setText, F.property, F.property_widths, L.property_address, helvetica, "property address");
+  // Schedule A header property line (same value, unwrapped).
+  setText("PROPERTY", L.property_address);
+
+  // Term.
+  const ts = L.term_start || {};
+  const te = L.term_end || {};
+  setText(F.term_start_time, ts.time);
+  setText(F.term_start_day, ts.day);
+  setText(F.term_start_month, ts.month);
+  setText(F.term_start_year, ts.year);
+  setText(F.term_end_day, te.day);
+  setText(F.term_end_month, te.month);
+  setText(F.term_end_year, te.year);
+
+  // Price / rent — figures as given; words derived unless overridden.
+  setText(F.price_figures, L.price);
+  const words = L.price_words || priceToWords(L.price || "");
+  if (words) setText(F.price_words, words);
+
+  // Commission.
+  if (kind === "271") {
+    setText(F.commission_total_pct, L.commission_total_pct);
+    fillRuledLines(
+      setText,
+      F.commission_total_other,
+      F.commission_total_other_widths,
+      L.commission_total_other,
+      helvetica,
+      "alternate total commission"
+    );
+    setText(F.commission_coop_pct, L.commission_coop_pct);
+    setText(F.commission_coop_other, L.commission_coop_other);
+  } else {
+    fillRuledLines(
+      setText,
+      F.commission_total_text,
+      F.commission_total_text_widths,
+      L.commission_total,
+      helvetica,
+      "total commission"
+    );
+    setText(F.commission_coop_text, L.commission_coop);
+    setText(F.commission_purchase_pct, L.commission_purchase_pct);
+    setText(F.commission_purchase_other, L.commission_purchase_other);
+  }
+  setText(F.holdover_days, L.holdover_days);
+
+  // Schedule A (page 4) — free text across the ruled lines.
+  if (L.schedule_a_text && String(L.schedule_a_text).trim()) {
+    const paragraphs = String(L.schedule_a_text).split(/\n+/).map((s: string) => s.trim()).filter(Boolean);
+    const wrapped: string[] = [];
+    paragraphs.forEach((para: string, i: number) => {
+      if (i > 0) wrapped.push("");
+      wrapped.push(...wrapText(para, helvetica, 10, 512));
+    });
+    if (wrapped.length > F.schedule_a_lines.length) {
+      throw new Error(
+        `The Schedule A text needs ${wrapped.length} lines but the form has ${F.schedule_a_lines.length} — shorten it and try again.`
+      );
+    }
+    F.schedule_a_lines.forEach((name, i) => setText(name, wrapped[i]));
+  }
+
+  form.updateFieldAppearances(helvetica);
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
+  return { bytes, pages: doc.getPageCount() };
+}
+
+export async function buildForm271(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildListingForm(deal, templateBytes, "271");
+}
+
+export async function buildForm272(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildListingForm(deal, templateBytes, "272");
+}
