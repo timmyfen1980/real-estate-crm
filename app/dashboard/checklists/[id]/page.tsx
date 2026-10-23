@@ -48,6 +48,17 @@ export default function ClientFileDetailPage() {
   const [showDealPicker, setShowDealPicker] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [fintracFix, setFintracFix] = useState<null | {
+    firstName: string;
+    lastName: string;
+    occupation: string;
+    licenceNumber: string;
+    needName: boolean;
+    needOccupation: boolean;
+    needLicence: boolean;
+    licenceNote: boolean;
+  }>(null);
+  const [fintracFixBusy, setFintracFixBusy] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
@@ -378,6 +389,85 @@ export default function ClientFileDetailPage() {
     );
   });
 
+  // FINTRAC 630 inline fix-up (Tim, 2026-10-23): the form needs the
+  // client's name, occupation and licence number, all stored on the
+  // contact. Instead of a dead-end "missing occupation" alert, ask
+  // for exactly what's missing right here, save it to the contact,
+  // then generate — no hunting for where the field lives.
+  const runGenerate630 = async () => {
+    try {
+      const res = await fetch('/api/generate-fintrac-630', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: file.crm_contact_id, client_file_id: file.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Generation failed');
+      alert('FINTRAC Form 630 generated and saved.');
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message || 'Failed to generate form.');
+    }
+  };
+
+  const handleGenerate630 = async () => {
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('first_name, last_name, occupation, licence_number')
+      .eq('id', file.crm_contact_id)
+      .single();
+    const needName = !contact?.first_name && !contact?.last_name;
+    const needOccupation = !contact?.occupation;
+    const needLicence = !contact?.licence_number;
+    if (needLicence && !idDocReceived) {
+      alert('Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.');
+      return;
+    }
+    if (needName || needOccupation || needLicence) {
+      setFintracFix({
+        firstName: contact?.first_name || '',
+        lastName: contact?.last_name || '',
+        occupation: contact?.occupation || '',
+        licenceNumber: contact?.licence_number || '',
+        needName,
+        needOccupation,
+        needLicence,
+        licenceNote: needLicence && idDocReceived,
+      });
+      return;
+    }
+    if (!confirm('Generate FINTRAC Form 630 for the linked contact?')) return;
+    await runGenerate630();
+  };
+
+  const handleSaveFintracFix = async () => {
+    if (!fintracFix) return;
+    const update: Record<string, string> = {};
+    if (fintracFix.needName) {
+      if (fintracFix.firstName.trim()) update.first_name = fintracFix.firstName.trim();
+      if (fintracFix.lastName.trim()) update.last_name = fintracFix.lastName.trim();
+    }
+    if (fintracFix.needOccupation && fintracFix.occupation.trim()) {
+      update.occupation = fintracFix.occupation.trim();
+    }
+    if (fintracFix.needLicence && fintracFix.licenceNumber.trim()) {
+      update.licence_number = fintracFix.licenceNumber.trim();
+    }
+    if (Object.keys(update).length === 0) {
+      alert('Fill in at least one of the fields, or Cancel.');
+      return;
+    }
+    setFintracFixBusy(true);
+    const { error } = await supabase.from('contacts').update(update).eq('id', file.crm_contact_id);
+    setFintracFixBusy(false);
+    if (error) {
+      alert('Could not save to the contact: ' + error.message);
+      return;
+    }
+    setFintracFix(null);
+    await runGenerate630();
+  };
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <Link href="/dashboard/checklists" className="text-sm text-blue-600 hover:underline">
@@ -410,36 +500,7 @@ export default function ClientFileDetailPage() {
             {file.crm_contact_id && (
               <>
                 <button
-                  onClick={async () => {
-                    // Check if contact has licence info
-                    const { data: contact } = await supabase
-                      .from('contacts')
-                      .select('licence_number')
-                      .eq('id', file.crm_contact_id)
-                      .single();
-                    if (!contact?.licence_number) {
-                      alert(
-                        idDocReceived
-                          ? "The licence is uploaded, but its details aren't on the contact yet — the ID reader didn't fill them in. Add the licence number on the contact (or have the client re-upload a clearer photo), then try again."
-                          : 'Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.'
-                      );
-                      return;
-                    }
-                    if (!confirm('Generate FINTRAC Form 630 for the linked contact?')) return;
-                    try {
-                      const res = await fetch('/api/generate-fintrac-630', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contact_id: file.crm_contact_id, client_file_id: file.id }),
-                      });
-                      const data = await res.json();
-                      if (!res.ok) throw new Error(data.error || 'Generation failed');
-                      alert('FINTRAC Form 630 generated and saved.');
-                      window.location.reload();
-                    } catch (err: any) {
-                      alert(err.message || 'Failed to generate form.');
-                    }
-                  }}
+                  onClick={handleGenerate630}
                   className={has630 ? "mb-2 ml-2 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "mb-2 ml-2 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
                 >
                   {has630 ? '✓ 630' : '630'}
@@ -757,6 +818,86 @@ export default function ClientFileDetailPage() {
       </div>
 
       {/* Delete confirmation modal */}
+      {fintracFix && file.crm_contact_id && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-gray-900">A couple of details for the FINTRAC form</h3>
+            <p className="text-sm text-gray-600 mt-2">
+              Form 630 needs these on the contact. Fill them in here — they&apos;re saved to the
+              contact, so you only do this once.
+            </p>
+            <div className="space-y-3 mt-4">
+              {fintracFix.needName && (
+                <div className="flex gap-2">
+                  <input
+                    value={fintracFix.firstName}
+                    onChange={(e) => setFintracFix({ ...fintracFix, firstName: e.target.value })}
+                    placeholder="First name"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={fintracFix.lastName}
+                    onChange={(e) => setFintracFix({ ...fintracFix, lastName: e.target.value })}
+                    placeholder="Last name"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+              {fintracFix.needOccupation && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Occupation</label>
+                  <input
+                    value={fintracFix.occupation}
+                    onChange={(e) => setFintracFix({ ...fintracFix, occupation: e.target.value })}
+                    placeholder="e.g. Registered Nurse"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+              {fintracFix.needLicence && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Driver&apos;s licence number</label>
+                  <input
+                    value={fintracFix.licenceNumber}
+                    onChange={(e) => setFintracFix({ ...fintracFix, licenceNumber: e.target.value })}
+                    placeholder="Licence number"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  {fintracFix.licenceNote && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      The licence is uploaded in this file, but its number didn&apos;t get read
+                      automatically — type it in from the licence.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-4">
+              Prefer the full contact?{' '}
+              <Link href={`/dashboard/contacts/${file.crm_contact_id}`} className="text-blue-600 hover:underline">
+                Open the contact →
+              </Link>
+            </p>
+            <div className="flex gap-3 mt-5 justify-end">
+              <button
+                onClick={() => setFintracFix(null)}
+                disabled={fintracFixBusy}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveFintracFix}
+                disabled={fintracFixBusy}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {fintracFixBusy ? 'Saving…' : 'Save & Generate 630'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-sm w-full">

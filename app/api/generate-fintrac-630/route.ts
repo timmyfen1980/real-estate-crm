@@ -64,14 +64,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
 
-    // Validate required fields
+    // Validate required fields. `missing` is machine-readable so the
+    // client-file page can ask for exactly these fields inline and
+    // save them to the contact, instead of a dead-end alert.
     const missing: string[] = [];
     if (!contact.first_name && !contact.last_name) missing.push('name');
     if (!contact.occupation) missing.push('occupation');
     if (!contact.licence_number) missing.push('licence number');
     if (missing.length > 0) {
       return NextResponse.json(
-        { error: `Missing required fields: ${missing.join(', ')}. Please fill in the Driver's Licence section.` },
+        {
+          error: `Missing required fields: ${missing.join(', ')}. These live on the contact — add them there and try again.`,
+          missing,
+        },
         { status: 400 }
       );
     }
