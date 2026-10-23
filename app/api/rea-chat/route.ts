@@ -7,7 +7,8 @@
 //
 // Rea answers from live CRM data via tools — never from memory alone:
 //   get_my_tasks, get_leads_needing_attention, get_closings_ahead,
-//   search_listings, start_offer (hands off to the offer workspace).
+//   search_listings, find_contact (CRM contacts lookup), start_offer
+//   (hands off to the offer workspace).
 // Guided offer intake (voice or text): begin_offer_intake creates a real
 // offer package, update_offer_fields writes each answer into its deal,
 // get_offer_status reads it back, generate_offer_forms builds the PDFs.
@@ -206,6 +207,65 @@ async function searchListings(args: any) {
     link: `https://www.thefcgroup.ca/listings/${l.ListingKey}`,
   }));
   return { total: data?.total ?? rows.length, listings: rows };
+}
+
+// Look a person up in the CRM contacts by name — partial, case-insensitive.
+// Used when the user names a party and says/implies they're a contact, so
+// the intake can run on the contact's real details instead of re-asking.
+async function findContact(args: any) {
+  const raw = String(args?.name || "").trim();
+  const tokens = raw
+    .split(/\s+/)
+    .map((t) => t.replace(/[%,]/g, ""))
+    .filter(Boolean);
+  if (!tokens.length) return { error: "No name given." };
+  const supabase = serviceClient();
+  const cols =
+    "id,first_name,last_name,preferred_name,email,phone,address,city,province,postal_code,birthday";
+  const seen = new Map<string, any>();
+  const addRows = (rows: any[] | null) => {
+    for (const r of rows || []) if (!seen.has(r.id)) seen.set(r.id, r);
+  };
+  // First token → first name, the rest → last name (the pattern the offer
+  // packages route already uses to resolve a buyer name to a contact).
+  if (tokens.length > 1) {
+    const { data } = await supabase
+      .from("contacts")
+      .select(cols)
+      .eq("account_id", FC_ACCOUNT_ID)
+      .ilike("first_name", `%${tokens[0]}%`)
+      .ilike("last_name", `%${tokens.slice(1).join(" ")}%`)
+      .limit(5);
+    addRows(data);
+  }
+  // Fallback: any name token hits either name field (single names, or a
+  // name stored differently than the user said it).
+  if (seen.size === 0) {
+    const ors = tokens
+      .map((t) => `first_name.ilike.%${t}%,last_name.ilike.%${t}%`)
+      .join(",");
+    const { data } = await supabase
+      .from("contacts")
+      .select(cols)
+      .eq("account_id", FC_ACCOUNT_ID)
+      .or(ors)
+      .limit(5);
+    addRows(data);
+  }
+  const matches = Array.from(seen.values())
+    .slice(0, 5)
+    .map((c: any) => ({
+      contact_id: c.id,
+      name: `${c.first_name || ""} ${c.last_name || ""}`.trim(),
+      preferred_name: c.preferred_name || undefined,
+      email: c.email || undefined,
+      phone: c.phone || undefined,
+      address:
+        [c.address, c.city, c.province, c.postal_code].filter(Boolean).join(", ") ||
+        undefined,
+      date_of_birth: c.birthday ? String(c.birthday).slice(0, 10) : undefined,
+    }));
+  return { query: raw, count: matches.length, matches };
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +469,15 @@ function computeStillNeeded(deal: any, forms: string[]): IntakeQuestion[] {
     (q) => missing.has(q.key) && !skipped.includes(q.key)
   );
   if (forms.some((f) => ["100", "101", "102"].includes(f))) {
-    if (!deal?.intake_conditions_done) {
+    // Conditions are settled when the intake recorded a choice OR the deal
+    // already carries them — a workspace-built (or resumed) package always
+    // has standard_codes set (null means "all seven") or condition terms,
+    // and must never be re-asked about conditions it already has.
+    const conditionsDone =
+      deal?.intake_conditions_done ||
+      deal?.standard_codes !== undefined ||
+      !!deal?.condition_terms;
+    if (!conditionsDone) {
       out.push({
         key: "conditions",
         question:
@@ -533,6 +601,64 @@ async function savePackageDeal(packageId: string, deal: any): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+function normalizeAddr(s: any): string {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[.,#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// When prefill answers a full street address with a candidate list, a
+// candidate whose street number AND street name both appear in what the
+// user typed is not really a choice — it's the property. Picking it
+// automatically (only when exactly one candidate qualifies) saves the
+// pointless "please confirm the property" round-trip.
+function exactCandidateMatch(query: string, candidates: any[]): any | null {
+  const qTokens = new Set(normalizeAddr(query).split(" ").filter(Boolean));
+  if (!qTokens.size) return null;
+  const hits = candidates.filter((c: any) => {
+    const parts = normalizeAddr(c.address).split(" ").filter(Boolean);
+    if (parts.length < 2) return false;
+    return qTokens.has(parts[0]) && qTokens.has(parts[1]);
+  });
+  return hits.length === 1 ? hits[0] : null;
+}
+
+// An in-progress package for the same property already exists for this
+// user (same MLS#, or the same street address)? Resuming it beats a
+// duplicate: everything already collected (buyers, sellers, price…)
+// stays, and the intake just continues where it left off.
+async function findExistingPackage(userId: string, deal: any) {
+  const mls = String(deal?.property?.mls || "").trim().toLowerCase();
+  const addr = normalizeAddr(deal?.property?.address);
+  if (!mls && !addr) return null;
+  const supabase = serviceClient();
+  const { data } = await supabase
+    .from("offer_packages")
+    .select("id, deal, status, mls, address, created_at")
+    .eq("account_id", FC_ACCOUNT_ID)
+    .eq("created_by", userId)
+    .neq("status", "dead")
+    .order("created_at", { ascending: false })
+    .limit(25);
+  for (const row of (data || []) as any[]) {
+    const rMls = String(row.mls || row.deal?.property?.mls || "")
+      .trim()
+      .toLowerCase();
+    if (mls && rMls && rMls === mls) return row;
+    const rAddr = normalizeAddr(row.address || row.deal?.property?.address);
+    if (
+      addr &&
+      rAddr &&
+      (rAddr === addr || rAddr.startsWith(addr) || addr.startsWith(rAddr))
+    ) {
+      return row;
+    }
+  }
+  return null;
+}
+
 async function beginOfferIntake(
   args: any,
   ctx: { userId: string; name: string; origin: string }
@@ -543,6 +669,7 @@ async function beginOfferIntake(
   const mls = String(args?.mls || "").trim();
   const query = String(args?.query || "").trim();
   let prefill: any = {};
+  let exactMatched = false;
   if (mls || query) {
     try {
       const res = await fetch(`${ctx.origin}/api/offers/prefill`, {
@@ -555,18 +682,43 @@ async function beginOfferIntake(
       });
       const data: any = await res.json().catch(() => null);
       if (data?.ok && Array.isArray(data.candidates) && data.candidates.length) {
-        return {
-          status: "choose_property",
-          candidates: data.candidates.map((c: any) => ({
-            mls: c.key,
-            address: c.address,
-            city: c.city,
-            price: c.price,
-          })),
-          note: "Ask which property, then call begin_offer_intake again with its mls.",
-        };
+        // The user gave a full address and exactly one candidate IS that
+        // address — take it and move on instead of asking them to pick
+        // their own property out of a list.
+        const exact = query ? exactCandidateMatch(query, data.candidates) : null;
+        if (exact?.key) {
+          try {
+            const res2 = await fetch(`${ctx.origin}/api/offers/prefill`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${process.env.REA_AGENT_SECRET || ""}`,
+              },
+              body: JSON.stringify({ mls: exact.key }),
+            });
+            const data2: any = await res2.json().catch(() => null);
+            if (data2?.ok && data2.prefill) {
+              prefill = data2.prefill;
+              exactMatched = true;
+            }
+          } catch {
+            // fall through to the pick list below
+          }
+        }
+        if (!prefill.address) {
+          return {
+            status: "choose_property",
+            candidates: data.candidates.map((c: any) => ({
+              mls: c.key,
+              address: c.address,
+              city: c.city,
+              price: c.price,
+            })),
+            note: "Ask which property, then call begin_offer_intake again with its mls.",
+          };
+        }
       }
-      if (data?.ok && data.prefill) prefill = data.prefill;
+      if (data?.ok && data.prefill && !exactMatched) prefill = data.prefill;
     } catch {
       // Prefill is a convenience — the questions cover whatever it misses.
     }
@@ -620,6 +772,61 @@ async function beginOfferIntake(
       holdover_days: "90",
     };
   }
+  // A package for this property is already on the go for this user —
+  // resume it instead of starting a duplicate. Everything already on it
+  // (buyers, sellers, price…) stays, so those questions never get asked
+  // again. force_new=true is the explicit escape hatch.
+  if (!args?.force_new) {
+    const existing = await findExistingPackage(ctx.userId, deal).catch(() => null);
+    if (existing?.id) {
+      const eDeal: any = existing.deal || {};
+      const eForms: string[] =
+        Array.isArray(eDeal.intake_forms) && eDeal.intake_forms.length
+          ? [...eDeal.intake_forms]
+          : [...forms];
+      for (const f of forms) if (!eForms.includes(f)) eForms.push(f);
+      let dirty = false;
+      if (JSON.stringify(eDeal.intake_forms || []) !== JSON.stringify(eForms)) {
+        eDeal.intake_forms = eForms;
+        dirty = true;
+      }
+      // Resuming with a buyer agreement the package doesn't have yet:
+      // seed the rep block the same way a fresh intake does.
+      if (eForms.includes("371") && !eDeal.rep) {
+        const eBuyers =
+          Array.isArray(eDeal.buyers) && eDeal.buyers.filter(Boolean).length
+            ? eDeal.buyers
+            : deal.buyers || [];
+        if (!Array.isArray(eDeal.buyers) || !eDeal.buyers.filter(Boolean).length) {
+          eDeal.buyers = eBuyers;
+        }
+        eDeal.rep = {
+          kind: "371",
+          clients: eBuyers,
+          designated_reps: [ctx.name],
+          term_start: splitIso(today),
+          geographic_location: "",
+          commission_purchase_pct: "",
+          holdover_days: "90",
+        };
+        dirty = true;
+      }
+      if (dirty) await savePackageDeal(existing.id, eDeal).catch(() => {});
+      const st = intakeState(existing.id, eDeal, eForms);
+      return {
+        status: "existing_package",
+        existing: {
+          buyers: st.summary.buyers,
+          sellers: st.summary.sellers,
+          price: st.summary.price,
+          status: existing.status,
+        },
+        ...st,
+        note:
+          "A package for this property already exists for this user — do NOT create another one. Ask ONE question: continue this package (tell them what's already on it — buyers, sellers, price) or start a fresh one? If they say continue, yes, or anything ambiguous, carry on with this package_id and ask its next_question. Only if they clearly say fresh/new do you call begin_offer_intake again with force_new=true and the same mls/query.",
+      };
+    }
+  }
   const supabase = serviceClient();
   const { data: pkg, error } = await supabase
     .from("offer_packages")
@@ -640,6 +847,11 @@ async function beginOfferIntake(
   return {
     status: "started",
     prefill_source: prefill.address ? "listing_feed" : "none",
+    ...(exactMatched
+      ? {
+          note: "The address they gave matched one listing exactly, so it was picked automatically — do NOT ask them to confirm the property; go straight to the first question.",
+        }
+      : {}),
     ...intakeState(pkg.id, deal, forms),
   };
 }
@@ -827,6 +1039,71 @@ async function generateOfferForms(args: any, ctx: { origin: string }) {
   };
 }
 
+// The chat client persists only the visible messages — tool results (and
+// with them the package_id) are gone by the next request, which is how
+// the model used to "forget" an intake mid-conversation and re-ask the
+// property. So every turn re-derives the active intake: an explicit
+// package_id from the client wins, then a workspace link in the history,
+// then the user's newest chat-started package whose property this
+// conversation is about. The POST handler turns a hit into a system
+// note that locks the property and routes every answer to that package.
+async function deriveActiveIntake(
+  userId: string,
+  history: any[],
+  explicitId: string
+): Promise<{ packageId: string; deal: any; forms: string[] } | null> {
+  let pkgId = explicitId || "";
+  if (!pkgId) {
+    for (const m of history) {
+      const match = String(m?.content || "").match(
+        /\/dashboard\/offers\/([0-9a-fA-F-]{36})/
+      );
+      if (match) {
+        pkgId = match[1];
+        break;
+      }
+    }
+  }
+  if (pkgId) {
+    const deal = await loadPackageDeal(pkgId);
+    if (deal) {
+      const forms: string[] =
+        Array.isArray(deal.intake_forms) && deal.intake_forms.length
+          ? deal.intake_forms
+          : ["100"];
+      return { packageId: pkgId, deal, forms };
+    }
+  }
+  const supabase = serviceClient();
+  const { data } = await supabase
+    .from("offer_packages")
+    .select("id, deal, created_at")
+    .eq("account_id", FC_ACCOUNT_ID)
+    .eq("created_by", userId)
+    .neq("status", "dead")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const rows = ((data || []) as any[]).filter(
+    (r) => Array.isArray(r.deal?.intake_forms) && r.deal.intake_forms.length
+  );
+  if (!rows.length) return null;
+  const convo = history
+    .map((m) => String(m?.content || ""))
+    .join("\n")
+    .toLowerCase();
+  const addressed = rows.find((r) => {
+    const key = normalizeAddr(r.deal?.property?.address)
+      .split(" ")
+      .slice(0, 3)
+      .join(" ");
+    return key && convo.includes(key);
+  });
+  const picked =
+    addressed || (/offer package|still need/i.test(convo) ? rows[0] : null);
+  if (!picked) return null;
+  return { packageId: picked.id, deal: picked.deal, forms: picked.deal.intake_forms };
+}
+
 const TOOLS = [
   {
     type: "function",
@@ -875,6 +1152,21 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "find_contact",
+      description:
+        "Look up a person in the team's CRM contacts by name (partial, case-insensitive). Use it whenever the user names a buyer, seller or tenant and says or implies they're a contact ('in my contacts', 'pull his information'), and during an intake when a named party isn't on the deal yet. Returns matches with email, phone, address and date of birth on file. On exactly one match during an intake, write the contact's full name into the deal with update_offer_fields (buyers — plus rep.clients when a buyer agreement is included) and briefly confirm what was pulled.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "The person's name as the user said it" },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "start_offer",
       description:
         "The user wants to prepare an offer on their own in the workspace. Returns a link to the offer workspace; mention the MLS# if they gave one. When they want YOU to build it with them question by question, use begin_offer_intake instead.",
@@ -889,7 +1181,7 @@ const TOOLS = [
     function: {
       name: "begin_offer_intake",
       description:
-        "Start a guided offer intake (works the same by voice or text): creates the offer package, prefills the property from the listing feed, and returns still_needed plus next_question. Use this FIRST when the user asks you to put together an offer or a buyer package. Set include_bra=true when they mention buyer representation or a buyer package (adds Form 371 to the same intake). If it returns status choose_property, list the candidates, let the user pick, then call again with that mls.",
+        "Start a guided offer intake (works the same by voice or text): creates the offer package, prefills the property from the listing feed, and returns still_needed plus next_question. Use this FIRST when the user asks you to put together an offer or a buyer package. Set include_bra=true when they mention buyer representation or a buyer package (adds Form 371 to the same intake). If it returns status choose_property, list the candidates, let the user pick, then call again with that mls. If it returns status existing_package, a package for that property is already on the go — follow its note (ask continue-or-fresh once; force_new=true only when they clearly want a fresh one). Once a package is started or resumed, never call this again for the same property.",
       parameters: {
         type: "object",
         properties: {
@@ -898,6 +1190,11 @@ const TOOLS = [
           buyer_names: { type: "array", items: { type: "string" } },
           include_bra: { type: "boolean" },
           include_801: { type: "boolean" },
+          force_new: {
+            type: "boolean",
+            description:
+              "Only when the user explicitly wants a fresh package even though one already exists for this property",
+          },
         },
       },
     },
@@ -907,7 +1204,7 @@ const TOOLS = [
     function: {
       name: "update_offer_fields",
       description:
-        "Record the user's answers into the intake package. Pass EVERY fact the user just gave, even several at once. Dates as YYYY-MM-DD strings (rep.term_end may be {months: 6}); money as plain numbers; names as plain strings. Special paths: 'conditions' with value {choice: 'standard' | 'financing only' | 'inspection only' | 'none', financing_days, inspection_days}; 'chattels' with a string or an array (if the user says 'standard', pass exactly: 'All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.'); 'submitted' with {via, time} for the 801; and {path: '__skip', value: '<question key>'} when the user says skip / not yet. Returns the updated still_needed and next_question.",
+        "Record the user's answers into the intake package. ONE call carrying EVERY fact the user just gave — a single message usually answers several questions at once; never split facts across turns and never hold a fact back to ask about it. Dates as YYYY-MM-DD strings (rep.term_end may be {months: 6}); money as plain numbers; names as plain strings. Special paths: 'conditions' with value {choice: 'standard' | 'financing only' | 'inspection only' | 'none', financing_days, inspection_days} — 'all the standard conditions', 'the usual conditions' or 'the conditions that are typically in it' all mean {choice: 'standard'}: record it, and conditions will not be asked again; 'chattels' with a string or an array (if the user says 'standard' or 'the typical chattels and fixtures', pass exactly: 'All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.'); 'submitted' with {via, time} for the 801; and {path: '__skip', value: '<question key>'} when the user says skip / not yet. Returns the updated still_needed and next_question.",
       parameters: {
         type: "object",
         properties: {
@@ -976,6 +1273,8 @@ async function runTool(name: string, args: any, ctx: ToolCtx) {
       return getClosingsAhead();
     case "search_listings":
       return searchListings(args || {});
+    case "find_contact":
+      return findContact(args || {});
     case "start_offer":
       return { workspace: "/dashboard/offers/new", mls: args?.mls || null };
     case "begin_offer_intake":
@@ -1037,7 +1336,10 @@ export async function POST(req: NextRequest) {
         `deposit, closing, irrevocability, conditions, chattels, and the buyer agreement terms ` +
         `if included, naming anything skipped as still to get — and ask them to confirm or ` +
         `correct it. Only after they confirm, call generate_offer_forms; if they correct ` +
-        `something, update_offer_fields and read the summary back again.`,
+        `something, update_offer_fields and read the summary back again. ` +
+        `PROPERTY LOCK: once begin_offer_intake has started (or resumed) a package, the property is LOCKED for the rest of the conversation — never call begin_offer_intake or search_listings again for that property, and never ask them to confirm the property again. If a server note names an ACTIVE OFFER INTAKE with a package_id, use that package_id for every update_offer_fields / get_offer_status / generate_offer_forms call, and treat every message as answers to that intake. If your last message listed property candidates and they reply with one of them (an address, an MLS#, or a tapped suggestion), that IS their pick: call begin_offer_intake at once with that candidate's mls — never re-list the candidates and never ask them to confirm. ` +
+        `CONTACTS: when they name a buyer, seller or tenant and say or hint the person is in the CRM ("in my contacts", "pull his information", "get her details"), or a named party is not on the deal yet during an intake, call find_contact with the name BEFORE asking anything else about that party. One match during an intake: write the contact's full legal name into the deal in the same turn (update_offer_fields — buyers, plus rep.clients when a buyer agreement is included) and confirm briefly what you pulled, e.g. "Got Johnny Ryan from your contacts — email and phone on file." Several matches: ask which one, once. No match: carry on with the name they gave and say the contact wasn't found. ` +
+        `PHRASE MAPPING: one message can answer several questions — write ALL of them in ONE update_offer_fields call, never hold a fact back. "All the standard conditions", "the usual conditions", "standard conditions", "the conditions that are typically in it" → conditions {choice: "standard"}. "Standard chattels", "the typical chattels and fixtures", "the usual chattels" → the standard chattels paragraph from the update_offer_fields description. "HST is included" → hst included. Once a fact is recorded, never ask about it again.`,
     };
     const ctx: ToolCtx = {
       userId: member.userId,
@@ -1050,6 +1352,36 @@ export async function POST(req: NextRequest) {
         .filter((m) => m && (m.role === "user" || m.role === "assistant") && m.content)
         .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) })),
     ];
+    // If an intake is already on the go in this conversation, pin it back
+    // into the model's context: the package_id only ever lived in tool
+    // results, which the client doesn't persist. Without this note the
+    // model re-runs the property search/confirm flow on every answer.
+    const activeIntake = await deriveActiveIntake(
+      member.userId,
+      history,
+      typeof body.package_id === "string" ? body.package_id : ""
+    ).catch(() => null);
+    if (activeIntake) {
+      const st = intakeState(activeIntake.packageId, activeIntake.deal, activeIntake.forms);
+      const addr =
+        [activeIntake.deal?.property?.address, activeIntake.deal?.property?.city]
+          .filter(Boolean)
+          .join(", ") || "(address on file)";
+      messages.push({
+        role: "system",
+        content:
+          `ACTIVE OFFER INTAKE (server state — trust this over the conversation): package_id ${activeIntake.packageId}, property ${addr} — LOCKED. ` +
+          `The package already exists and the property was already chosen: NEVER call begin_offer_intake or search_listings for this property again, and never ask the user to confirm the property. ` +
+          `Treat the user's latest message purely as ANSWERS: pull out EVERY fact in it, call update_offer_fields ONCE with all of them (package_id ${activeIntake.packageId}), then get_offer_status, then ask only the next still-needed question. ` +
+          `Still needed right now: ${
+            st.still_needed.length
+              ? st.still_needed.map((q) => q.question).join(" | ")
+              : "nothing — read the summary back for confirmation"
+          }. ` +
+          `Collected so far: ${JSON.stringify(st.summary)}. ` +
+          `Only if the user explicitly asks to start over, or to build an offer on a DIFFERENT property, do you call begin_offer_intake again.`,
+      });
+    }
     const links: { label: string; href: string }[] = [];
     let suggestions: string[] | undefined;
 

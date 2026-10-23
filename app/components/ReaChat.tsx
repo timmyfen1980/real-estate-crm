@@ -43,6 +43,10 @@ export default function ReaChat() {
   const [messages, setMessages] = useState<Msg[]>([GREETING])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  // The offer package this conversation is building, once Rea starts one.
+  // Sent back on every message so the intake stays pinned to that package
+  // (the server also re-derives it from the conversation as a fallback).
+  const [packageId, setPackageId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Voice: speech-to-text for answers (Web Speech API), and an optional
@@ -98,10 +102,18 @@ export default function ReaChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
+          package_id: packageId || undefined,
         }),
       })
       const data = await res.json()
       if (data && data.ok) {
+        const pkgLink = (data.links || []).find((l: ChatLink) =>
+          /\/dashboard\/offers\/[0-9a-fA-F-]{36}/.test(l.href)
+        )
+        if (pkgLink) {
+          const m = pkgLink.href.match(/\/dashboard\/offers\/([0-9a-fA-F-]{36})/)
+          if (m) setPackageId(m[1])
+        }
         setMessages((prev) => [
           ...prev,
           {
