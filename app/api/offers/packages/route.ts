@@ -693,6 +693,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, lawyers });
     }
 
+    if (body.action === "find_for_client_file") {
+      // Offer packages linked to a client file (deal.client.client_file_id)
+      // — the client file's readiness chips use this to open the existing
+      // offer card instead of starting a duplicate.
+      const { data } = await supabase
+        .from("offer_packages")
+        .select("id, status, address, created_at")
+        .eq("account_id", FC_ACCOUNT_ID)
+        .filter("deal->client->>client_file_id", "eq", String(body.client_file_id || ""))
+        .order("created_at", { ascending: false })
+        .limit(5);
+      return NextResponse.json({ ok: true, packages: data || [] });
+    }
+
     if (body.action === "create") {
       const deal = body.deal || {};
       const prop = deal.property || {};

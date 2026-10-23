@@ -91,6 +91,7 @@ export default function ClientFileDetailPage() {
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [cForm, setCForm] = useState<Record<string, string>>({});
+  const [filePackages, setFilePackages] = useState<any[]>([]);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
@@ -181,6 +182,30 @@ export default function ClientFileDetailPage() {
     );
 
     setDocs(resolvedDocs);
+    // Deals for this contact drive the Receipt of Funds timing (it's
+    // due once there's an accepted offer) and the deal picker.
+    if ((fileData as ClientFile).crm_contact_id) {
+      const { data: dealRows } = await supabase
+        .from('deals')
+        .select('id, deal_type, status, property_id')
+        .eq('contact_id', (fileData as ClientFile).crm_contact_id)
+        .eq('account_id', (fileData as ClientFile).account_id)
+        .order('created_at', { ascending: false });
+      if (dealRows) setContactDeals(dealRows);
+      // Offer packages already linked to this client file — the
+      // readiness chips open the existing card instead of duplicating.
+      try {
+        const res = await fetch('/api/offers/packages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'find_for_client_file', client_file_id: fileId }),
+        });
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.packages)) setFilePackages(data.packages);
+      } catch {
+        /* package lookup is an extra — never block the file */
+      }
+    }
     setLoading(false);
   };
 
@@ -388,6 +413,106 @@ export default function ClientFileDetailPage() {
     }
     if (data) setContact(data);
     setEditingContact(false);
+  };
+
+  const copyIdRequest = async () => {
+    if (!file?.portal_token) return;
+    const link = portalLink(file.portal_token);
+    const msg = `Hi! Could you please upload a photo of your driver's licence here: ${link} — click on "Government photo ID" and upload a clear photo. Thanks!`;
+    await navigator.clipboard.writeText(msg);
+    alert('ID request message copied — paste it into a text or email.');
+  };
+
+  const scrollToDocs = () => {
+    document.getElementById('client-docs')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Receipt of Funds Record (FINTRAC 635): due for a buyer once
+  // there's an accepted offer — the amount defaults to the deposit
+  // on the deal/file, using whatever we already have (Tim, 2026-10-23).
+  const handleGenerate635 = async () => {
+    if (!file?.crm_contact_id) return;
+    if (!contact?.first_name && !contact?.last_name && !file.client_names) {
+      alert('Add the client name first — it goes in Contact Details above.');
+      return;
+    }
+    const depositDefault = (fDeposit || '').replace(/[$,]/g, '').trim();
+    const amount = prompt('Funds amount (e.g. 25000):', depositDefault);
+    if (!amount) return;
+    const method = prompt('Method (electronic, in_person, or mail):', 'electronic');
+    if (!method) return;
+    try {
+      const res = await fetch('/api/generate-fintrac-635', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: file.crm_contact_id,
+          client_file_id: file.id,
+          funds_amount: amount,
+          funds_method: method,
+          funds_date: new Date().toISOString().split('T')[0],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Generation failed');
+      alert('Receipt of Funds Record (FINTRAC Form 635) generated and filed.');
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message || 'Failed to generate form.');
+    }
+  };
+
+  // Start a new offer package linked to this client file (the
+  // readiness chips open the existing one when there is one).
+  const startPackage = async () => {
+    if (!file) return;
+    try {
+      const names = String(file.client_names || '')
+        .split(/\s+and\s+|,\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const isSellerSide = file.checklist_types.includes('seller') || file.checklist_types.includes('landlord');
+      const deal: any = {
+        client: {
+          name: file.client_names,
+          client_file_id: file.id,
+          contact_id: file.crm_contact_id || undefined,
+        },
+      };
+      if (isSellerSide) deal.sellers = names;
+      else deal.buyers = names;
+      if (file.property_address) {
+        deal.property = { address: file.property_address };
+        deal.listing = { clients: names, property_address: file.property_address };
+      }
+      const res = await fetch('/api/offers/packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', deal, address: file.property_address || file.client_names }),
+      });
+      const data = await res.json();
+      if (!data.ok || !data.id) throw new Error(data.error || 'Could not start the package');
+      const hash = listingKindHere ? 'listing' : repKindHere ? 'rep' : 'offer';
+      router.push(`/dashboard/offers/${data.id}#${hash}`);
+    } catch (err: any) {
+      alert(err.message || 'Could not start the offer package.');
+    }
+  };
+
+  const repChipAction = () => {
+    if (repReceived) return scrollToDocs();
+    const pkg = filePackages[0];
+    if (pkg) {
+      router.push(`/dashboard/offers/${pkg.id}#${listingKindHere ? 'listing' : 'rep'}`);
+      return;
+    }
+    if (repDocs[0]?.file_url) {
+      void startPackage();
+      return;
+    }
+    if (listingKindHere) openLstPrep();
+    else if (repKindHere) openRepPrep();
+    else scrollToDocs();
   };
 
   const handleSaveDeal = async () => {
@@ -608,6 +733,12 @@ export default function ClientFileDetailPage() {
     );
   const has630 = fintracFiled('630', 'Individual Identification');
   const has635 = fintracFiled('635', 'Receipt of Funds');
+  // Receipt of Funds timing (Tim, 2026-10-23): it belongs to a
+  // purchase — a buyer file with an accepted offer (a deal on the
+  // contact, or an offer date on this file).
+  const offerAccepted = contactDeals.length > 0 || !!file.deal_dates?.offer_date;
+  const isBuyerFile = file.checklist_types.includes('buyer');
+  const fundsDue = isBuyerFile && offerAccepted && !has635;
   const idDocReceived = docs.some((d) => {
     const n = (d.document || '').toLowerCase();
     return (
@@ -630,7 +761,7 @@ export default function ClientFileDetailPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Generation failed');
-      alert('FINTRAC Form 630 generated and saved.');
+      alert('Individual Identification Record (FINTRAC Form 630) generated and filed.');
       window.location.reload();
     } catch (err: any) {
       alert(err.message || 'Failed to generate form.');
@@ -711,14 +842,59 @@ export default function ClientFileDetailPage() {
     if (f.includes('272')) return '272';
     return null;
   })();
-  const readyChips: { label: string; done: boolean; todo: string }[] = [
-    { label: 'Photo ID', done: idDocReceived, todo: 'needed' },
-    { label: 'FINTRAC 630', done: has630, todo: 'not filed' },
-    { label: 'FINTRAC 635', done: has635, todo: 'not filed' },
-    ...(repDocs.length
-      ? [{ label: 'Representation agreement', done: repReceived, todo: 'agent to send' }]
+  // Clickable readiness chips (Tim, 2026-10-23): each chip DOES the
+  // thing — fill the form, send the request, or open/start the offer
+  // package the item belongs to.
+  const readyChips: {
+    label: string;
+    done: boolean;
+    todo: string;
+    neutral?: boolean;
+    onClick: () => void;
+  }[] = [
+    {
+      label: 'Photo ID',
+      done: idDocReceived,
+      todo: 'needed — click to copy the ID request',
+      onClick: () => (idDocReceived ? scrollToDocs() : void copyIdRequest()),
+    },
+    {
+      label: 'ID Record (630)',
+      done: has630,
+      todo: 'not filed — click to fill it',
+      onClick: () => (has630 ? scrollToDocs() : void handleGenerate630()),
+    },
+    ...(isBuyerFile || has635
+      ? [
+          {
+            label: 'Receipt of Funds (635)',
+            done: has635,
+            todo: fundsDue
+              ? 'due now — click to fill it'
+              : 'after an accepted offer',
+            neutral: !has635 && !fundsDue,
+            onClick: () => (has635 ? scrollToDocs() : handleGenerate635()),
+          },
+        ]
       : []),
-    { label: 'Client portal', done: !!file.portal_enabled, todo: 'not enabled' },
+    ...(repDocs.length
+      ? [
+          {
+            label: 'Representation agreement',
+            done: repReceived,
+            todo: repDocs[0]?.file_url
+              ? 'prepared — click to open the offer package'
+              : 'agent to send — click to prepare it',
+            onClick: repChipAction,
+          },
+        ]
+      : []),
+    {
+      label: 'Client portal',
+      done: !!file.portal_enabled,
+      todo: 'not enabled — click to enable',
+      onClick: () => (file.portal_enabled ? void copyPortalLink() : void handleEnablePortal()),
+    },
   ];
   const contactFields: { key: string; label: string; type?: string; fintrac?: boolean }[] = [
     { key: 'first_name', label: 'First name' },
@@ -772,21 +948,28 @@ export default function ClientFileDetailPage() {
         <div className="mt-5 border-t pt-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
             Client readiness
+            <span className="ml-2 font-normal normal-case text-gray-400">— click a chip to act on it</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {readyChips.map((c) => (
-              <span
+              <button
                 key={c.label}
+                onClick={c.onClick}
+                title="Click to act on this item"
                 className={
                   c.done
-                    ? 'text-xs px-2.5 py-1.5 rounded-full border bg-green-50 border-green-300 text-green-800 font-medium'
-                    : 'text-xs px-2.5 py-1.5 rounded-full border bg-amber-50 border-amber-300 text-amber-800'
+                    ? 'text-xs px-2.5 py-1.5 rounded-full border bg-green-50 border-green-300 text-green-800 font-medium hover:bg-green-100 transition'
+                    : c.neutral
+                      ? 'text-xs px-2.5 py-1.5 rounded-full border bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100 transition'
+                      : 'text-xs px-2.5 py-1.5 rounded-full border bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100 transition'
                 }
               >
                 {c.done ? '✓ ' : '○ '}
                 {c.label}
-                {!c.done && <span className="text-amber-600"> — {c.todo}</span>}
-              </span>
+                {!c.done && (
+                  <span className={c.neutral ? 'text-gray-400' : 'text-amber-600'}> — {c.todo}</span>
+                )}
+              </button>
             ))}
           </div>
         </div>
@@ -814,13 +997,7 @@ export default function ClientFileDetailPage() {
                   {copied ? 'Copied!' : 'Copy Client Link'}
                 </button>
                 <button
-                  onClick={async () => {
-                    if (!file?.portal_token) return;
-                    const link = portalLink(file.portal_token);
-                    const msg = `Hi! Could you please upload a photo of your driver's licence here: ${link} — click on "Government photo ID" and upload a clear photo. Thanks!`;
-                    await navigator.clipboard.writeText(msg);
-                    alert('ID request message copied — paste it into a text or email.');
-                  }}
+                  onClick={copyIdRequest}
                   className="mt-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium hover:bg-blue-200"
                 >
                   Copy ID Request
@@ -907,69 +1084,46 @@ export default function ClientFileDetailPage() {
               })}
             </div>
 
-            {/* FINTRAC forms live with the facts they feed on */}
-            <div className="mt-4 flex items-center flex-wrap gap-2 border-t pt-3">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
-                FINTRAC
-              </span>
-            {file.crm_contact_id && (
-              <>
-                <button
-                  onClick={handleGenerate630}
-                  className={has630 ? "mb-2 ml-2 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "mb-2 ml-2 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
-                >
-                  {has630 ? '✓ 630' : '630'}
-                </button>
-                <button
-                  onClick={async () => {
-                    const { data: contact } = await supabase
-                      .from('contacts')
-                      .select('licence_number')
-                      .eq('id', file.crm_contact_id)
-                      .single();
-                    if (!contact?.licence_number) {
-                      alert(
-                        idDocReceived
-                          ? "The licence is uploaded, but its details aren't on the contact yet — the ID reader didn't fill them in. Add the licence number on the contact (or have the client re-upload a clearer photo), then try again."
-                          : 'Upload the driver\'s licence first — add it to the contact or upload the Government ID document below.'
-                      );
-                      return;
-                    }
-                    const amount = prompt('Funds amount (e.g. 25000):');
-                    if (!amount) return;
-                    const method = prompt('Method (electronic, in_person, or mail):', 'electronic');
-                    if (!method) return;
-                    try {
-                      const res = await fetch('/api/generate-fintrac-635', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          contact_id: file.crm_contact_id,
-                          client_file_id: file.id,
-                          funds_amount: amount,
-                          funds_method: method,
-                          funds_date: new Date().toISOString().split('T')[0],
-                        }),
-                      });
-                      const data = await res.json();
-                      if (!res.ok) throw new Error(data.error || 'Generation failed');
-                      alert('FINTRAC Form 635 generated and saved.');
-                      window.location.reload();
-                    } catch (err: any) {
-                      alert(err.message || 'Failed to generate form.');
-                    }
-                  }}
-                  className={has635 ? "mb-2 ml-1 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "mb-2 ml-1 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
-                >
-                  {has635 ? '✓ 635' : '635'}
-                </button>
-              </>
-            )}
-              <span className="text-xs text-gray-500 ml-1">
-                {has630 ? '630 on file ✓' : '630 not filed yet'}
+            {/* FINTRAC forms live with the facts they feed on.
+                Proper names (Tim, 2026-10-23): 630 = Individual
+                Identification Information Record; 635 = Receipt of
+                Funds Record — due for a buyer only once there's an
+                accepted offer, prefilled from the deal's deposit. */}
+            <div className="mt-4 border-t pt-3">
+              <div className="flex items-center flex-wrap gap-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
+                  FINTRAC
+                </span>
+                {file.crm_contact_id && (
+                  <>
+                    <button
+                      onClick={handleGenerate630}
+                      className={has630 ? "px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
+                    >
+                      {has630 ? '✓ ID Record (630)' : 'Fill ID Record (630)'}
+                    </button>
+                    <button
+                      onClick={handleGenerate635}
+                      className={has635 ? "px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
+                    >
+                      {has635 ? '✓ Receipt of Funds (635)' : 'Receipt of Funds (635)'}
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Individual Identification Information Record (630):{' '}
+                {has630 ? 'on file ✓' : 'not filed yet'}
                 {' · '}
-                {has635 ? '635 on file ✓' : '635 not filed yet'}
-              </span>
+                Receipt of Funds Record (635):{' '}
+                {has635
+                  ? 'on file ✓'
+                  : fundsDue
+                    ? 'due now — there is an accepted offer'
+                    : isBuyerFile
+                      ? 'after an accepted offer'
+                      : 'when funds are received'}
+              </p>
             </div>
 
             {/* Representation agreement — prepare the 371/372 from here */}
@@ -984,6 +1138,21 @@ export default function ClientFileDetailPage() {
                 >
                   Prepare Form {repKindHere}
                 </button>
+                {filePackages[0] ? (
+                  <button
+                    onClick={() => router.push(`/dashboard/offers/${filePackages[0].id}#rep`)}
+                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
+                  >
+                    Open offer package →
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void startPackage()}
+                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
+                  >
+                    Start offer package
+                  </button>
+                )}
                 <span className="text-xs text-gray-500 ml-1">
                   {repReceived
                     ? 'Signed copy on file ✓'
@@ -1006,6 +1175,21 @@ export default function ClientFileDetailPage() {
                 >
                   Prepare Form {listingKindHere}
                 </button>
+                {filePackages[0] ? (
+                  <button
+                    onClick={() => router.push(`/dashboard/offers/${filePackages[0].id}#listing`)}
+                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
+                  >
+                    Open offer package →
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void startPackage()}
+                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
+                  >
+                    Start offer package
+                  </button>
+                )}
                 <span className="text-xs text-gray-500 ml-1">
                   {repReceived
                     ? 'Signed copy on file ✓'
@@ -1225,7 +1409,7 @@ export default function ClientFileDetailPage() {
       </div>
 
       {/* Checklist tabs */}
-      <div className="flex gap-2 mt-6 border-b border-gray-200">
+      <div id="client-docs" className="flex gap-2 mt-6 border-b border-gray-200">
         {file.checklist_types.map((t) => {
           const ct = t as ChecklistType;
           const count = docs.filter(

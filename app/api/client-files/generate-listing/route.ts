@@ -171,24 +171,28 @@ export async function POST(req: NextRequest) {
     const primaryType = (cf?.checklist_types || [])[0] || null;
     const { data: rows } = await supabase
       .from('client_documents')
-      .select('id, document, form, checklist_type, stage_index')
+      .select('id, document, form, checklist_type, stage_index, doc_index')
       .eq('client_file_id', client_file_id);
     const all: any[] = rows || [];
     const match =
       all.find((r: any) => (r.form || '').includes(kind)) ||
       all.find((r: any) => (r.document || '').toLowerCase().includes('representation agreement'));
     if (match) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('client_documents')
         .update({ file_url: storagePath, received_via: 'generated' })
         .eq('id', match.id);
+      if (updErr) throw new Error('The form generated but could not be filed on the checklist: ' + updErr.message);
     } else if (primaryType) {
       const siblings = all.filter((r: any) => r.checklist_type === primaryType);
       const lastStage = siblings.reduce((m: number, r: any) => Math.max(m, r.stage_index || 0), 0);
-      await supabase.from('client_documents').insert({
+      const stageSiblings = siblings.filter((r: any) => (r.stage_index || 0) === lastStage);
+      const nextDocIndex = stageSiblings.reduce((m: number, r: any) => Math.max(m, (r.doc_index ?? -1) + 1), 0);
+      const { error: insErr } = await supabase.from('client_documents').insert({
         client_file_id,
         checklist_type: primaryType,
         stage_index: lastStage,
+        doc_index: nextDocIndex,
         document: kind === '272' ? 'Landlord Representation Agreement' : 'Seller Representation Agreement',
         form: `OREA Form ${kind}`,
         required: 'required',
@@ -196,6 +200,7 @@ export async function POST(req: NextRequest) {
         file_url: storagePath,
         received_via: 'generated',
       });
+      if (insErr) throw new Error('The form generated but could not be filed on the checklist: ' + insErr.message);
     }
 
     return NextResponse.json({ ok: true, file_path: storagePath, pages: built.pages });
