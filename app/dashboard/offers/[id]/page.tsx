@@ -62,6 +62,7 @@ export default function PrepareOfferPage() {
   const params = useParams()
   const packageId = String((params as any)?.id || '')
   const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'rep' | 'listing' | 'library' | 'files'>('offer')
+  const apsFormRef = useRef('100')
   const [pkgLoaded, setPkgLoaded] = useState(false)
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
@@ -224,6 +225,40 @@ export default function PrepareOfferPage() {
   const [depthUnit, setDepthUnit] = useState('feet')
   const [frontageSide, setFrontageSide] = useState('')
   const [frontageStreet, setFrontageStreet] = useState('')
+  const [propertyType, setPropertyType] = useState<'freehold' | 'condo' | 'coop'>('freehold')
+  // Form 101 (condominium) answers
+  const [cdUnitType, setCdUnitType] = useState('')
+  const [cdUnitNo, setCdUnitNo] = useState('')
+  const [cdCorp, setCdCorp] = useState('')
+  const [cdPlan, setCdPlan] = useState('')
+  const [cdLevel, setCdLevel] = useState('')
+  const [cdBuilding, setCdBuilding] = useState('')
+  const [cdParkingNo, setCdParkingNo] = useState('')
+  const [cdParkingLevel, setCdParkingLevel] = useState('')
+  const [cdLockerNo, setCdLockerNo] = useState('')
+  const [cdLockerLevel, setCdLockerLevel] = useState('')
+  const [cdCommonExpenses, setCdCommonExpenses] = useState('')
+  const [cdCommonIncludes, setCdCommonIncludes] = useState('')
+  const [cdParkingAssigned, setCdParkingAssigned] = useState('')
+  const [cdParkingCost, setCdParkingCost] = useState('')
+  const [cdPmName, setCdPmName] = useState('')
+  const [cdPmAddress, setCdPmAddress] = useState('')
+  const [cdPmPhone, setCdPmPhone] = useState('')
+  const [cdPmFax, setCdPmFax] = useState('')
+  // Form 102 (co-operative) answers
+  const [cpUnit, setCpUnit] = useState('')
+  const [cpShares, setCpShares] = useState('')
+  const [cpCorp, setCpCorp] = useState('')
+  const [cpParkingNo, setCpParkingNo] = useState('')
+  const [cpParkingLevel, setCpParkingLevel] = useState('')
+  const [cpLockerNo, setCpLockerNo] = useState('')
+  const [cpLockerLevel, setCpLockerLevel] = useState('')
+  const [cpMaintExpenses, setCpMaintExpenses] = useState('')
+  const [cpMaintIncludes, setCpMaintIncludes] = useState('')
+  const [cpParkingAssigned, setCpParkingAssigned] = useState('')
+  const [cpParkingCost, setCpParkingCost] = useState('')
+  const [cpApprovalDate, setCpApprovalDate] = useState('')
+  const [cpPm, setCpPm] = useState('')
 
   // Parties
   const [buyers, setBuyers] = useState<string[]>(['', '', '', ''])
@@ -450,6 +485,40 @@ export default function PrepareOfferPage() {
     if (p.frontage_side) setFrontageSide(p.frontage_side)
     if (p.frontage_street) setFrontageStreet(p.frontage_street)
     if (p.mls) setMlsNum(p.mls)
+    if (deal.property_type === 'condo' || deal.property_type === 'coop' || deal.property_type === 'freehold') setPropertyType(deal.property_type)
+    const cd = deal.condo || {}
+    if (cd.unit_type) setCdUnitType(cd.unit_type)
+    if (cd.unit_no ?? cd.unit_number) setCdUnitNo(String(cd.unit_no ?? cd.unit_number))
+    if (cd.corporation_name) setCdCorp(cd.corporation_name)
+    if (cd.plan_no) setCdPlan(cd.plan_no)
+    if (cd.level_no) setCdLevel(String(cd.level_no))
+    if (cd.building_no) setCdBuilding(cd.building_no)
+    if (cd.parking_no) setCdParkingNo(cd.parking_no)
+    if (cd.parking_level) setCdParkingLevel(cd.parking_level)
+    if (cd.locker_no) setCdLockerNo(cd.locker_no)
+    if (cd.locker_level) setCdLockerLevel(cd.locker_level)
+    if (cd.common_expenses) setCdCommonExpenses(String(cd.common_expenses))
+    if (cd.common_includes) setCdCommonIncludes(cd.common_includes)
+    if (cd.parking_assigned) setCdParkingAssigned(cd.parking_assigned)
+    if (cd.parking_cost) setCdParkingCost(cd.parking_cost)
+    if (cd.property_manager_name) setCdPmName(cd.property_manager_name)
+    if (cd.property_manager_address) setCdPmAddress(cd.property_manager_address)
+    if (cd.property_manager_phone) setCdPmPhone(cd.property_manager_phone)
+    if (cd.property_manager_fax) setCdPmFax(cd.property_manager_fax)
+    const cp = deal.cooperative || {}
+    if (cp.unit) setCpUnit(cp.unit)
+    if (cp.shares) setCpShares(String(cp.shares))
+    if (cp.corporation_name) setCpCorp(cp.corporation_name)
+    if (cp.parking_no) setCpParkingNo(cp.parking_no)
+    if (cp.parking_level) setCpParkingLevel(cp.parking_level)
+    if (cp.locker_no) setCpLockerNo(cp.locker_no)
+    if (cp.locker_level) setCpLockerLevel(cp.locker_level)
+    if (cp.maintenance_expenses) setCpMaintExpenses(String(cp.maintenance_expenses))
+    if (cp.maintenance_includes) setCpMaintIncludes(cp.maintenance_includes)
+    if (cp.parking_assigned) setCpParkingAssigned(cp.parking_assigned)
+    if (cp.parking_cost) setCpParkingCost(cp.parking_cost)
+    if (cp.approval_date) setCpApprovalDate(joinDate(cp.approval_date))
+    if (cp.property_manager) setCpPm(cp.property_manager)
     if (deal.agreement_date) setAgreementDate(joinDate(deal.agreement_date))
     if (deal.price) setPrice(String(deal.price))
     if (deal.deposit) setDeposit(String(deal.deposit))
@@ -910,6 +979,49 @@ export default function PrepareOfferPage() {
         completion_date: splitDate(completionDate),
         title_search_date: splitDate(titleSearchDate),
         hst,
+        property_type: propertyType,
+        condo:
+          propertyType === 'condo'
+            ? {
+                unit_type: cdUnitType || undefined,
+                unit_no: cdUnitNo || undefined,
+                corporation_name: cdCorp || undefined,
+                plan_no: cdPlan || undefined,
+                unit_number: cdUnitNo || undefined,
+                level_no: cdLevel || undefined,
+                building_no: cdBuilding || undefined,
+                parking_no: cdParkingNo || undefined,
+                parking_level: cdParkingLevel || undefined,
+                locker_no: cdLockerNo || undefined,
+                locker_level: cdLockerLevel || undefined,
+                common_expenses: cdCommonExpenses ? Number(cdCommonExpenses) : undefined,
+                common_includes: cdCommonIncludes || undefined,
+                parking_assigned: cdParkingAssigned || undefined,
+                parking_cost: cdParkingCost || undefined,
+                property_manager_name: cdPmName || undefined,
+                property_manager_address: cdPmAddress || undefined,
+                property_manager_phone: cdPmPhone || undefined,
+                property_manager_fax: cdPmFax || undefined,
+              }
+            : undefined,
+        cooperative:
+          propertyType === 'coop'
+            ? {
+                unit: cpUnit || undefined,
+                shares: cpShares || undefined,
+                corporation_name: cpCorp || undefined,
+                parking_no: cpParkingNo || undefined,
+                parking_level: cpParkingLevel || undefined,
+                locker_no: cpLockerNo || undefined,
+                locker_level: cpLockerLevel || undefined,
+                maintenance_expenses: cpMaintExpenses ? Number(cpMaintExpenses) : undefined,
+                maintenance_includes: cpMaintIncludes || undefined,
+                parking_assigned: cpParkingAssigned || undefined,
+                parking_cost: cpParkingCost || undefined,
+                approval_date: cpApprovalDate ? splitDate(cpApprovalDate) : undefined,
+                property_manager: cpPm || undefined,
+              }
+            : undefined,
         schedule: schedules || undefined,
         chattels: lines(chattelsText),
         exclusions: lines(exclusionsText),
@@ -1034,9 +1146,10 @@ export default function PrepareOfferPage() {
     }
   }
 
+  const apsForm = propertyType === 'condo' ? '101' : propertyType === 'coop' ? '102' : '100'
   const formForTab = (): string | null =>
     tab === 'offer'
-      ? '100'
+      ? apsForm
       : tab === '801'
         ? '801'
         : tab === 'coop'
@@ -1057,7 +1170,7 @@ export default function PrepareOfferPage() {
 
   const formLabel = (): string =>
     tab === 'offer'
-      ? 'Form 100 — the Offer'
+      ? `Form ${apsForm} — the Offer`
       : tab === '801'
         ? 'Form 801'
         : tab === 'coop'
@@ -1253,13 +1366,14 @@ export default function PrepareOfferPage() {
 
   sigRef.current = dealSignature
   tabRef.current = tab
+  apsFormRef.current = apsForm
 
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState !== 'hidden') return
       const t = tabRef.current
       const f =
-        t === 'offer' ? '100' : t === '801' ? '801' : t === 'coop' ? '320' : t === 'nof' ? '124' : t === 'waiver' ? '123' : t === 'amend' ? '120' : t === 'disclosure' ? '161' : null
+        t === 'offer' ? apsFormRef.current : t === '801' ? '801' : t === 'coop' ? '320' : t === 'nof' ? '124' : t === 'waiver' ? '123' : t === 'amend' ? '120' : t === 'disclosure' ? '161' : null
       if (f) void silentSavePdf(f, sigRef.current, true)
     }
     document.addEventListener('visibilitychange', onVis)
@@ -1493,7 +1607,7 @@ export default function PrepareOfferPage() {
         <div className="flex flex-wrap gap-2 border-b pb-4">
           {(
             [
-              ['offer', 'Offer — Form 100'],
+              ['offer', `Offer — Form ${apsForm}`],
               ['801', 'Form 801'],
               ['coop', 'Confirmation — 320'],
               ['rep', 'Representation — 371/372'],
@@ -1607,6 +1721,14 @@ export default function PrepareOfferPage() {
         <div className={tab === 'offer' ? sectionCls : 'hidden'}>
           <h2 className={h2Cls}>Property</h2>
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className={labelCls}>Property type — picks the APS form</label>
+              <select className={inputCls} value={propertyType} onChange={(e) => setPropertyType(e.target.value as 'freehold' | 'condo' | 'coop')}>
+                <option value="freehold">Freehold — Form 100</option>
+                <option value="condo">Condominium — Form 101</option>
+                <option value="coop">Co-operative — Form 102</option>
+              </select>
+            </div>
             <div>
               <label className={labelCls}>Address</label>
               <input className={inputCls} style={miss(address)} value={address} onChange={(e) => setAddress(e.target.value)} />
@@ -1676,6 +1798,144 @@ export default function PrepareOfferPage() {
           <div>
             <label className={labelCls}>Legal description</label>
             <textarea className={inputCls} style={miss(legalDescription)} rows={2} value={legalDescription} onChange={(e) => setLegalDescription(e.target.value)} />
+          </div>
+        </div>
+
+        {/* CONDO — Form 101 details */}
+        <div className={tab === 'offer' && propertyType === 'condo' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Condominium — Form 101</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Unit type (Apartment / Townhouse / Suite / Unit)</label>
+              <input className={inputCls} value={cdUnitType} onChange={(e) => setCdUnitType(e.target.value)} placeholder="Apartment" />
+            </div>
+            <div>
+              <label className={labelCls}>Unit number</label>
+              <input className={inputCls} style={miss(cdUnitNo)} value={cdUnitNo} onChange={(e) => setCdUnitNo(e.target.value)} placeholder="1207" />
+            </div>
+            <div>
+              <label className={labelCls}>Condominium corporation (legal name)</label>
+              <input className={inputCls} style={miss(cdCorp)} value={cdCorp} onChange={(e) => setCdCorp(e.target.value)} placeholder="Durham Standard Condominium Corporation" />
+            </div>
+            <div>
+              <label className={labelCls}>Condominium Plan No.</label>
+              <input className={inputCls} style={miss(cdPlan)} value={cdPlan} onChange={(e) => setCdPlan(e.target.value)} placeholder="DSCC 456" />
+            </div>
+            <div>
+              <label className={labelCls}>Level No.</label>
+              <input className={inputCls} value={cdLevel} onChange={(e) => setCdLevel(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Building No.</label>
+              <input className={inputCls} value={cdBuilding} onChange={(e) => setCdBuilding(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Parking space(s) — number(s)</label>
+              <input className={inputCls} value={cdParkingNo} onChange={(e) => setCdParkingNo(e.target.value)} placeholder="P2-145" />
+            </div>
+            <div>
+              <label className={labelCls}>Parking — level(s)</label>
+              <input className={inputCls} value={cdParkingLevel} onChange={(e) => setCdParkingLevel(e.target.value)} placeholder="Level 2" />
+            </div>
+            <div>
+              <label className={labelCls}>Locker(s) — number(s)</label>
+              <input className={inputCls} value={cdLockerNo} onChange={(e) => setCdLockerNo(e.target.value)} placeholder="L-88" />
+            </div>
+            <div>
+              <label className={labelCls}>Locker — level(s)</label>
+              <input className={inputCls} value={cdLockerLevel} onChange={(e) => setCdLockerLevel(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Common expenses — $ per month</label>
+              <input className={inputCls} value={cdCommonExpenses} onChange={(e) => setCdCommonExpenses(e.target.value)} placeholder="385.50" />
+            </div>
+            <div>
+              <label className={labelCls}>Common expenses include</label>
+              <input className={inputCls} value={cdCommonIncludes} onChange={(e) => setCdCommonIncludes(e.target.value)} placeholder="water, building insurance, parking" />
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Parking and lockers — as described above or assigned as follows (¶8)</label>
+              <input className={inputCls} value={cdParkingAssigned} onChange={(e) => setCdParkingAssigned(e.target.value)} placeholder="One underground parking space P2-145 and one locker L-88, as described above" />
+            </div>
+            <div>
+              <label className={labelCls}>Parking/lockers — additional cost</label>
+              <input className={inputCls} value={cdParkingCost} onChange={(e) => setCdParkingCost(e.target.value)} placeholder="no additional cost" />
+            </div>
+            <div>
+              <label className={labelCls}>Property manager — name</label>
+              <input className={inputCls} value={cdPmName} onChange={(e) => setCdPmName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Property manager — address</label>
+              <input className={inputCls} value={cdPmAddress} onChange={(e) => setCdPmAddress(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Property manager — phone</label>
+              <input className={inputCls} value={cdPmPhone} onChange={(e) => setCdPmPhone(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Property manager — fax</label>
+              <input className={inputCls} value={cdPmFax} onChange={(e) => setCdPmFax(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        {/* CO-OP — Form 102 details */}
+        <div className={tab === 'offer' && propertyType === 'coop' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Co-operative — Form 102</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Unit (exclusive right to occupy and use)</label>
+              <input className={inputCls} style={miss(cpUnit)} value={cpUnit} onChange={(e) => setCpUnit(e.target.value)} placeholder="Suite 505" />
+            </div>
+            <div>
+              <label className={labelCls}>Shares in the capital of the corporation</label>
+              <input className={inputCls} style={miss(cpShares)} value={cpShares} onChange={(e) => setCpShares(e.target.value)} placeholder="125" />
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Corporation (legal name)</label>
+              <input className={inputCls} style={miss(cpCorp)} value={cpCorp} onChange={(e) => setCpCorp(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Parking space(s)</label>
+              <input className={inputCls} value={cpParkingNo} onChange={(e) => setCpParkingNo(e.target.value)} placeholder="P-12" />
+            </div>
+            <div>
+              <label className={labelCls}>Parking — level</label>
+              <input className={inputCls} value={cpParkingLevel} onChange={(e) => setCpParkingLevel(e.target.value)} placeholder="Ground" />
+            </div>
+            <div>
+              <label className={labelCls}>Locker</label>
+              <input className={inputCls} value={cpLockerNo} onChange={(e) => setCpLockerNo(e.target.value)} placeholder="L-9" />
+            </div>
+            <div>
+              <label className={labelCls}>Locker — level</label>
+              <input className={inputCls} value={cpLockerLevel} onChange={(e) => setCpLockerLevel(e.target.value)} placeholder="Basement" />
+            </div>
+            <div>
+              <label className={labelCls}>Maintenance expenses — $ per month</label>
+              <input className={inputCls} value={cpMaintExpenses} onChange={(e) => setCpMaintExpenses(e.target.value)} placeholder="512" />
+            </div>
+            <div>
+              <label className={labelCls}>Maintenance expenses include</label>
+              <input className={inputCls} value={cpMaintIncludes} onChange={(e) => setCpMaintIncludes(e.target.value)} placeholder="heat, water, building insurance and parking" />
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Parking and lockers — as described above or assigned as follows (¶8)</label>
+              <input className={inputCls} value={cpParkingAssigned} onChange={(e) => setCpParkingAssigned(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Parking/lockers — additional cost</label>
+              <input className={inputCls} value={cpParkingCost} onChange={(e) => setCpParkingCost(e.target.value)} placeholder="included in maintenance" />
+            </div>
+            <div>
+              <label className={labelCls}>Board approval deadline (¶10 — if approval not obtained by)</label>
+              <input type="date" className={inputCls} value={cpApprovalDate} onChange={(e) => setCpApprovalDate(e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Property manager (name, address, phone — one line)</label>
+              <input className={inputCls} value={cpPm} onChange={(e) => setCpPm(e.target.value)} />
+            </div>
           </div>
         </div>
 

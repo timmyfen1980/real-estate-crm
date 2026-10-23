@@ -1,0 +1,583 @@
+{
+ "hidband": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.1.1",
+  "rect": [
+   73,
+   126,
+   484,
+   139
+  ]
+ },
+ "hidsand": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.2.1",
+  "rect": [
+   72,
+   155,
+   523,
+   168
+  ]
+ },
+ "hidInThe1": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.3.1",
+  "rect": [
+   64,
+   259,
+   174,
+   272
+  ]
+ },
+ "txtInThe": {
+  "blank": "vfdvfd",
+  "rect": [
+   175,
+   259,
+   571,
+   272
+  ]
+ },
+ "txtp_address": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.3.0",
+  "rect": [
+   217,
+   234,
+   572,
+   247
+  ]
+ },
+ "txtp_price": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.6.0",
+  "rect": [
+   467,
+   335,
+   570,
+   348
+  ]
+ },
+ "txtp_pricewords": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.6.1",
+  "rect": [
+   40,
+   360,
+   546,
+   373
+  ]
+ },
+ "hidhereupon": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.7.0",
+  "rect": [
+   129,
+   385,
+   571,
+   398
+  ]
+ },
+ "txtp_depositwords": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.7.1",
+  "rect": [
+   41,
+   417,
+   407,
+   430
+  ]
+ },
+ "txtp_deposit": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.8.1",
+  "rect": [
+   465,
+   417,
+   571,
+   430
+  ]
+ },
+ "txtDepositHolder": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.8.0",
+  "rect": [
+   159,
+   442,
+   462,
+   455
+  ]
+ },
+ "txtAttachedSchedule": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.1",
+  "rect": [
+   102,
+   538,
+   372,
+   551
+  ]
+ },
+ "hidirrev_v_p": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.9.0",
+  "rect": [
+   258,
+   564,
+   443,
+   578
+  ]
+ },
+ "txtp_irrev_t": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.9.1",
+  "rect": [
+   465,
+   564,
+   544,
+   578
+  ]
+ },
+ "txtp_OfferExpireDate_d": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.10.0",
+  "rect": [
+   58,
+   591,
+   91,
+   604
+  ]
+ },
+ "txtp_OfferExpireDate_mmmm": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.10.1",
+  "rect": [
+   117,
+   591,
+   319,
+   604
+  ]
+ },
+ "txtp_OfferExpireDate_yy": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.11.1",
+  "rect": [
+   333,
+   591,
+   363,
+   604
+  ]
+ },
+ "txtp_closedate_d": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.11.0",
+  "rect": [
+   386,
+   633,
+   419,
+   646
+  ]
+ },
+ "txtp_closedate_mmmm": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.12.1",
+  "rect": [
+   446,
+   633,
+   572,
+   646
+  ]
+ },
+ "txtp_closedate_yy": {
+  "blank": "Text156",
+  "rect": [
+   71,
+   655,
+   106,
+   668
+  ]
+ },
+ "txtl_broker": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.0",
+  "rect": [
+   111,
+   335,
+   405,
+   348
+  ]
+ },
+ "txtl_brkagent": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.0.1",
+  "rect": [
+   50,
+   355,
+   560,
+   367
+  ]
+ },
+ "txtl_brkphone": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.0.0",
+  "rect": [
+   415,
+   335,
+   560,
+   348
+  ]
+ },
+ "txtl_brkagentemail": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.13.1",
+  "rect": [
+   113,
+   186,
+   304,
+   199
+  ]
+ },
+ "txts_broker": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.1.0",
+  "rect": [
+   134,
+   375,
+   403,
+   388
+  ]
+ },
+ "txts_brkagent": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.2.0",
+  "rect": [
+   50,
+   394,
+   560,
+   407
+  ]
+ },
+ "txts_brkphone": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.1.1",
+  "rect": [
+   413,
+   375,
+   559,
+   388
+  ]
+ },
+ "txts_brkagentemail": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.0.0",
+  "rect": [
+   370,
+   186,
+   572,
+   199
+  ]
+ },
+ "txts_lawyername": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.6.1.0",
+  "rect": [
+   95,
+   560,
+   300,
+   573
+  ]
+ },
+ "txts_lawyeraddr": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.7.0.0",
+  "rect": [
+   73,
+   576,
+   300,
+   589
+  ]
+ },
+ "txts_lawyeremail": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.8.0.0",
+  "rect": [
+   63,
+   592,
+   300,
+   605
+  ]
+ },
+ "txts_lawyerphone": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.9.0.0",
+  "rect": [
+   41,
+   609,
+   177,
+   622
+  ]
+ },
+ "txts_lawyerfax": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.7.1.0",
+  "rect": [
+   186,
+   609,
+   300,
+   622
+  ]
+ },
+ "txtb_lawyername": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.6.1.1",
+  "rect": [
+   365,
+   560,
+   570,
+   573
+  ]
+ },
+ "txtb_lawyeraddr": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.7.0.1",
+  "rect": [
+   343,
+   576,
+   570,
+   589
+  ]
+ },
+ "txtb_lawyeremail": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.8.0.1",
+  "rect": [
+   333,
+   592,
+   570,
+   605
+  ]
+ },
+ "txtb_lawyerphone": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.9.0.1",
+  "rect": [
+   311,
+   609,
+   447,
+   622
+  ]
+ },
+ "txtb_lawyerfax": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.7.1.1",
+  "rect": [
+   457,
+   609,
+   570,
+   622
+  ]
+ },
+ "txtp_propincludes": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.0.1",
+  "rect": [
+   145,
+   216,
+   571,
+   229
+  ]
+ },
+ "txtp_propexcludes": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.3.0",
+  "rect": [
+   146,
+   362,
+   569,
+   375
+  ]
+ },
+ "txtp_LeasedItems": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.5.0",
+  "rect": [
+   59,
+   491,
+   570,
+   504
+  ]
+ },
+ "coop_unit": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.2.0",
+  "rect": [
+   171,
+   209,
+   530,
+   222
+  ]
+ },
+ "coop_parking_no": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.4.0",
+  "rect": [
+   99,
+   284,
+   238,
+   297
+  ]
+ },
+ "coop_parking_level": {
+  "blank": "vcxzvc",
+  "rect": [
+   240,
+   284,
+   379,
+   297
+  ]
+ },
+ "coop_locker_no": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.4.1",
+  "rect": [
+   405,
+   284,
+   460,
+   297
+  ]
+ },
+ "coop_locker_level": {
+  "blank": "mjhm",
+  "rect": [
+   463,
+   284,
+   518,
+   297
+  ]
+ },
+ "coop_shares": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.5.1",
+  "rect": [
+   56,
+   309,
+   174,
+   322
+  ]
+ },
+ "coop_corp": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.5.0",
+  "rect": [
+   300,
+   309,
+   504,
+   322
+  ]
+ },
+ "coop_exp_amount": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.7.1",
+  "rect": [
+   118,
+   603,
+   229,
+   616
+  ]
+ },
+ "coop_parking_cost": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.0.1",
+  "rect": [
+   374,
+   53,
+   571,
+   66
+  ]
+ },
+ "coop_approval_day": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.1.1",
+  "rect": [
+   278,
+   173,
+   314,
+   186
+  ]
+ },
+ "coop_approval_month": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.2.0",
+  "rect": [
+   339,
+   173,
+   452,
+   186
+  ]
+ },
+ "coop_approval_year": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.2.1",
+  "rect": [
+   467,
+   173,
+   502,
+   186
+  ]
+ },
+ "pm_line": {
+  "blank": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.9.1.2.1",
+  "rect": [
+   119,
+   426,
+   560,
+   439
+  ]
+ },
+ "_lines": {
+  "includes": [
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.0.1",
+    "w": 422
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.1.0",
+    "w": 506
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.1.1",
+    "w": 506
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.2.0",
+    "w": 506
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.2.1",
+    "w": 506
+   }
+  ],
+  "excludes": [
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.3.0",
+    "w": 419
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.3.1",
+    "w": 506
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.4.0",
+    "w": 506
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.4.1",
+    "w": 506
+   }
+  ],
+  "rentals": [
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.5.0",
+    "w": 507
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.5.1",
+    "w": 507
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.6.0",
+    "w": 507
+   }
+  ],
+  "exp_includes": [
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.8.0",
+    "w": 253
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.6.1",
+    "w": 507
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.7.0",
+    "w": 507
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.8.1",
+    "w": 507
+   }
+  ],
+  "parking_assigned": [
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.1",
+    "w": 167
+   },
+   {
+    "name": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.0.0",
+    "w": 224
+   }
+  ]
+ },
+ "_top_date": {
+  "day": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.0.0",
+  "month": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.0.1",
+  "year": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.1.0"
+ },
+ "_hst_field": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.1.0",
+ "_req_fields": {
+  "day": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.3.0",
+  "month": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.3.1",
+  "year": "agreementofcond.14.1.5.1.4.0.1.0.9.0.9.1.3.0.14.0.9.0.4.0"
+ }
+}

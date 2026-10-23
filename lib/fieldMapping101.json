@@ -1,0 +1,615 @@
+{
+ "hidband": {
+  "blank": "aaaaaa",
+  "rect": [
+   73,
+   125,
+   483,
+   138
+  ]
+ },
+ "hidsand": {
+  "blank": "aaaaaaaa",
+  "rect": [
+   74,
+   152,
+   520,
+   165
+  ]
+ },
+ "hidInThe1": {
+  "blank": "in the",
+  "rect": [
+   61,
+   231,
+   178,
+   244
+  ]
+ },
+ "txtInThe": {
+  "blank": "in theee",
+  "rect": [
+   179,
+   231,
+   571,
+   244
+  ]
+ },
+ "txtp_address": {
+  "blank": "located at",
+  "rect": [
+   77,
+   208,
+   570,
+   221
+  ]
+ },
+ "txtp_price": {
+  "blank": "a",
+  "rect": [
+   467,
+   394,
+   570,
+   407
+  ]
+ },
+ "txtp_pricewords": {
+  "blank": "DEPOSIT Buyer subaaamits",
+  "rect": [
+   41,
+   417,
+   544,
+   430
+  ]
+ },
+ "hidhereupon": {
+  "blank": "aa",
+  "rect": [
+   130,
+   440,
+   571,
+   453
+  ]
+ },
+ "txtp_depositwords": {
+  "blank": "aaa",
+  "rect": [
+   41,
+   467,
+   408,
+   480
+  ]
+ },
+ "txtp_deposit": {
+  "blank": "Dollars CDN_2",
+  "rect": [
+   466,
+   467,
+   570,
+   480
+  ]
+ },
+ "txtDepositHolder": {
+  "blank": "DEPOaaaaSIT Buyer submits",
+  "rect": [
+   162,
+   490,
+   469,
+   503
+  ]
+ },
+ "txtAttachedSchedule": {
+  "blank": "DEPaaaOSIT Buyer submits",
+  "rect": [
+   104,
+   575,
+   371,
+   587
+  ]
+ },
+ "hidirrev_v_p": {
+  "blank": "aaaa",
+  "rect": [
+   247,
+   598,
+   417,
+   611
+  ]
+ },
+ "txtp_irrev_t": {
+  "blank": "until",
+  "rect": [
+   436,
+   598,
+   505,
+   611
+  ]
+ },
+ "txtp_OfferExpireDate_d": {
+  "blank": "on the",
+  "rect": [
+   531,
+   598,
+   571,
+   611
+  ]
+ },
+ "txtp_OfferExpireDate_mmmm": {
+  "blank": "DEPOaaaaaaaSIT Buyer submits",
+  "rect": [
+   85,
+   625,
+   334,
+   638
+  ]
+ },
+ "txtp_OfferExpireDate_yy": {
+  "blank": "DEPOSIaaaaaT Buyer submits",
+  "rect": [
+   349,
+   625,
+   373,
+   638
+  ]
+ },
+ "txtp_closedate_d": {
+  "blank": "DEPOSIaaaaT Buyer submits",
+  "rect": [
+   383,
+   656,
+   411,
+   669
+  ]
+ },
+ "txtp_closedate_mmmm": {
+  "blank": "DEPOSaaaaaaaIT Buyer submits",
+  "rect": [
+   437,
+   656,
+   569,
+   669
+  ]
+ },
+ "txtp_closedate_yy": {
+  "blank": "DEPOSaaaaaIT Buyer submits",
+  "rect": [
+   71,
+   676,
+   107,
+   689
+  ]
+ },
+ "txtl_broker": {
+  "blank": "gggggggg",
+  "rect": [
+   112,
+   333,
+   404,
+   346
+  ]
+ },
+ "txtl_brkagent": {
+  "blank": "gg",
+  "rect": [
+   51,
+   352,
+   561,
+   365
+  ]
+ },
+ "txtl_brkphone": {
+  "blank": "TelNo",
+  "rect": [
+   416,
+   333,
+   560,
+   346
+  ]
+ },
+ "txtl_brkagentemail": {
+  "blank": "b",
+  "rect": [
+   113,
+   179,
+   305,
+   192
+  ]
+ },
+ "txts_broker": {
+  "blank": "gggggggggg",
+  "rect": [
+   137,
+   373,
+   404,
+   386
+  ]
+ },
+ "txts_brkagent": {
+  "blank": "ggggg",
+  "rect": [
+   51,
+   392,
+   561,
+   405
+  ]
+ },
+ "txts_brkphone": {
+  "blank": "TelNo_2",
+  "rect": [
+   416,
+   373,
+   560,
+   386
+  ]
+ },
+ "txts_brkagentemail": {
+  "blank": "bb",
+  "rect": [
+   369,
+   179,
+   571,
+   192
+  ]
+ },
+ "txts_lawyername": {
+  "blank": "Tel No",
+  "rect": [
+   96,
+   558,
+   300,
+   571
+  ]
+ },
+ "txts_lawyeraddr": {
+  "blank": "Sellers Lawyer",
+  "rect": [
+   73,
+   574,
+   300,
+   587
+  ]
+ },
+ "txts_lawyeremail": {
+  "blank": "Address",
+  "rect": [
+   63,
+   590,
+   300,
+   603
+  ]
+ },
+ "txts_lawyerphone": {
+  "blank": "i",
+  "rect": [
+   42,
+   606,
+   178,
+   619
+  ]
+ },
+ "txts_lawyerfax": {
+  "blank": "Date_5",
+  "rect": [
+   187,
+   606,
+   300,
+   619
+  ]
+ },
+ "txtb_lawyername": {
+  "blank": "Tel No_2",
+  "rect": [
+   367,
+   558,
+   571,
+   571
+  ]
+ },
+ "txtb_lawyeraddr": {
+  "blank": "Buyers Lawyer",
+  "rect": [
+   342,
+   574,
+   571,
+   587
+  ]
+ },
+ "txtb_lawyeremail": {
+  "blank": "Address_2",
+  "rect": [
+   334,
+   590,
+   571,
+   603
+  ]
+ },
+ "txtb_lawyerphone": {
+  "blank": "iii",
+  "rect": [
+   312,
+   606,
+   448,
+   619
+  ]
+ },
+ "txtb_lawyerfax": {
+  "blank": "iiiiii",
+  "rect": [
+   458,
+   605,
+   570,
+   618
+  ]
+ },
+ "txtp_propincludes": {
+  "blank": "bbb",
+  "rect": [
+   145,
+   209,
+   572,
+   222
+  ]
+ },
+ "txtp_propexcludes": {
+  "blank": "bbbbb",
+  "rect": [
+   145,
+   351,
+   571,
+   364
+  ]
+ },
+ "txtp_LeasedItems": {
+  "blank": "bbbbbbb",
+  "rect": [
+   58,
+   476,
+   571,
+   489
+  ]
+ },
+ "condo_unit_type": {
+  "blank": "aaaaaaaaa",
+  "rect": [
+   201,
+   181,
+   492,
+   194
+  ]
+ },
+ "condo_unit_no": {
+  "blank": "aaaaaaaaaaaa",
+  "rect": [
+   508,
+   181,
+   570,
+   194
+  ]
+ },
+ "condo_corp": {
+  "blank": "being",
+  "rect": [
+   62,
+   254,
+   351,
+   267
+  ]
+ },
+ "condo_plan": {
+  "blank": "Condominium Plan No",
+  "rect": [
+   434,
+   254,
+   572,
+   267
+  ]
+ },
+ "condo_unit_number": {
+  "blank": "Dollarsaaaaa CDN",
+  "rect": [
+   88,
+   281,
+   210,
+   294
+  ]
+ },
+ "condo_level": {
+  "blank": "Dolaalars CDN",
+  "rect": [
+   249,
+   281,
+   344,
+   294
+  ]
+ },
+ "condo_building": {
+  "blank": "Dollarsaa CDN",
+  "rect": [
+   395,
+   280,
+   485,
+   293
+  ]
+ },
+ "condo_parking_no": {
+  "blank": "Dollars CaaaaDN",
+  "rect": [
+   170,
+   304,
+   292,
+   316
+  ]
+ },
+ "condo_parking_level": {
+  "blank": "dsads",
+  "rect": [
+   293,
+   304,
+   415,
+   317
+  ]
+ },
+ "condo_locker_no": {
+  "blank": "Dollars CDaaN",
+  "rect": [
+   73,
+   331,
+   189,
+   344
+  ]
+ },
+ "condo_locker_level": {
+  "blank": "bgfb",
+  "rect": [
+   194,
+   331,
+   310,
+   344
+  ]
+ },
+ "condo_exp_amount": {
+  "blank": "bbbbbbbb",
+  "rect": [
+   163,
+   584,
+   240,
+   597
+  ]
+ },
+ "condo_parking_cost": {
+  "blank": "abb",
+  "rect": [
+   360,
+   676,
+   572,
+   689
+  ]
+ },
+ "pm_name": {
+  "blank": "tttttttttt",
+  "rect": [
+   120,
+   424,
+   236,
+   437
+  ]
+ },
+ "pm_address": {
+  "blank": "Fax No",
+  "rect": [
+   236,
+   424,
+   399,
+   437
+  ]
+ },
+ "pm_phone": {
+  "blank": "essrrr",
+  "rect": [
+   401,
+   424,
+   490,
+   437
+  ]
+ },
+ "pm_fax": {
+  "blank": "uyyyuuut",
+  "rect": [
+   491,
+   424,
+   559,
+   437
+  ]
+ },
+ "_lines": {
+  "includes": [
+   {
+    "name": "bbb",
+    "w": 423
+   },
+   {
+    "name": "bbbb",
+    "w": 509
+   },
+   {
+    "name": "c",
+    "w": 509
+   },
+   {
+    "name": "cc",
+    "w": 508
+   },
+   {
+    "name": "ccc",
+    "w": 509
+   }
+  ],
+  "excludes": [
+   {
+    "name": "bbbbb",
+    "w": 422
+   },
+   {
+    "name": "bbbbbb",
+    "w": 509
+   },
+   {
+    "name": "aab",
+    "w": 509
+   },
+   {
+    "name": "abbt",
+    "w": 508
+   }
+  ],
+  "rentals": [
+   {
+    "name": "bbbbbbb",
+    "w": 509
+   },
+   {
+    "name": "ccccc",
+    "w": 509
+   },
+   {
+    "name": "cccccc",
+    "w": 508
+   }
+  ],
+  "exp_includes": [
+   {
+    "name": "bbbbbbbbb",
+    "w": 153
+   },
+   {
+    "name": "bbbbbbbbbb",
+    "w": 509
+   },
+   {
+    "name": "ccccccc",
+    "w": 509
+   }
+  ],
+  "parking_assigned": [
+   {
+    "name": "undefined_2",
+    "w": 166
+   },
+   {
+    "name": "ab",
+    "w": 211
+   }
+  ]
+ },
+ "_top_date": {
+  "day": "This Agreement of Purchase and Sale dated this",
+  "month": "aaaaa",
+  "year": "Dollarsaaaa CDN"
+ },
+ "_hst_field": "dddddddddd",
+ "_req_fields": {
+  "day": "dddddd",
+  "month": "ddddd",
+  "year": "ddddddddd"
+ }
+}

@@ -20,6 +20,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import {
   buildForm100,
+  buildForm101,
+  buildForm102,
   buildForm801,
   buildForm320,
   buildForm324,
@@ -32,6 +34,7 @@ import {
   buildForm271,
   buildForm272,
   validateDeal,
+  validateAps,
   validate801,
   validate320,
   validateNotice,
@@ -84,7 +87,7 @@ async function authorized(req: NextRequest): Promise<boolean> {
 }
 
 async function loadTemplate(
-  name: "form100" | "form801" | "form320" | "form324" | "form123" | "form124" | "form120" | "form161" | "form371" | "form372" | "form271" | "form272"
+  name: "form100" | "form101" | "form102" | "form801" | "form320" | "form324" | "form123" | "form124" | "form120" | "form161" | "form371" | "form372" | "form271" | "form272"
 ): Promise<Uint8Array | null> {
   const { data, error } = await serviceClient()
     .storage.from(BUCKET)
@@ -404,6 +407,8 @@ export async function POST(req: NextRequest) {
 
     const missing: string[] = [];
     if (forms.includes("100")) missing.push(...validateDeal(deal));
+    if (forms.includes("101")) missing.push(...validateAps(deal, "101"));
+    if (forms.includes("102")) missing.push(...validateAps(deal, "102"));
     if (forms.includes("801")) missing.push(...validate801(deal));
     if (forms.includes("320")) missing.push(...validate320(deal));
     if (forms.includes("324")) missing.push(...validate320(deal));
@@ -417,7 +422,7 @@ export async function POST(req: NextRequest) {
     if (forms.includes("272")) missing.push(...validateListing(deal, "272"));
 
     let paragraphs: string[] = [];
-    if (forms.includes("100")) {
+    if (forms.includes("100") || forms.includes("101") || forms.includes("102")) {
       const resolved = resolveClauses(
         deal,
         Array.isArray(deal.standard_codes)
@@ -454,6 +459,38 @@ export async function POST(req: NextRequest) {
       files.push({
         form: "100",
         filename: `Form 100 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("101")) {
+      const tpl = await loadTemplate("form101");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 101 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm101(deal, paragraphs, tpl);
+      files.push({
+        form: "101",
+        filename: `Form 101 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("102")) {
+      const tpl = await loadTemplate("form102");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 102 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm102(deal, paragraphs, tpl);
+      files.push({
+        form: "102",
+        filename: `Form 102 - ${addr}.pdf`,
         pages,
         base64: Buffer.from(bytes).toString("base64"),
       });

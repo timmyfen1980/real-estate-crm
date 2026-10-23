@@ -15,6 +15,8 @@
 import { PDFDocument, PDFName, PDFString, StandardFonts, decodePDFRawStream, rgb } from "pdf-lib";
 import type { PDFFont, PDFForm, PDFPage } from "pdf-lib";
 import mapping100 from "./fieldMapping100.json";
+import mapping101 from "./fieldMapping101.json";
+import mapping102 from "./fieldMapping102.json";
 import mapping801 from "./fieldMapping801.json";
 import mapping320 from "./fieldMapping320.json";
 
@@ -249,9 +251,10 @@ function mappedField(
   form: PDFForm,
   sem: string,
   value: string,
-  size = 10
+  size = 10,
+  mapping: any = mapping100
 ): void {
-  const m = (mapping100 as any)[sem];
+  const m = (mapping as any)[sem];
   if (!m) return;
   if (m.blank && setExistingField(form, m.blank, value)) {
     setFieldFontSize(form, m.blank, size);
@@ -276,10 +279,11 @@ function mappedPair(
   form: PDFForm,
   semA: string,
   semB: string,
-  value: string
+  value: string,
+  mapping: any = mapping100
 ): void {
-  const a = (mapping100 as any)[semA];
-  const b = (mapping100 as any)[semB];
+  const a = (mapping as any)[semA];
+  const b = (mapping as any)[semB];
   if (a?.blank && setExistingField(form, a.blank, value)) {
     setFieldFontSize(form, a.blank, 10);
     return;
@@ -557,10 +561,26 @@ function fixFooter(
 // Form 100
 // ---------------------------------------------------------------------------
 
-export async function buildForm100(
+// One core fills all three APS forms (100 freehold / 101 condominium /
+// 102 co-operative): same parties, price, deposit, dates, brokerages,
+// lawyers and Schedule A machinery; the cfg carries each form's field
+// mapping plus how its HST line, requisition date and address are
+// filled, and an extras hook for the form-specific blocks.
+type ApsCfg = {
+  mapping: any;
+  topDate: Record<string, string>;
+  addressField?: string; // semantic for a template address widget (101/102)
+  hstField?: string; // template widget for the HST choice (101/102)
+  reqFields?: { day: string; month: string; year: string }; // template widgets (101/102)
+  multiLine?: boolean; // chattels/fixtures/rentals live on separate ruled lines (101/102)
+  extras?: (doc: PDFDocument, form: PDFForm, deal: any, helvetica: PDFFont) => void;
+};
+
+async function buildApsCore(
   deal: any,
   paragraphs: string[],
-  templateBytes: Uint8Array
+  templateBytes: Uint8Array,
+  cfg: ApsCfg
 ): Promise<{ bytes: Uint8Array; pages: number }> {
   createdCount = 0;
   const doc = await PDFDocument.load(templateBytes);
@@ -569,61 +589,70 @@ export async function buildForm100(
   const prop = deal.property;
   const join = (arr: string[]) => (arr || []).join(" and ");
 
+  const MF = (sem: string, v: string, sz?: number) =>
+    mappedField(doc, form, sem, v, sz, cfg.mapping);
+  const MP = (semA: string, semB: string, v: string) =>
+    mappedPair(doc, form, semA, semB, v, cfg.mapping);
+
   // Page 1 — agreement date via the template's own top widgets
-  for (const [part, raw] of Object.entries(TOP_DATE_WIDGETS)) {
+  for (const [part, raw] of Object.entries(cfg.topDate)) {
     setExistingField(form, raw, deal.agreement_date[part]);
   }
-  mappedField(doc, form, "hidband", join(deal.buyers));
-  mappedField(doc, form, "hidsand", join(deal.sellers));
+  MF("hidband", join(deal.buyers));
+  MF("hidsand", join(deal.sellers));
 
-  createField(doc, form, doc.getPage(0), "rea_address", [75, 211, 571, 225], prop.address, { size: 10 });
-  if (prop.frontage_side) mappedField(doc, form, "txtp_Subdivision", prop.frontage_side);
-  if (prop.frontage_street) mappedField(doc, form, "txtsideOf", prop.frontage_street);
-  if (prop.municipality_type) mappedField(doc, form, "hidInThe1", prop.municipality_type);
-  mappedField(doc, form, "txtInThe", prop.municipality || prop.city);
-  if (prop.frontage) mappedPair(doc, form, "txtp_SchoolDistrict", "hidSize1", prop.frontage);
-  if (prop.depth) mappedPair(doc, form, "txtp_ZoningClass", "hidSize2", prop.depth);
-  mappedField(doc, form, "txtp_legaldesc", prop.legal_description, 9);
+  if (cfg.addressField) {
+    MF(cfg.addressField, prop.address);
+  } else {
+    createField(doc, form, doc.getPage(0), "rea_address", [75, 211, 571, 225], prop.address, { size: 10 });
+  }
+  if (prop.frontage_side) MF("txtp_Subdivision", prop.frontage_side);
+  if (prop.frontage_street) MF("txtsideOf", prop.frontage_street);
+  if (prop.municipality_type) MF("hidInThe1", prop.municipality_type);
+  MF("txtInThe", prop.municipality || prop.city);
+  if (prop.frontage) MP("txtp_SchoolDistrict", "hidSize1", prop.frontage);
+  if (prop.depth) MP("txtp_ZoningClass", "hidSize2", prop.depth);
+  MF("txtp_legaldesc", prop.legal_description, 9);
   // Price/deposit are skippable so partial generation ("what we have so
   // far") never crashes on a missing amount — the fields stay blank on
   // the PDF for the agent to complete by hand.
   if (deal.price) {
-    mappedField(doc, form, "txtp_price", fmtMoney(deal.price));
-    mappedField(doc, form, "txtp_pricewords", numToWords(deal.price), 9);
+    MF("txtp_price", fmtMoney(deal.price));
+    MF("txtp_pricewords", numToWords(deal.price), 9);
   }
   mappedField(
     doc, form, "hidhereupon",
     deal.deposit_due === "upon_acceptance" ? "Upon Acceptance" : String(deal.deposit_due)
   );
   if (deal.deposit) {
-    mappedField(doc, form, "txtp_depositwords", numToWords(deal.deposit), 9);
-    mappedField(doc, form, "txtp_deposit", fmtMoney(deal.deposit));
+    MF("txtp_depositwords", numToWords(deal.deposit), 9);
+    MF("txtp_deposit", fmtMoney(deal.deposit));
   }
-  mappedField(doc, form, "txtDepositHolder", deal.deposit_holder);
+  MF("txtDepositHolder", deal.deposit_holder);
   // Schedules line: only what's typed — Schedule A is part of the form
   // itself, so there's no "A" default (Tim, 2026-10-21).
-  if (deal.schedule) mappedField(doc, form, "txtAttachedSchedule", deal.schedule);
+  if (deal.schedule) MF("txtAttachedSchedule", deal.schedule);
 
   const irr = deal.irrevocable;
-  mappedField(doc, form, "hidirrev_v_p", irr.by);
-  mappedField(doc, form, "txtp_irrev_t", irr.time);
-  mappedField(doc, form, "txtp_OfferExpireDate_d", irr.date.day);
-  mappedField(doc, form, "txtp_OfferExpireDate_mmmm", irr.date.month);
-  mappedField(doc, form, "txtp_OfferExpireDate_yy", irr.date.year);
+  MF("hidirrev_v_p", irr.by);
+  MF("txtp_irrev_t", irr.time);
+  MF("txtp_OfferExpireDate_d", irr.date.day);
+  MF("txtp_OfferExpireDate_mmmm", irr.date.month);
+  MF("txtp_OfferExpireDate_yy", irr.date.year);
   const cd = deal.completion_date;
-  mappedField(doc, form, "txtp_closedate_d", cd.day);
-  mappedField(doc, form, "txtp_closedate_mmmm", cd.month);
-  mappedField(doc, form, "txtp_closedate_yy", cd.year);
+  MF("txtp_closedate_d", cd.day);
+  MF("txtp_closedate_mmmm", cd.month);
+  MF("txtp_closedate_yy", cd.year);
 
   for (const [key, prefix] of [
     ["listing_brokerage", "txtl_"],
     ["selling_brokerage", "txts_"],
   ] as [string, string][]) {
     const brk = deal[key] || {};
-    if (brk.brokerage) mappedField(doc, form, prefix + "broker", brk.brokerage);
-    if (brk.agent) mappedField(doc, form, prefix + "brkagent", brk.agent);
-    if (brk.phone) mappedField(doc, form, prefix + "brkphone", brk.phone);
-    if (brk.email) mappedField(doc, form, prefix + "brkagentemail", brk.email);
+    if (brk.brokerage) MF(prefix + "broker", brk.brokerage);
+    if (brk.agent) MF(prefix + "brkagent", brk.agent);
+    if (brk.phone) MF(prefix + "brkphone", brk.phone);
+    if (brk.email) MF(prefix + "brkagentemail", brk.email);
   }
   for (const [key, prefix] of [
     ["seller_lawyer", "txts_lawyer"],
@@ -632,37 +661,57 @@ export async function buildForm100(
     const law = deal[key] || {};
     for (const f of ["name", "address", "email", "phone", "fax"]) {
       const suffix = f === "address" ? "addr" : f;
-      if (law[f]) mappedField(doc, form, prefix + suffix, law[f], 9);
+      if (law[f]) MF(prefix + suffix, law[f], 9);
     }
   }
 
   // Page 2 — inclusions / exclusions / rentals / HST
-  const chattels: string[] = deal.chattels || [];
-  const exclusions: string[] = deal.exclusions || [];
-  mappedField(doc, form, "txtp_propincludes", chattels.length ? chattels.join(", ") : "None", 9);
-  mappedField(doc, form, "txtp_propexcludes", exclusions.length ? exclusions.join(", ") : "None", 9);
-  const rentals: any[] = deal.rental_items || [];
-  mappedField(
-    doc, form, "txtp_LeasedItems",
-    rentals.length
-      ? rentals
-          .map((r) =>
-            r.monthly !== "" && r.monthly != null && Number(r.monthly) > 0
-              ? `${r.desc} - rental at $${Number(r.monthly).toFixed(2)}/month`
-              : `${r.desc}`
-          )
-          .join("; ")
-      : "None",
-    9
-  );
-  createField(doc, form, doc.getPage(1), "rea_hst", HST_RECT, HST_TEXT[deal.hst], { size: 10 });
+  // (101/102 print these on separate ruled lines — their extras hook
+  // fills them line by line and the core skips the single-field fill.)
+  if (!cfg.multiLine) {
+    const chattels: string[] = deal.chattels || [];
+    const exclusions: string[] = deal.exclusions || [];
+    MF("txtp_propincludes", chattels.length ? chattels.join(", ") : "None", 9);
+    MF("txtp_propexcludes", exclusions.length ? exclusions.join(", ") : "None", 9);
+    const rentals: any[] = deal.rental_items || [];
+    MF(
+      "txtp_LeasedItems",
+      rentals.length
+        ? rentals
+            .map((r) =>
+              r.monthly !== "" && r.monthly != null && Number(r.monthly) > 0
+                ? `${r.desc} - rental at $${Number(r.monthly).toFixed(2)}/month`
+                : `${r.desc}`
+            )
+            .join("; ")
+        : "None",
+      9
+    );
+  }
+  if (cfg.hstField) {
+    if (setExistingField(form, cfg.hstField, HST_TEXT[deal.hst])) {
+      setFieldFontSize(form, cfg.hstField, 10);
+    }
+  } else {
+    createField(doc, form, doc.getPage(1), "rea_hst", HST_RECT, HST_TEXT[deal.hst], { size: 10 });
+  }
 
   // Page 3 — requisition (title search) date on the dotted line
   const tsd = deal.title_search_date;
-  for (const part of ["day", "month", "year"] as const) {
-    const [x, y] = REQ_DATE_POS[part];
-    createField(doc, form, doc.getPage(2), `rea_req_${part}`, [x, y - 12, x + 46, y + 2], tsd[part], { size: 9.5 });
+  if (cfg.reqFields) {
+    for (const part of ["day", "month", "year"] as const) {
+      const raw = cfg.reqFields[part];
+      if (setExistingField(form, raw, tsd[part])) setFieldFontSize(form, raw, 10);
+    }
+  } else {
+    for (const part of ["day", "month", "year"] as const) {
+      const [x, y] = REQ_DATE_POS[part];
+      createField(doc, form, doc.getPage(2), `rea_req_${part}`, [x, y - 12, x + 46, y + 2], tsd[part], { size: 9.5 });
+    }
   }
+
+  // Form-specific blocks (condo / co-op details, ruled-line paragraphs)
+  if (cfg.extras) cfg.extras(doc, form, deal, helvetica);
 
   // Schedule A — page 6 + continuation pages replicating page 6
   const chunks = chunkParagraphs(paragraphs, helvetica);
@@ -696,16 +745,205 @@ export async function buildForm100(
   }
 
   const semToRaw100: Record<string, string> = {};
-  for (const [sem, m] of Object.entries(mapping100 as any)) {
+  for (const [sem, m] of Object.entries(cfg.mapping as any)) {
     if (m && typeof m === "object" && (m as any).blank) {
       semToRaw100[sem] = (m as any).blank;
     }
   }
-  applyCalibration(form, (mapping100 as any).calibration, semToRaw100);
+  applyCalibration(form, (cfg.mapping as any).calibration, semToRaw100);
   form.updateFieldAppearances(helvetica);
   const finalDoc = await stripCreatedFieldBackgrounds(doc);
   const bytes = await finalDoc.save();
   return { bytes, pages: total };
+}
+
+export async function buildForm100(
+  deal: any,
+  paragraphs: string[],
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildApsCore(deal, paragraphs, templateBytes, {
+    mapping: mapping100,
+    topDate: TOP_DATE_WIDGETS,
+  });
+}
+
+// Wrap a long value across a form's ruled line fields (Forms 101/102
+// print chattels / fixtures / rentals / expense details on separate
+// one-line fields instead of one big box).
+function fillApsLines(
+  form: PDFForm,
+  helvetica: PDFFont,
+  lines: { name: string; w: number }[],
+  text: string
+): void {
+  if (!lines || lines.length === 0) return;
+  // Greedy per-line fill: each ruled line takes as many whole words as
+  // fit its own width (the first line of a block is often short — it
+  // starts mid-sentence after the printed lead-in). Any remainder
+  // lands on the last line so nothing is silently dropped.
+  const words = String(text).split(/\s+/).filter(Boolean);
+  let wi = 0;
+  lines.forEach((ln, i) => {
+    let cur = "";
+    while (wi < words.length) {
+      const t = cur ? cur + " " + words[wi] : words[wi];
+      if (helvetica.widthOfTextAtSize(t, 9.5) > ln.w && cur) break;
+      cur = t;
+      wi++;
+    }
+    if (i === lines.length - 1 && wi < words.length) {
+      cur = (cur ? cur + " " : "") + words.slice(wi).join(" ");
+    }
+    if (cur && setExistingField(form, ln.name, cur)) {
+      setFieldFontSize(form, ln.name, 9.5);
+    }
+  });
+}
+
+function apsLineTexts(deal: any): { includes: string; excludes: string; rentals: string } {
+  const chattels: string[] = deal.chattels || [];
+  const exclusions: string[] = deal.exclusions || [];
+  const rentals: any[] = deal.rental_items || [];
+  return {
+    includes: chattels.length ? chattels.join(", ") : "None",
+    excludes: exclusions.length ? exclusions.join(", ") : "None",
+    rentals: rentals.length
+      ? rentals
+          .map((r) =>
+            r.monthly !== "" && r.monthly != null && Number(r.monthly) > 0
+              ? `${r.desc} - rental at $${Number(r.monthly).toFixed(2)}/month`
+              : `${r.desc}`
+          )
+          .join("; ")
+      : "None",
+  };
+}
+
+function semSetter(form: PDFForm, mapping: any) {
+  return (sem: string, v: any) => {
+    if (v === null || v === undefined || String(v).trim() === "") return;
+    const m = (mapping as any)[sem];
+    if (m?.blank && setExistingField(form, m.blank, String(v))) {
+      setFieldFontSize(form, m.blank, 10);
+    }
+  };
+}
+
+// Form 101 extras — the condominium block on page 1, the common
+// expenses + parking/locker paragraphs on page 2, the Property
+// Manager line on page 5, and the ruled-line paragraphs.
+function fill101Extras(doc: PDFDocument, form: PDFForm, deal: any, helvetica: PDFFont): void {
+  void doc;
+  const M: any = mapping101;
+  const set = semSetter(form, M);
+  const c = deal.condo || {};
+  set("condo_unit_type", c.unit_type);
+  set("condo_unit_no", c.unit_no ?? c.unit_number);
+  set("condo_corp", c.corporation_name);
+  set("condo_plan", c.plan_no);
+  set("condo_unit_number", c.unit_number ?? c.unit_no);
+  set("condo_level", c.level_no);
+  set("condo_building", c.building_no);
+  set("condo_parking_no", c.parking_no);
+  set("condo_parking_level", c.parking_level);
+  set("condo_locker_no", c.locker_no);
+  set("condo_locker_level", c.locker_level);
+  if (c.common_expenses) set("condo_exp_amount", fmtMoney(c.common_expenses));
+  if (c.common_includes) fillApsLines(form, helvetica, M._lines.exp_includes, String(c.common_includes));
+  if (c.parking_assigned) fillApsLines(form, helvetica, M._lines.parking_assigned, String(c.parking_assigned));
+  set("condo_parking_cost", c.parking_cost);
+  set("pm_name", c.property_manager_name);
+  set("pm_address", c.property_manager_address);
+  set("pm_phone", c.property_manager_phone);
+  set("pm_fax", c.property_manager_fax);
+  const t = apsLineTexts(deal);
+  fillApsLines(form, helvetica, M._lines.includes, t.includes);
+  fillApsLines(form, helvetica, M._lines.excludes, t.excludes);
+  fillApsLines(form, helvetica, M._lines.rentals, t.rentals);
+}
+
+export async function buildForm101(
+  deal: any,
+  paragraphs: string[],
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildApsCore(deal, paragraphs, templateBytes, {
+    mapping: mapping101,
+    topDate: (mapping101 as any)._top_date,
+    addressField: "txtp_address",
+    hstField: (mapping101 as any)._hst_field,
+    reqFields: (mapping101 as any)._req_fields,
+    multiLine: true,
+    extras: fill101Extras,
+  });
+}
+
+// Form 102 extras — the co-operative block on page 1 (unit, parking,
+// locker, shares, corporation), maintenance expenses + parking on
+// pages 2-3, the board-approval deadline in ¶10, the Property
+// Manager line, and the ruled-line paragraphs.
+function fill102Extras(doc: PDFDocument, form: PDFForm, deal: any, helvetica: PDFFont): void {
+  void doc;
+  const M: any = mapping102;
+  const set = semSetter(form, M);
+  const c = deal.cooperative || {};
+  set("coop_unit", c.unit);
+  set("coop_parking_no", c.parking_no);
+  set("coop_parking_level", c.parking_level);
+  set("coop_locker_no", c.locker_no);
+  set("coop_locker_level", c.locker_level);
+  set("coop_shares", c.shares);
+  set("coop_corp", c.corporation_name);
+  if (c.maintenance_expenses) set("coop_exp_amount", fmtMoney(c.maintenance_expenses));
+  if (c.maintenance_includes) fillApsLines(form, helvetica, M._lines.exp_includes, String(c.maintenance_includes));
+  if (c.parking_assigned) fillApsLines(form, helvetica, M._lines.parking_assigned, String(c.parking_assigned));
+  set("coop_parking_cost", c.parking_cost);
+  const ap = c.approval_date || {};
+  set("coop_approval_day", ap.day);
+  set("coop_approval_month", ap.month);
+  set("coop_approval_year", ap.year);
+  set("pm_line", c.property_manager);
+  const t = apsLineTexts(deal);
+  fillApsLines(form, helvetica, M._lines.includes, t.includes);
+  fillApsLines(form, helvetica, M._lines.excludes, t.excludes);
+  fillApsLines(form, helvetica, M._lines.rentals, t.rentals);
+}
+
+export async function buildForm102(
+  deal: any,
+  paragraphs: string[],
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildApsCore(deal, paragraphs, templateBytes, {
+    mapping: mapping102,
+    topDate: (mapping102 as any)._top_date,
+    addressField: "txtp_address",
+    hstField: (mapping102 as any)._hst_field,
+    reqFields: (mapping102 as any)._req_fields,
+    multiLine: true,
+    extras: fill102Extras,
+  });
+}
+
+// APS validation for the condo / co-op variants: the shared core,
+// except the freehold legal description (the condo corporation /
+// plan / unit block and the co-op corporation / shares block take
+// its place), plus the form-specific requireds.
+export function validateAps(deal: any, kind: "101" | "102"): string[] {
+  const missing = validateDeal(deal).filter(
+    (m) => m !== "property.legal_description"
+  );
+  if (kind === "101") {
+    req(deal, "condo.corporation_name", missing);
+    req(deal, "condo.plan_no", missing);
+    req(deal, "condo.unit_no", missing);
+  } else {
+    req(deal, "cooperative.corporation_name", missing);
+    req(deal, "cooperative.shares", missing);
+    req(deal, "cooperative.unit", missing);
+  }
+  return missing;
 }
 
 // ---------------------------------------------------------------------------
