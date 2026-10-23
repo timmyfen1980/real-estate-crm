@@ -28,6 +28,9 @@ export default function ClientFileDetailPage() {
   const [activeTab, setActiveTab] = useState<ChecklistType | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+  const [showDeal, setShowDeal] = useState(false);
+  const [showOptional, setShowOptional] = useState<Record<string, boolean>>({});
   const [editingDeal, setEditingDeal] = useState(false);
   const [savingDeal, setSavingDeal] = useState(false);
   // Deal form fields
@@ -842,6 +845,52 @@ export default function ClientFileDetailPage() {
     if (f.includes('272')) return '272';
     return null;
   })();
+  // Row actions (cleanup, 2026-10-23): the checklist rows themselves
+  // carry the fill/prepare actions — the same buttons used to also
+  // live in the Contact Details card, which is why the page doubled
+  // up. One home per action: the row.
+  const docAction = (doc: ClientDocument) => {
+    if (['received', 'waived', 'na'].includes(doc.status)) return null;
+    const form = doc.form || '';
+    const name = doc.document || '';
+    const btn =
+      'mt-2 mr-2 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg';
+    const ghost =
+      'mt-2 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300';
+    if (form.includes('630') || name.includes('Individual Identification')) {
+      return (
+        <button onClick={() => void handleGenerate630()} className={btn}>
+          Fill ID Record (630)
+        </button>
+      );
+    }
+    if (form.includes('635') || name.includes('Receipt of Funds')) {
+      return (
+        <button onClick={() => handleGenerate635()} className={btn}>
+          Fill Receipt of Funds (635)
+        </button>
+      );
+    }
+    if (name.toLowerCase().includes('representation agreement')) {
+      const isListing = (form + ' ' + name).includes('271') || (form + ' ' + name).includes('272');
+      const k = isListing ? listingKindHere : repKindHere;
+      if (!k) return null;
+      return (
+        <>
+          <button onClick={isListing ? openLstPrep : openRepPrep} className={btn}>
+            Prepare Form {k}
+          </button>
+          <button onClick={repChipAction} className={ghost}>
+            {filePackages[0] ? 'Open offer package →' : 'Start offer package'}
+          </button>
+          {repDocs[0]?.file_url && (
+            <span className="text-xs text-gray-500 ml-1">Prepared — ready to send for signature</span>
+          )}
+        </>
+      );
+    }
+    return null;
+  };
   // Clickable readiness chips (Tim, 2026-10-23): each chip DOES the
   // thing — fill the form, send the request, or open/start the offer
   // package the item belongs to.
@@ -947,11 +996,13 @@ export default function ClientFileDetailPage() {
             needed before this contact is a ready client?" */}
         <div className="mt-5 border-t pt-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Client readiness
-            <span className="ml-2 font-normal normal-case text-gray-400">— click a chip to act on it</span>
+            {readyChips.filter((c) => c.done).length} of {readyChips.length} ready
+            {readyChips.some((c) => !c.done) && (
+              <span className="ml-2 font-normal normal-case text-gray-400">— still needed, click to act on it:</span>
+            )}
           </p>
           <div className="flex flex-wrap gap-2">
-            {readyChips.map((c) => (
+            {readyChips.filter((c) => !c.done).map((c) => (
               <button
                 key={c.label}
                 onClick={c.onClick}
@@ -974,51 +1025,52 @@ export default function ClientFileDetailPage() {
           </div>
         </div>
 
-        {/* Client portal panel */}
-        <div className="mt-5 border rounded-xl p-4 bg-gray-50">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        {/* Client portal — a slim row of actions, not a panel */}
+        <div className="mt-4 flex items-center flex-wrap gap-2">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
             Client Portal
-          </p>
-            {!file.portal_enabled ? (
+          </span>
+          {!file.portal_enabled ? (
+            <button
+              onClick={handleEnablePortal}
+              disabled={portalBusy}
+              className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50"
+            >
+              {portalBusy ? 'Generating…' : 'Enable Client Portal'}
+            </button>
+          ) : (
+            <>
+              <span className="text-xs text-green-700 font-medium">✓ Enabled</span>
               <button
-                onClick={handleEnablePortal}
-                disabled={portalBusy}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                onClick={copyPortalLink}
+                className="px-3 py-1.5 bg-gray-100 text-gray-800 rounded-lg text-xs font-medium hover:bg-gray-200"
               >
-                {portalBusy ? 'Generating…' : 'Enable Client Portal'}
+                {copied ? 'Copied!' : 'Copy Client Link'}
               </button>
-            ) : (
-              <div>
-                <p className="text-xs text-green-700 font-medium mb-2">✓ Client portal enabled</p>
-                <button
-                  onClick={copyPortalLink}
-                  className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200"
-                >
-                  {copied ? 'Copied!' : 'Copy Client Link'}
-                </button>
-                <button
-                  onClick={copyIdRequest}
-                  className="mt-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium hover:bg-blue-200"
-                >
-                  Copy ID Request
-                </button>
-                <p className="text-xs text-gray-500 mt-2">
-                  Send this link to the client — they can view their checklist and upload documents.
-                </p>
-              </div>
-            )}        </div>
+              <button
+                onClick={copyIdRequest}
+                className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium hover:bg-blue-200"
+              >
+                Copy ID Request
+              </button>
+            </>
+          )}
+        </div>
 
         {/* Contact details — mirrors the contact record (same data,
             editable from either place) */}
         {file.crm_contact_id && contact && (
           <div className="mt-5 border-t pt-4">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">
-                Contact Details
+              <button
+                onClick={() => setShowContact(!showContact)}
+                className="text-sm font-semibold text-gray-700 text-left"
+              >
+                {showContact ? '▾' : '▸'} Contact Details
                 <span className="ml-2 text-xs font-normal text-gray-400">
                   the same record as the contact page — edits here update it there too
                 </span>
-              </h3>
+              </button>
               <div className="flex gap-2">
                 <Link
                   href={`/dashboard/contacts/${file.crm_contact_id}`}
@@ -1028,7 +1080,7 @@ export default function ClientFileDetailPage() {
                 </Link>
                 {!editingContact ? (
                   <button
-                    onClick={() => setEditingContact(true)}
+                    onClick={() => { setShowContact(true); setEditingContact(true); }}
                     className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                   >
                     Edit details
@@ -1052,6 +1104,7 @@ export default function ClientFileDetailPage() {
                 )}
               </div>
             </div>
+            {showContact && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
               {contactFields.map((f) => {
                 const val = (cForm[f.key] || '').trim();
@@ -1083,121 +1136,6 @@ export default function ClientFileDetailPage() {
                 );
               })}
             </div>
-
-            {/* FINTRAC forms live with the facts they feed on.
-                Proper names (Tim, 2026-10-23): 630 = Individual
-                Identification Information Record; 635 = Receipt of
-                Funds Record — due for a buyer only once there's an
-                accepted offer, prefilled from the deal's deposit. */}
-            <div className="mt-4 border-t pt-3">
-              <div className="flex items-center flex-wrap gap-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
-                  FINTRAC
-                </span>
-                {file.crm_contact_id && (
-                  <>
-                    <button
-                      onClick={handleGenerate630}
-                      className={has630 ? "px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
-                    >
-                      {has630 ? '✓ ID Record (630)' : 'Fill ID Record (630)'}
-                    </button>
-                    <button
-                      onClick={handleGenerate635}
-                      className={has635 ? "px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg border border-green-600" : "px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"}
-                    >
-                      {has635 ? '✓ Receipt of Funds (635)' : 'Receipt of Funds (635)'}
-                    </button>
-                  </>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Individual Identification Information Record (630):{' '}
-                {has630 ? 'on file ✓' : 'not filed yet'}
-                {' · '}
-                Receipt of Funds Record (635):{' '}
-                {has635
-                  ? 'on file ✓'
-                  : fundsDue
-                    ? 'due now — there is an accepted offer'
-                    : isBuyerFile
-                      ? 'after an accepted offer'
-                      : 'when funds are received'}
-              </p>
-            </div>
-
-            {/* Representation agreement — prepare the 371/372 from here */}
-            {repKindHere && (
-              <div className="mt-3 flex items-center flex-wrap gap-2 border-t pt-3">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
-                  Representation
-                </span>
-                <button
-                  onClick={openRepPrep}
-                  className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"
-                >
-                  Prepare Form {repKindHere}
-                </button>
-                {filePackages[0] ? (
-                  <button
-                    onClick={() => router.push(`/dashboard/offers/${filePackages[0].id}#rep`)}
-                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
-                  >
-                    Open offer package →
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void startPackage()}
-                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
-                  >
-                    Start offer package
-                  </button>
-                )}
-                <span className="text-xs text-gray-500 ml-1">
-                  {repReceived
-                    ? 'Signed copy on file ✓'
-                    : repDocs[0]?.file_url
-                      ? 'Prepared — ready to send for signature'
-                      : 'Not prepared yet'}
-                </span>
-              </div>
-            )}
-
-            {/* Listing agreement — prepare the 271/272 from here */}
-            {listingKindHere && (
-              <div className="mt-3 flex items-center flex-wrap gap-2 border-t pt-3">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
-                  Listing
-                </span>
-                <button
-                  onClick={openLstPrep}
-                  className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"
-                >
-                  Prepare Form {listingKindHere}
-                </button>
-                {filePackages[0] ? (
-                  <button
-                    onClick={() => router.push(`/dashboard/offers/${filePackages[0].id}#listing`)}
-                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
-                  >
-                    Open offer package →
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void startPackage()}
-                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 font-medium"
-                  >
-                    Start offer package
-                  </button>
-                )}
-                <span className="text-xs text-gray-500 ml-1">
-                  {repReceived
-                    ? 'Signed copy on file ✓'
-                    : repDocs[0]?.file_url
-                      ? 'Prepared — ready to send for signature'
-                      : 'Not prepared yet'}
-                </span>
-              </div>
             )}
           </div>
         )}
@@ -1205,7 +1143,12 @@ export default function ClientFileDetailPage() {
         {/* Deal info - editable */}
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700">Deal Details</h3>
+            <button
+              onClick={() => setShowDeal(!showDeal)}
+              className="text-sm font-semibold text-gray-700 text-left"
+            >
+              {showDeal ? '▾' : '▸'} Deal Details
+            </button>
             <div className="flex gap-2">
               {file.crm_contact_id && !editingDeal && (
                 <button
@@ -1217,7 +1160,7 @@ export default function ClientFileDetailPage() {
               )}
               {!editingDeal ? (
                 <button
-                  onClick={() => setEditingDeal(true)}
+                  onClick={() => { setShowDeal(true); setEditingDeal(true); }}
                   className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
                 >
                   Edit Details
@@ -1242,6 +1185,7 @@ export default function ClientFileDetailPage() {
             </div>
           </div>
 
+          {showDeal && (<>
           {/* Deal picker modal */}
           {showDealPicker && (
             <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
@@ -1405,6 +1349,7 @@ export default function ClientFileDetailPage() {
               )}
             </>
           )}
+          </>)}
         </div>
       </div>
 
@@ -1780,14 +1725,28 @@ export default function ClientFileDetailPage() {
           {stages.map((stage, si) => {
             const stageDocs = tabDocs.filter((d) => d.stage_index === si);
             if (stageDocs.length === 0) return null;
+            const reqDocs = stageDocs.filter((d) => d.required === 'required');
+            const optDocs = stageDocs.filter((d) => d.required !== 'required');
+            const stageReceived = stageDocs.filter((d) =>
+              ['received', 'waived', 'na'].includes(d.status)
+            ).length;
+            const optKey = `${activeTab}-${si}`;
+            const visibleDocs =
+              showOptional[optKey] || reqDocs.length === 0 ? stageDocs : reqDocs;
             return (
               <div key={si} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
                   <h3 className="font-semibold">{stage.title}</h3>
-                  <p className="text-sm text-gray-500">{stage.description}</p>
+                  <p className="text-sm text-gray-500">
+                    {stage.description}
+                    <span className="text-gray-400">
+                      {' '}
+                      · {stageReceived} of {stageDocs.length} received
+                    </span>
+                  </p>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {stageDocs.map((doc) => {
+                  {visibleDocs.map((doc) => {
                     const badge = REQUIRED_BADGE[doc.required] || REQUIRED_BADGE.required;
                     return (
                       <div
@@ -1862,6 +1821,7 @@ export default function ClientFileDetailPage() {
                               View form →
                             </a>
                           )}
+                          <div>{docAction(doc)}</div>
                         </div>
                         <div className="flex flex-col gap-2 items-end">
                           <select
@@ -1904,6 +1864,18 @@ export default function ClientFileDetailPage() {
                     );
                   })}
                 </div>
+                {optDocs.length > 0 && reqDocs.length > 0 && (
+                  <button
+                    onClick={() =>
+                      setShowOptional({ ...showOptional, [optKey]: !showOptional[optKey] })
+                    }
+                    className="w-full px-5 py-2.5 text-xs text-gray-500 hover:bg-gray-50 border-t border-gray-100 text-left"
+                  >
+                    {showOptional[optKey]
+                      ? '▴ Hide optional documents'
+                      : `▾ Show ${optDocs.length} optional document${optDocs.length === 1 ? '' : 's'}`}
+                  </button>
+                )}
               </div>
             );
           })}
