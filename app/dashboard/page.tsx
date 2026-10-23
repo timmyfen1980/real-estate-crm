@@ -518,6 +518,14 @@ export default function Dashboard() {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md p-4">
       <div className="space-y-4">
+        {/* GETTING STARTED — one pointer line for a first-timer (Beth):
+            where client documents and offers live. */}
+        <p className="text-sm text-gray-500 px-1">
+          New here? Client documents live in <span className="font-medium text-gray-700">Client Files</span> (sidebar).
+          Offers are built under <span className="font-medium text-gray-700">Prepare an Offer</span>.
+          Rea, bottom-right, can answer questions and start things for you.
+        </p>
+
         {/* COMMAND BAR — PERFORMANCE MODE */}
         <div className="bg-gray-900 text-white rounded-xl px-5 py-3 flex gap-10 text-sm items-center shadow-md">
           <button
@@ -597,7 +605,7 @@ export default function Dashboard() {
             >
               {!collapsed.attention && (
                 attentionLeads.length === 0 && overdueTasks.length === 0 ? (
-                  <EmptyState text="Nothing needs attention." />
+                  <EmptyState text="Nothing needs attention — you're all caught up." />
                 ) : (
                   <div className="space-y-6">
 

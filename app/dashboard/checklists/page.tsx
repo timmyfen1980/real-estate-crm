@@ -103,9 +103,10 @@ export default function ChecklistsPage() {
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Client Checklists</h1>
+          <h1 className="text-2xl font-bold">Client Files</h1>
           <p className="text-gray-500 mt-1">
             Track paperwork for every client file — what&apos;s collected, what&apos;s outstanding.
+            Open a file to see what&apos;s still needed and to send the client their upload link.
           </p>
         </div>
         <Link
@@ -201,6 +202,11 @@ export default function ChecklistsPage() {
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
                     <span>
                       {p.received} of {p.total} documents
+                      {p.total > p.received
+                        ? ` · ${p.total - p.received} still to collect`
+                        : p.total > 0
+                          ? ' · all collected'
+                          : ''}
                     </span>
                     <span>{pct}%</span>
                   </div>

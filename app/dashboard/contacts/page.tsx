@@ -245,7 +245,12 @@ const bulkDelete = async () => {
 
         <div className="p-8 border-b space-y-6">
           <div className="flex items-center justify-between mb-6">
-  <h1 className="text-2xl font-semibold">Contacts</h1>
+  <div>
+    <h1 className="text-2xl font-semibold">Contacts</h1>
+    <p className="text-sm text-gray-500 mt-1">
+      Everyone the team knows. A client&apos;s paperwork lives in their Client File — see Client Files in the sidebar.
+    </p>
+  </div>
 
   <div className="flex gap-3">
     <button
@@ -266,7 +271,7 @@ const bulkDelete = async () => {
 
           <div className="grid md:grid-cols-4 gap-4">
             <input
-              placeholder="Search..."
+              placeholder="Search by name, email, or phone…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="border rounded px-4 py-2"
@@ -398,6 +403,12 @@ const bulkDelete = async () => {
             ))}
           </tbody>
         </table>
+
+        {paginated.length === 0 && (
+          <p className="text-center text-sm text-gray-500 py-8">
+            No contacts match — try a different search, or clear the filters above.
+          </p>
+        )}
 
         <div className="flex justify-center gap-4 p-6">
           <button

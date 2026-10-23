@@ -399,7 +399,7 @@ const handleLogout = async () => {
           <Link href="/dashboard/checklists" className={navItemClass('/dashboard/checklists')}>
             <span className="flex items-center gap-3">
               <ListChecks className={iconClass} />
-              <span>Checklists</span>
+              <span>Client Files</span>
             </span>
           </Link>
 
@@ -479,7 +479,7 @@ const handleLogout = async () => {
           <Link href="/dashboard/documents" className={navItemClass('/dashboard/documents')}>
             <span className="flex items-center gap-3">
               <FolderOpen className={iconClass} />
-              <span>Documents</span>
+              <span>Team Documents</span>
             </span>
           </Link>
 
@@ -502,7 +502,7 @@ const handleLogout = async () => {
           <Link href="/dashboard/send-tenant-link" className={navItemClass('/dashboard/send-tenant-link')}>
             <span className="flex items-center gap-3">
               <Link2 className={iconClass} />
-              <span>Tenant Link</span>
+              <span>Send Tenant Link</span>
             </span>
           </Link>
 

@@ -307,7 +307,11 @@ export default function NewClientFilePage() {
       <Link href="/dashboard/checklists" className="text-sm text-blue-600 hover:underline">
         ← Back to client files
       </Link>
-      <h1 className="text-2xl font-bold mt-2 mb-6">New Client File</h1>
+      <h1 className="text-2xl font-bold mt-2 mb-2">New Client File</h1>
+      <p className="text-sm text-gray-500 mb-6">
+        One file per client — it holds their document checklist. After you create it,
+        turn on the client portal on the file to start collecting documents.
+      </p>
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white border border-gray-200 rounded-xl p-6">
         {/* Checklist types */}
