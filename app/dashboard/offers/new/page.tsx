@@ -140,7 +140,7 @@ export default function StartOfferPage() {
       : ''
     setPrefillNote(
       (source === 'DLA'
-        ? 'Filled from the DLA back-office feed.'
+        ? 'Filled in from the listing records.'
         : 'Filled the basics from the listing feed.') + listed
     )
   }
@@ -451,8 +451,8 @@ export default function StartOfferPage() {
           <div className="border-t pt-4">
             <p className="text-sm text-gray-600">
               Got the listing's Schedule B too? Add the PDF here and it goes straight into the
-              package. (It comes from REALM like the sheet — the listing data feed carries
-              details, not documents.)
+              package. (Documents like this come from the listing itself — the data feed
+              carries the listing's details, not its documents.)
             </p>
             <div className="flex items-center gap-3 mt-2">
               <label className="text-sm border px-3 py-2 rounded-md hover:bg-gray-100 transition cursor-pointer whitespace-nowrap">

@@ -230,7 +230,8 @@ export default function OffersPage() {
         {loading && <p className="text-gray-500">Loading…</p>}
         {!loading && !tableMissing && packages.length === 0 && (
           <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-500">
-            No offer packages yet. Generate an offer and it will be saved here automatically.
+            No offer packages yet — use Prepare an Offer (top right) to start one, and it
+            will be saved here automatically.
           </div>
         )}
 
@@ -250,7 +251,10 @@ export default function OffersPage() {
                 </Link>
                 {pkg.mls && <span className="text-xs bg-gray-100 rounded-full px-2 py-1">MLS# {pkg.mls}</span>}
                 {pkg.partial && (
-                  <span className="text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-1">
+                  <span
+                    className="text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-1"
+                    title="Some answers are still missing — open the package to finish them"
+                  >
                     Partial draft
                   </span>
                 )}
@@ -259,6 +263,7 @@ export default function OffersPage() {
                   {new Date(pkg.created_at).toLocaleDateString('en-CA')}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
+                  <span className="text-xs text-gray-400">Status</span>
                   <select
                     className="border rounded-md px-2 py-1.5 text-sm"
                     value={pkg.status}
