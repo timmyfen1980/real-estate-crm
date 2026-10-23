@@ -70,6 +70,8 @@ export default function ClientFileDetailPage() {
     commPct: string;
     commLease: string;
     holdover: string;
+    geo: string;
+    propType: string;
   }>(null);
   const [repBusy, setRepBusy] = useState(false);
   const [contact, setContact] = useState<any>(null);
@@ -106,6 +108,8 @@ export default function ClientFileDetailPage() {
       if (cData) {
         setContact(cData);
         setCForm({
+          first_name: cData.first_name || '',
+          last_name: cData.last_name || '',
           phone: cData.phone || '',
           email: cData.email || '',
           address: cData.address || '',
@@ -221,6 +225,8 @@ export default function ClientFileDetailPage() {
       commPct: '2.5',
       commLease: '',
       holdover: '90',
+      geo: cForm.city || '',
+      propType: 'Residential',
     });
   };
 
@@ -242,6 +248,8 @@ export default function ClientFileDetailPage() {
             commission_purchase_pct: repPrep.commPct,
             commission_lease: repPrep.commLease || undefined,
             holdover_days: repPrep.holdover,
+            geographic_location: repPrep.geo || undefined,
+            property_type_use: repPrep.propType || undefined,
           },
         }),
       });
@@ -276,6 +284,8 @@ export default function ClientFileDetailPage() {
     const { data, error } = await supabase
       .from('contacts')
       .update({
+        first_name: clean(cForm.first_name),
+        last_name: clean(cForm.last_name),
         phone: clean(cForm.phone),
         email: clean(cForm.email),
         address: clean(cForm.address),
@@ -625,6 +635,8 @@ export default function ClientFileDetailPage() {
     { label: 'Client portal', done: !!file.portal_enabled, todo: 'not enabled' },
   ];
   const contactFields: { key: string; label: string; type?: string; fintrac?: boolean }[] = [
+    { key: 'first_name', label: 'First name' },
+    { key: 'last_name', label: 'Last name' },
     { key: 'phone', label: 'Phone' },
     { key: 'email', label: 'Email' },
     { key: 'address', label: 'Address' },
@@ -1193,6 +1205,26 @@ export default function ClientFileDetailPage() {
                   value={repPrep.commLease}
                   onChange={(e) => setRepPrep({ ...repPrep, commLease: e.target.value })}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Geographic location</label>
+                  <input
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    placeholder="e.g. Durham Region"
+                    value={repPrep.geo}
+                    onChange={(e) => setRepPrep({ ...repPrep, geo: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Property type / use</label>
+                  <input
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    placeholder="e.g. Residential"
+                    value={repPrep.propType}
+                    onChange={(e) => setRepPrep({ ...repPrep, propType: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
             <div className="mt-5 flex gap-2 justify-end">

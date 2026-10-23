@@ -85,7 +85,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Contact not found' }, { status: 404 });
     }
 
-    const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+    let fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+    if (!fullName) {
+      // Fall back to the client file's own names (a file can carry
+      // names the contact record hasn't been given yet).
+      const { data: cfRow } = await supabase
+        .from('client_files')
+        .select('client_names')
+        .eq('id', client_file_id)
+        .single();
+      fullName = String(cfRow?.client_names || '').split(',')[0].trim();
+    }
     const todayISO = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
     const startISO = answers.term_start || todayISO;
     const endISO = answers.term_end || isoPlusMonths(startISO, 6);
