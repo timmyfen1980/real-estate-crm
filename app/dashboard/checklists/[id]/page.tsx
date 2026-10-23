@@ -736,12 +736,6 @@ export default function ClientFileDetailPage() {
     );
   const has630 = fintracFiled('630', 'Individual Identification');
   const has635 = fintracFiled('635', 'Receipt of Funds');
-  // Receipt of Funds timing (Tim, 2026-10-23): it belongs to a
-  // purchase — a buyer file with an accepted offer (a deal on the
-  // contact, or an offer date on this file).
-  const offerAccepted = contactDeals.length > 0 || !!file.deal_dates?.offer_date;
-  const isBuyerFile = file.checklist_types.includes('buyer');
-  const fundsDue = isBuyerFile && offerAccepted && !has635;
   const idDocReceived = docs.some((d) => {
     const n = (d.document || '').toLowerCase();
     return (
@@ -891,60 +885,6 @@ export default function ClientFileDetailPage() {
     }
     return null;
   };
-  // Clickable readiness chips (Tim, 2026-10-23): each chip DOES the
-  // thing — fill the form, send the request, or open/start the offer
-  // package the item belongs to.
-  const readyChips: {
-    label: string;
-    done: boolean;
-    todo: string;
-    neutral?: boolean;
-    onClick: () => void;
-  }[] = [
-    {
-      label: 'Photo ID',
-      done: idDocReceived,
-      todo: 'needed — click to copy the ID request',
-      onClick: () => (idDocReceived ? scrollToDocs() : void copyIdRequest()),
-    },
-    {
-      label: 'ID Record (630)',
-      done: has630,
-      todo: 'not filed — click to fill it',
-      onClick: () => (has630 ? scrollToDocs() : void handleGenerate630()),
-    },
-    ...(isBuyerFile || has635
-      ? [
-          {
-            label: 'Receipt of Funds (635)',
-            done: has635,
-            todo: fundsDue
-              ? 'due now — click to fill it'
-              : 'after an accepted offer',
-            neutral: !has635 && !fundsDue,
-            onClick: () => (has635 ? scrollToDocs() : handleGenerate635()),
-          },
-        ]
-      : []),
-    ...(repDocs.length
-      ? [
-          {
-            label: 'Representation agreement',
-            done: repReceived,
-            todo: repDocs[0]?.file_url
-              ? 'prepared — click to open the offer package'
-              : 'agent to send — click to prepare it',
-            onClick: repChipAction,
-          },
-        ]
-      : []),
-    {
-      label: 'Client portal',
-      done: !!file.portal_enabled,
-      todo: 'not enabled — click to enable',
-      onClick: () => (file.portal_enabled ? void copyPortalLink() : void handleEnablePortal()),
-    },
-  ];
   const contactFields: { key: string; label: string; type?: string; fintrac?: boolean }[] = [
     { key: 'first_name', label: 'First name' },
     { key: 'last_name', label: 'Last name' },
@@ -992,39 +932,6 @@ export default function ClientFileDetailPage() {
             </button>
           </div>
         </div>
-        {/* Readiness strip — the one-glance answer to "what's still
-            needed before this contact is a ready client?" */}
-        <div className="mt-5 border-t pt-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            {readyChips.filter((c) => c.done).length} of {readyChips.length} ready
-            {readyChips.some((c) => !c.done) && (
-              <span className="ml-2 font-normal normal-case text-gray-400">— still needed, click to act on it:</span>
-            )}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {readyChips.filter((c) => !c.done).map((c) => (
-              <button
-                key={c.label}
-                onClick={c.onClick}
-                title="Click to act on this item"
-                className={
-                  c.done
-                    ? 'text-xs px-2.5 py-1.5 rounded-full border bg-green-50 border-green-300 text-green-800 font-medium hover:bg-green-100 transition'
-                    : c.neutral
-                      ? 'text-xs px-2.5 py-1.5 rounded-full border bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100 transition'
-                      : 'text-xs px-2.5 py-1.5 rounded-full border bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100 transition'
-                }
-              >
-                {c.done ? '✓ ' : '○ '}
-                {c.label}
-                {!c.done && (
-                  <span className={c.neutral ? 'text-gray-400' : 'text-amber-600'}> — {c.todo}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Client portal — a slim row of actions, not a panel */}
         <div className="mt-4 flex items-center flex-wrap gap-2">
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
@@ -1057,10 +964,212 @@ export default function ClientFileDetailPage() {
           )}
         </div>
 
+      </div>
+
+      {/* Checklist tabs */}
+      <div id="client-docs" className="flex gap-2 mt-6 border-b border-gray-200">
+        {file.checklist_types.map((t) => {
+          const ct = t as ChecklistType;
+          const count = docs.filter(
+            (d) => d.checklist_type === ct && ['received', 'waived', 'na'].includes(d.status)
+          ).length;
+          const total = docs.filter((d) => d.checklist_type === ct).length;
+          return (
+            <button
+              key={t}
+              onClick={() => setActiveTab(ct)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+                activeTab === ct
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {CHECKLIST_TYPE_LABELS[ct]} ({count}/{total})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Stages */}
+      {activeTab && (
+        <div className="mt-6 space-y-8">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              {received} of {tabDocs.length} documents received
+            </p>
+            <button
+              onClick={handleDownloadAll}
+              disabled={downloadingAll}
+              className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+            >
+              {downloadingAll ? 'Preparing…' : 'Download all files'}
+            </button>
+          </div>
+          {stages.map((stage, si) => {
+            const stageDocs = tabDocs.filter((d) => d.stage_index === si);
+            if (stageDocs.length === 0) return null;
+            const reqDocs = stageDocs.filter((d) => d.required === 'required');
+            const optDocs = stageDocs.filter((d) => d.required !== 'required');
+            const stageReceived = stageDocs.filter((d) =>
+              ['received', 'waived', 'na'].includes(d.status)
+            ).length;
+            const optKey = `${activeTab}-${si}`;
+            const visibleDocs =
+              showOptional[optKey] || reqDocs.length === 0 ? stageDocs : reqDocs;
+            return (
+              <div key={si} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
+                  <h3 className="font-semibold">{stage.title}</h3>
+                  <p className="text-sm text-gray-500">
+                    {stage.description}
+                    <span className="text-gray-400">
+                      {' '}
+                      · {stageReceived} of {stageDocs.length} received
+                    </span>
+                  </p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {visibleDocs.map((doc) => {
+                    const badge = REQUIRED_BADGE[doc.required] || REQUIRED_BADGE.required;
+                    return (
+                      <div
+                        key={doc.id}
+                        className={`px-5 py-4 flex items-start gap-4 transition-colors ${
+                          dragOverDocId === doc.id ? 'bg-blue-50 border-2 border-blue-300 border-dashed' : ''
+                        }`}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverDocId(doc.id);
+                        }}
+                        onDragLeave={() => setDragOverDocId(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const files = e.dataTransfer.files;
+                          if (files.length > 0) {
+                            handleFileUpload(doc.id, files[0]);
+                          }
+                        }}
+                      >
+                        <button
+                          onClick={() =>
+                            setStatus(doc.id, doc.status === 'received' ? 'pending' : 'received')
+                          }
+                          className={`mt-0.5 w-6 h-6 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                            ['received', 'waived', 'na'].includes(doc.status)
+                              ? 'bg-green-500 border-green-500 text-white'
+                              : 'border-gray-300 hover:border-green-400'
+                          }`}
+                          title={['received', 'waived', 'na'].includes(doc.status) ? 'Mark as not received' : 'Mark as received'}
+                        >
+                          {['received', 'waived', 'na'].includes(doc.status) && (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p
+                              className={`font-medium ${
+                                ['received', 'waived', 'na'].includes(doc.status) ? 'line-through text-gray-400' : ''
+                              }`}
+                            >
+                              {doc.document}
+                            </p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${badge.className}`}>
+                              {badge.label}
+                            </span>
+                            {doc.file_url && (
+                              <a
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                View file
+                              </a>
+                            )}
+                          </div>
+                          {doc.form && <p className="text-xs text-gray-500 mt-0.5">{doc.form}</p>}
+                          {doc.beth_note && (
+                            <p className="text-sm text-gray-500 mt-1">{doc.beth_note}</p>
+                          )}
+                          {doc.view_form && (
+                            <a
+                              href={doc.view_form}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline mt-1 inline-block"
+                            >
+                              View form →
+                            </a>
+                          )}
+                          <div>{docAction(doc)}</div>
+                        </div>
+                        <div className="flex flex-col gap-2 items-end">
+                          <select
+                            value={doc.status}
+                            onChange={(e) => setStatus(doc.id, e.target.value as ClientDocument['status'])}
+                            className="text-xs border border-gray-300 rounded px-2 py-1"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="received">Received</option>
+                            <option value="waived">Waived</option>
+                            <option value="na">N/A</option>
+                          </select>
+                          <label className="cursor-pointer text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium border border-blue-200">
+                            {uploadingDocId === doc.id ? 'Uploading…' : doc.file_url ? 'Replace file' : 'Upload file'}
+                            <input
+                              type="file"
+                              className="hidden"
+                              disabled={uploadingDocId === doc.id}
+                              onChange={(e) => {
+                                const files = e.target.files;
+                                if (files && files.length > 0) {
+                                  handleFileUpload(doc.id, files[0]);
+                                }
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                          {doc.file_url && (
+                            <a
+                              href={doc.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Download →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {optDocs.length > 0 && reqDocs.length > 0 && (
+                  <button
+                    onClick={() =>
+                      setShowOptional({ ...showOptional, [optKey]: !showOptional[optKey] })
+                    }
+                    className="w-full px-5 py-2.5 text-xs text-gray-500 hover:bg-gray-50 border-t border-gray-100 text-left"
+                  >
+                    {showOptional[optKey]
+                      ? '▴ Hide optional documents'
+                      : `▾ Show ${optDocs.length} optional document${optDocs.length === 1 ? '' : 's'}`}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-6 bg-white border border-gray-200 rounded-xl p-6">
         {/* Contact details — mirrors the contact record (same data,
             editable from either place) */}
         {file.crm_contact_id && contact && (
-          <div className="mt-5 border-t pt-4">
+          <div className="mt-0">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
               <button
                 onClick={() => setShowContact(!showContact)}
@@ -1351,30 +1460,6 @@ export default function ClientFileDetailPage() {
           )}
           </>)}
         </div>
-      </div>
-
-      {/* Checklist tabs */}
-      <div id="client-docs" className="flex gap-2 mt-6 border-b border-gray-200">
-        {file.checklist_types.map((t) => {
-          const ct = t as ChecklistType;
-          const count = docs.filter(
-            (d) => d.checklist_type === ct && ['received', 'waived', 'na'].includes(d.status)
-          ).length;
-          const total = docs.filter((d) => d.checklist_type === ct).length;
-          return (
-            <button
-              key={t}
-              onClick={() => setActiveTab(ct)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-                activeTab === ct
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {CHECKLIST_TYPE_LABELS[ct]} ({count}/{total})
-            </button>
-          );
-        })}
       </div>
 
       {/* Delete confirmation modal */}
@@ -1707,180 +1792,6 @@ export default function ClientFileDetailPage() {
         </div>
       )}
 
-      {/* Stages */}
-      {activeTab && (
-        <div className="mt-6 space-y-8">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              {received} of {tabDocs.length} documents received
-            </p>
-            <button
-              onClick={handleDownloadAll}
-              disabled={downloadingAll}
-              className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
-            >
-              {downloadingAll ? 'Preparing…' : 'Download all files'}
-            </button>
-          </div>
-          {stages.map((stage, si) => {
-            const stageDocs = tabDocs.filter((d) => d.stage_index === si);
-            if (stageDocs.length === 0) return null;
-            const reqDocs = stageDocs.filter((d) => d.required === 'required');
-            const optDocs = stageDocs.filter((d) => d.required !== 'required');
-            const stageReceived = stageDocs.filter((d) =>
-              ['received', 'waived', 'na'].includes(d.status)
-            ).length;
-            const optKey = `${activeTab}-${si}`;
-            const visibleDocs =
-              showOptional[optKey] || reqDocs.length === 0 ? stageDocs : reqDocs;
-            return (
-              <div key={si} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
-                  <h3 className="font-semibold">{stage.title}</h3>
-                  <p className="text-sm text-gray-500">
-                    {stage.description}
-                    <span className="text-gray-400">
-                      {' '}
-                      · {stageReceived} of {stageDocs.length} received
-                    </span>
-                  </p>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {visibleDocs.map((doc) => {
-                    const badge = REQUIRED_BADGE[doc.required] || REQUIRED_BADGE.required;
-                    return (
-                      <div
-                        key={doc.id}
-                        className={`px-5 py-4 flex items-start gap-4 transition-colors ${
-                          dragOverDocId === doc.id ? 'bg-blue-50 border-2 border-blue-300 border-dashed' : ''
-                        }`}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setDragOverDocId(doc.id);
-                        }}
-                        onDragLeave={() => setDragOverDocId(null)}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const files = e.dataTransfer.files;
-                          if (files.length > 0) {
-                            handleFileUpload(doc.id, files[0]);
-                          }
-                        }}
-                      >
-                        <button
-                          onClick={() =>
-                            setStatus(doc.id, doc.status === 'received' ? 'pending' : 'received')
-                          }
-                          className={`mt-0.5 w-6 h-6 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                            ['received', 'waived', 'na'].includes(doc.status)
-                              ? 'bg-green-500 border-green-500 text-white'
-                              : 'border-gray-300 hover:border-green-400'
-                          }`}
-                          title={['received', 'waived', 'na'].includes(doc.status) ? 'Mark as not received' : 'Mark as received'}
-                        >
-                          {['received', 'waived', 'na'].includes(doc.status) && (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p
-                              className={`font-medium ${
-                                ['received', 'waived', 'na'].includes(doc.status) ? 'line-through text-gray-400' : ''
-                              }`}
-                            >
-                              {doc.document}
-                            </p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${badge.className}`}>
-                              {badge.label}
-                            </span>
-                            {doc.file_url && (
-                              <a
-                                href={doc.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline"
-                              >
-                                View file
-                              </a>
-                            )}
-                          </div>
-                          {doc.form && <p className="text-xs text-gray-500 mt-0.5">{doc.form}</p>}
-                          {doc.beth_note && (
-                            <p className="text-sm text-gray-500 mt-1">{doc.beth_note}</p>
-                          )}
-                          {doc.view_form && (
-                            <a
-                              href={doc.view_form}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline mt-1 inline-block"
-                            >
-                              View form →
-                            </a>
-                          )}
-                          <div>{docAction(doc)}</div>
-                        </div>
-                        <div className="flex flex-col gap-2 items-end">
-                          <select
-                            value={doc.status}
-                            onChange={(e) => setStatus(doc.id, e.target.value as ClientDocument['status'])}
-                            className="text-xs border border-gray-300 rounded px-2 py-1"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="received">Received</option>
-                            <option value="waived">Waived</option>
-                            <option value="na">N/A</option>
-                          </select>
-                          <label className="cursor-pointer text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium border border-blue-200">
-                            {uploadingDocId === doc.id ? 'Uploading…' : doc.file_url ? 'Replace file' : 'Upload file'}
-                            <input
-                              type="file"
-                              className="hidden"
-                              disabled={uploadingDocId === doc.id}
-                              onChange={(e) => {
-                                const files = e.target.files;
-                                if (files && files.length > 0) {
-                                  handleFileUpload(doc.id, files[0]);
-                                }
-                                e.target.value = '';
-                              }}
-                            />
-                          </label>
-                          {doc.file_url && (
-                            <a
-                              href={doc.file_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline"
-                            >
-                              Download →
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {optDocs.length > 0 && reqDocs.length > 0 && (
-                  <button
-                    onClick={() =>
-                      setShowOptional({ ...showOptional, [optKey]: !showOptional[optKey] })
-                    }
-                    className="w-full px-5 py-2.5 text-xs text-gray-500 hover:bg-gray-50 border-t border-gray-100 text-left"
-                  >
-                    {showOptional[optKey]
-                      ? '▴ Hide optional documents'
-                      : `▾ Show ${optDocs.length} optional document${optDocs.length === 1 ? '' : 's'}`}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
