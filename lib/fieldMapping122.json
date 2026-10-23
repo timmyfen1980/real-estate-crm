@@ -1,0 +1,164 @@
+{
+ "buyer": {
+  "blank": "form122.0.0",
+  "rect": [
+   74,
+   101,
+   568,
+   114
+  ]
+ },
+ "seller": {
+  "blank": "form122.0.1",
+  "rect": [
+   74,
+   121,
+   568,
+   134
+  ]
+ },
+ "brokerage_listing": {
+  "blank": "form122.1.0",
+  "rect": [
+   108,
+   140,
+   340,
+   153
+  ]
+ },
+ "brokerage_coop": {
+  "blank": "qwe",
+  "rect": [
+   345,
+   140,
+   570,
+   153
+  ]
+ },
+ "agreement_day": {
+  "blank": "form122.1.1",
+  "rect": [
+   305,
+   164,
+   340,
+   177
+  ]
+ },
+ "agreement_month": {
+  "blank": "form122.2.0",
+  "rect": [
+   368,
+   164,
+   568,
+   177
+  ]
+ },
+ "agreement_year": {
+  "blank": "form122.2.1",
+  "rect": [
+   51,
+   183,
+   74,
+   196
+  ]
+ },
+ "property_1": {
+  "blank": "form122.3.0",
+  "rect": [
+   200,
+   183,
+   571,
+   196
+  ]
+ },
+ "property_2": {
+  "blank": "form122.3.1",
+  "rect": [
+   41,
+   202,
+   571,
+   215
+  ]
+ },
+ "deposit_words": {
+  "blank": "form122.4.0",
+  "rect": [
+   42,
+   280,
+   388,
+   293
+  ]
+ },
+ "deposit_figures": {
+  "blank": "form122.4.1",
+  "rect": [
+   479,
+   280,
+   570,
+   293
+  ]
+ },
+ "payable_to_1": {
+  "blank": "form122.5.0",
+  "rect": [
+   84,
+   299,
+   570,
+   312
+  ]
+ },
+ "payable_to_2": {
+  "blank": "form122.5.1",
+  "rect": [
+   41,
+   318,
+   571,
+   331
+  ]
+ },
+ "irrev_by": {
+  "blank": "form122.6.0",
+  "rect": [
+   262,
+   341,
+   435,
+   354
+  ]
+ },
+ "irrev_time": {
+  "blank": "form122.6.1",
+  "rect": [
+   456,
+   341,
+   508,
+   354
+  ]
+ },
+ "irrev_day": {
+  "blank": "form122.7.0",
+  "rect": [
+   535,
+   341,
+   570,
+   354
+  ]
+ },
+ "irrev_month": {
+  "blank": "form122.7.1",
+  "rect": [
+   65,
+   365,
+   169,
+   378
+  ]
+ },
+ "irrev_year": {
+  "blank": "form122.8.0",
+  "rect": [
+   186,
+   365,
+   208,
+   378
+  ]
+ }
+}

@@ -1,0 +1,86 @@
+{
+ "property_address": {
+  "blank": "PROPERTY ADDRESS",
+  "rect": [
+   131,
+   110,
+   570,
+   123
+  ]
+ },
+ "landlord": {
+  "blank": "LANDLORD",
+  "rect": [
+   90,
+   137,
+   571,
+   150
+  ]
+ },
+ "brokerage": {
+  "blank": "BROKERAGE",
+  "rect": [
+   99,
+   159,
+   571,
+   172
+  ]
+ },
+ "mls_numbers": {
+  "blank": "MLS NUMBERS",
+  "rect": [
+   117,
+   183,
+   358,
+   196
+  ]
+ },
+ "lbr_id": {
+  "blank": "LBR ID",
+  "rect": [
+   408,
+   182,
+   571,
+   195
+  ]
+ },
+ "interboard_mls_number": {
+  "blank": "NUMBER",
+  "rect": [
+   167,
+   205,
+   283,
+   218
+  ]
+ },
+ "board": {
+  "blank": "BOARD",
+  "rect": [
+   321,
+   205,
+   570,
+   218
+  ]
+ },
+ "agreement_expiry_date": {
+  "blank": "AGREEMENT EXPIRY DATE",
+  "rect": [
+   151,
+   228,
+   571,
+   241
+  ]
+ },
+ "_lines": {
+  "reasons": [
+   {
+    "name": "I hereby request the cancellation of the Agreement for the following reasons",
+    "w": 203
+   },
+   {
+    "name": "Text52",
+    "w": 525
+   }
+  ]
+ }
+}

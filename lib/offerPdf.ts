@@ -19,6 +19,17 @@ import mapping101 from "./fieldMapping101.json";
 import mapping102 from "./fieldMapping102.json";
 import mapping801 from "./fieldMapping801.json";
 import mapping320 from "./fieldMapping320.json";
+import mapping121 from "./fieldMapping121.json";
+import mapping122 from "./fieldMapping122.json";
+import mapping325 from "./fieldMapping325.json";
+import mapping326 from "./fieldMapping326.json";
+import mapping328 from "./fieldMapping328.json";
+import mapping240 from "./fieldMapping240.json";
+import mapping241 from "./fieldMapping241.json";
+import mapping242 from "./fieldMapping242.json";
+import mapping212 from "./fieldMapping212.json";
+import mapping213 from "./fieldMapping213.json";
+import mapping214 from "./fieldMapping214.json";
 
 const PAGE_H = 792;
 
@@ -2473,4 +2484,344 @@ export async function buildForm272(
   templateBytes: Uint8Array
 ): Promise<{ bytes: Uint8Array; pages: number }> {
   return buildListingForm(deal, templateBytes, "272");
+}
+
+// =====================================================================
+// Batch D — later-stage + listing-admin forms (Tim's full paperwork
+// build-out, 2026-10-23): 121 Notice to Remove Condition(s), 122 Mutual
+// Release, 325/326/328 Multiple Representation Consent, and the listing
+// amendment / suspension / cancellation set (240/241/242 sale,
+// 212/213/214 lease). All are one-page forms filled from Batch-C-format
+// mapping JSONs measured off the PropTx blanks (batch-d-build/);
+// signature / witness / initials blocks stay blank for signing.
+// =====================================================================
+
+function joinNames(arr: any): string {
+  return (Array.isArray(arr) ? arr : []).filter(Boolean).join(" and ");
+}
+
+function propertyLine2(deal: any): string {
+  const p = deal?.property || {};
+  return [p.municipality || p.city, p.province, p.postal_code || p.postal]
+    .filter(Boolean)
+    .join(", ");
+}
+
+// Shared one-page engine for the Batch D forms: mapped single fields
+// via mappedField, ruled-line groups via fillApsLines.
+async function buildMappedOnePage(
+  templateBytes: Uint8Array,
+  mapping: any,
+  fills: [string, any][],
+  lineGroups: [string, any][]
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  createdCount = 0;
+  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const form = doc.getForm();
+  for (const [sem, value] of fills) {
+    if (value === undefined || value === null || String(value) === "") continue;
+    mappedField(doc, form, sem, String(value), 10, mapping);
+  }
+  for (const [group, text] of lineGroups) {
+    if (!text || !String(text).trim()) continue;
+    const lines = (mapping as any)._lines?.[group];
+    if (lines) fillApsLines(form, helvetica, lines, String(text));
+  }
+  form.updateFieldAppearances(helvetica);
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
+  return { bytes, pages: doc.getPageCount() };
+}
+
+// ---- Form 121 — Notice to Remove Condition(s) -----------------------
+// Answers in deal.removal: { deadline_time (with a.m./p.m. — the form
+// prints the caption but has no widget for it), deadline_date
+// {day, month, year}, conditions_text }. Buyer / seller / agreement
+// date / property come from the deal itself.
+export function validateRemoval(deal: any): string[] {
+  const missing: string[] = [];
+  if (!joinNames(deal?.buyers)) missing.push("buyers (buyer name(s))");
+  if (!joinNames(deal?.sellers)) missing.push("sellers (seller name(s))");
+  reqDate(deal, "agreement_date", missing);
+  if (!deal?.property?.address) missing.push("property.address");
+  const R = deal?.removal || {};
+  if (!R.deadline_time) missing.push("removal.deadline_time (include a.m./p.m.)");
+  reqDate(R, "deadline_date", missing);
+  if (!R.conditions_text) missing.push("removal.conditions_text (the condition(s) being removed)");
+  return missing;
+}
+
+export async function buildForm121(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  const R = deal?.removal || {};
+  const ad = deal?.agreement_date || {};
+  const dl = R.deadline_date || {};
+  return buildMappedOnePage(
+    templateBytes,
+    mapping121,
+    [
+      ["buyer", joinNames(deal?.buyers)],
+      ["seller", joinNames(deal?.sellers)],
+      ["agreement_day", ad.day],
+      ["agreement_month", ad.month],
+      ["agreement_year", ad.year],
+      ["property_1", deal?.property?.address],
+      ["property_2", propertyLine2(deal)],
+      ["deadline_time", R.deadline_time],
+      ["deadline_day", dl.day],
+      ["deadline_month", dl.month],
+      ["deadline_year", dl.year],
+    ],
+    [["conditions", R.conditions_text]]
+  );
+}
+
+// ---- Form 122 — Mutual Release --------------------------------------
+// Answers in deal.release: { deposit_amount, deposit_words (derived
+// from the amount when blank), payable_to_1, payable_to_2,
+// brokerage_listing, brokerage_coop, irrev_by, irrev_time (with
+// a.m./p.m.), irrev_date {day, month, year} } — each defaulting to the
+// deal's own deposit / brokerages / irrevocability when not given.
+export function validateRelease(deal: any): string[] {
+  const missing: string[] = [];
+  if (!joinNames(deal?.buyers)) missing.push("buyers (buyer name(s))");
+  if (!joinNames(deal?.sellers)) missing.push("sellers (seller name(s))");
+  reqDate(deal, "agreement_date", missing);
+  if (!deal?.property?.address) missing.push("property.address");
+  const X = deal?.release || {};
+  if (!X.deposit_amount && !deal?.deposit) missing.push("release.deposit_amount (the deposit being released)");
+  if (!X.payable_to_1) missing.push("release.payable_to_1 (who the deposit is payable to)");
+  if (!X.brokerage_listing && !deal?.listing_brokerage?.brokerage) {
+    missing.push("release.brokerage_listing (listing brokerage)");
+  }
+  if (!X.brokerage_coop && !deal?.selling_brokerage?.brokerage) {
+    missing.push("release.brokerage_coop (co-operating brokerage)");
+  }
+  if (!X.irrev_by && !deal?.irrevocable?.by) missing.push("release.irrev_by");
+  if (!X.irrev_time && !deal?.irrevocable?.time) missing.push("release.irrev_time (include a.m./p.m.)");
+  if (!X.irrev_date?.day && !deal?.irrevocable?.date?.day) missing.push("release.irrev_date");
+  return missing;
+}
+
+export async function buildForm122(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  const X = deal?.release || {};
+  const ad = deal?.agreement_date || {};
+  const amount = X.deposit_amount || deal?.deposit || "";
+  const words = X.deposit_words || (amount ? priceToWords(String(amount)) : "");
+  const irr = X.irrev_date?.day ? X.irrev_date : deal?.irrevocable?.date || {};
+  return buildMappedOnePage(
+    templateBytes,
+    mapping122,
+    [
+      ["buyer", joinNames(deal?.buyers)],
+      ["seller", joinNames(deal?.sellers)],
+      ["brokerage_listing", X.brokerage_listing || deal?.listing_brokerage?.brokerage],
+      ["brokerage_coop", X.brokerage_coop || deal?.selling_brokerage?.brokerage],
+      ["agreement_day", ad.day],
+      ["agreement_month", ad.month],
+      ["agreement_year", ad.year],
+      ["property_1", deal?.property?.address],
+      ["property_2", propertyLine2(deal)],
+      ["deposit_words", words],
+      ["deposit_figures", amount ? String(amount).replace(/^\$+/, "") : ""],
+      ["payable_to_1", X.payable_to_1],
+      ["payable_to_2", X.payable_to_2],
+      ["irrev_by", X.irrev_by || deal?.irrevocable?.by],
+      ["irrev_time", X.irrev_time || deal?.irrevocable?.time],
+      ["irrev_day", irr.day],
+      ["irrev_month", irr.month],
+      ["irrev_year", irr.year],
+    ],
+    []
+  );
+}
+
+// ---- Forms 325 / 326 / 328 — Multiple Representation Consent --------
+// Header-only forms (initials + signatures stay blank). Answers in
+// deal.consent: { kind, party_name, brokerage_name, property_address,
+// comments } — each defaulting from the deal / listing when not given.
+export function consentPartyDefault(deal: any, kind: "325" | "326" | "328"): string {
+  if (kind === "325") return joinNames(deal?.listing?.clients) || joinNames(deal?.sellers);
+  if (kind === "326") return joinNames(deal?.rep?.clients) || joinNames(deal?.buyers);
+  return joinNames(deal?.rep?.clients) || joinNames(deal?.buyers);
+}
+
+export function validateConsent(deal: any, kind: "325" | "326" | "328"): string[] {
+  const missing: string[] = [];
+  const C = deal?.consent || {};
+  if (!C.party_name && !consentPartyDefault(deal, kind)) {
+    missing.push(
+      kind === "325"
+        ? "consent.party_name (seller name(s))"
+        : kind === "326"
+          ? "consent.party_name (buyer name(s))"
+          : "consent.party_name (tenant name(s))"
+    );
+  }
+  if (!C.property_address && !deal?.listing?.property_address && !deal?.property?.address) {
+    missing.push("consent.property_address");
+  }
+  return missing;
+}
+
+async function buildConsentForm(
+  deal: any,
+  templateBytes: Uint8Array,
+  kind: "325" | "326" | "328"
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  const C = deal?.consent || {};
+  const mapping = kind === "325" ? mapping325 : kind === "326" ? mapping326 : mapping328;
+  const partySem = kind === "325" ? "seller" : kind === "326" ? "buyer" : "tenant";
+  return buildMappedOnePage(
+    templateBytes,
+    mapping,
+    [
+      [partySem, C.party_name || consentPartyDefault(deal, kind)],
+      [
+        "brokerage",
+        C.brokerage_name ||
+          deal?.listing?.brokerage_name ||
+          deal?.rep?.brokerage_name ||
+          "RE/MAX HALLMARK FIRST GROUP REALTY LTD.",
+      ],
+      ["property", C.property_address || deal?.listing?.property_address || deal?.property?.address],
+    ],
+    [["comments", C.comments]]
+  );
+}
+
+export async function buildForm325(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildConsentForm(deal, templateBytes, "325");
+}
+
+export async function buildForm326(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildConsentForm(deal, templateBytes, "326");
+}
+
+export async function buildForm328(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildConsentForm(deal, templateBytes, "328");
+}
+
+// ---- Listing admin: 240/241/242 (sale) + 212/213/214 (lease) --------
+// Amendment / Suspension / Cancellation of a listing agreement. The
+// header (party, brokerage, property, MLS numbers) defaults from
+// deal.listing; the action answers live in deal.listing_admin:
+// { mls_numbers, lbr_id, interboard_mls_number, board,
+//   listing_expiry_date, agreement_expiry_date, current_price,
+//   new_price, current_expiry, new_expiry, amendment_a, amendment_b,
+//   suspension_from, suspension_until, reasons, party_name,
+//   brokerage_name, property_address }.
+export const LISTING_ADMIN_FORMS: Record<string, { kind: "sale" | "lease"; action: "amend" | "suspend" | "cancel" }> = {
+  "240": { kind: "sale", action: "amend" },
+  "241": { kind: "sale", action: "suspend" },
+  "242": { kind: "sale", action: "cancel" },
+  "212": { kind: "lease", action: "amend" },
+  "213": { kind: "lease", action: "suspend" },
+  "214": { kind: "lease", action: "cancel" },
+};
+
+export function validateListingAdmin(deal: any, form: string): string[] {
+  const meta = LISTING_ADMIN_FORMS[form];
+  const missing: string[] = [];
+  if (!meta) return [`unknown listing-admin form ${form}`];
+  const A = deal?.listing_admin || {};
+  const party = A.party_name || joinNames(deal?.listing?.clients) || joinNames(deal?.sellers);
+  if (!party) missing.push(meta.kind === "sale" ? "listing_admin.party_name (seller name(s))" : "listing_admin.party_name (landlord name(s))");
+  if (!A.property_address && !deal?.listing?.property_address && !deal?.property?.address) {
+    missing.push("listing_admin.property_address");
+  }
+  if (!A.mls_numbers) missing.push("listing_admin.mls_numbers");
+  if (meta.action === "amend") {
+    if (!A.new_price && !A.new_expiry && !A.amendment_a) {
+      missing.push("listing_admin: a change is needed — new price, new expiry, or amendment wording");
+    }
+  } else if (meta.action === "suspend") {
+    if (!A.suspension_from) missing.push("listing_admin.suspension_from (date of suspension)");
+    if (!A.suspension_until) missing.push("listing_admin.suspension_until (suspended until)");
+  } else if (!A.reasons) {
+    missing.push("listing_admin.reasons (cancellation reasons)");
+  }
+  return missing;
+}
+
+async function buildListingAdminForm(
+  deal: any,
+  templateBytes: Uint8Array,
+  form: string
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  const meta = LISTING_ADMIN_FORMS[form];
+  const A = deal?.listing_admin || {};
+  const L = deal?.listing || {};
+  const mapping =
+    form === "240" ? mapping240
+    : form === "241" ? mapping241
+    : form === "242" ? mapping242
+    : form === "212" ? mapping212
+    : form === "213" ? mapping213
+    : mapping214;
+  const partySem = meta.kind === "sale" ? "seller" : "landlord";
+  const fills: [string, any][] = [
+    ["property_address", A.property_address || L.property_address || deal?.property?.address],
+    [partySem, A.party_name || joinNames(L.clients) || joinNames(deal?.sellers)],
+    ["brokerage", A.brokerage_name || L.brokerage_name || "RE/MAX HALLMARK FIRST GROUP REALTY LTD."],
+    ["mls_numbers", A.mls_numbers],
+    ["lbr_id", A.lbr_id],
+    ["interboard_mls_number", A.interboard_mls_number],
+    ["board", A.board],
+  ];
+  const lineGroups: [string, any][] = [];
+  if (meta.action === "amend") {
+    fills.push(
+      ["listing_expiry_date", A.listing_expiry_date],
+      ["current_price", A.current_price],
+      ["new_price", A.new_price],
+      ["current_expiry", A.current_expiry],
+      ["new_expiry", A.new_expiry]
+    );
+    lineGroups.push(["amendment_a", A.amendment_a], ["amendment_b", A.amendment_b]);
+  } else if (meta.action === "suspend") {
+    fills.push(
+      ["agreement_expiry_date", A.agreement_expiry_date],
+      ["suspension_from", A.suspension_from],
+      ["suspension_until", A.suspension_until]
+    );
+  } else {
+    fills.push(["agreement_expiry_date", A.agreement_expiry_date]);
+    lineGroups.push(["reasons", A.reasons]);
+  }
+  return buildMappedOnePage(templateBytes, mapping, fills, lineGroups);
+}
+
+export async function buildForm240(deal: any, templateBytes: Uint8Array) {
+  return buildListingAdminForm(deal, templateBytes, "240");
+}
+export async function buildForm241(deal: any, templateBytes: Uint8Array) {
+  return buildListingAdminForm(deal, templateBytes, "241");
+}
+export async function buildForm242(deal: any, templateBytes: Uint8Array) {
+  return buildListingAdminForm(deal, templateBytes, "242");
+}
+export async function buildForm212(deal: any, templateBytes: Uint8Array) {
+  return buildListingAdminForm(deal, templateBytes, "212");
+}
+export async function buildForm213(deal: any, templateBytes: Uint8Array) {
+  return buildListingAdminForm(deal, templateBytes, "213");
+}
+export async function buildForm214(deal: any, templateBytes: Uint8Array) {
+  return buildListingAdminForm(deal, templateBytes, "214");
 }

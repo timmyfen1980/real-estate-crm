@@ -1,0 +1,41 @@
+{
+ "buyer": {
+  "blank": "Text1",
+  "rect": [
+   73,
+   97,
+   525,
+   110
+  ]
+ },
+ "brokerage": {
+  "blank": "Text2",
+  "rect": [
+   97,
+   118,
+   486,
+   131
+  ]
+ },
+ "property": {
+  "blank": "Text3",
+  "rect": [
+   111,
+   139,
+   516,
+   152
+  ]
+ },
+ "_lines": {
+  "comments": [
+   {
+    "name": "the buyer and the seller client is as more particularly set out in the agreement with the respective buyer or seller",
+    "w": 472
+   },
+   {
+    "name": "COMMENTS 1",
+    "w": 526
+   }
+  ]
+ }
+}

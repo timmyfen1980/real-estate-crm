@@ -61,7 +61,7 @@ export default function PrepareOfferPage() {
   // across the top are its forms, all fed by the same answers below)
   const params = useParams()
   const packageId = String((params as any)?.id || '')
-  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'rep' | 'listing' | 'library' | 'files'>('offer')
+  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'rep' | 'listing' | 'remove' | 'release' | 'consent' | 'lstadmin' | 'library' | 'files'>('offer')
   const apsFormRef = useRef('100')
   const [pkgLoaded, setPkgLoaded] = useState(false)
   const [pkgStatus, setPkgStatus] = useState('draft')
@@ -161,6 +161,62 @@ export default function PrepareOfferPage() {
   const [lstPurchOther, setLstPurchOther] = useState('')
   const [lstHoldover, setLstHoldover] = useState('90')
   const [lstSchedA, setLstSchedA] = useState('')
+  // Batch D — 121 Notice to Remove Condition(s): answers in deal.removal.
+  const [remTime, setRemTime] = useState('11:59 p.m.')
+  const [remDate, setRemDate] = useState(todayToronto())
+  const [remConditions, setRemConditions] = useState('')
+  // Batch D — 122 Mutual Release: answers in deal.release.
+  const [relDeposit, setRelDeposit] = useState('')
+  const [relDepositWords, setRelDepositWords] = useState('')
+  const [relPayable1, setRelPayable1] = useState('')
+  const [relPayable2, setRelPayable2] = useState('')
+  const [relBrokListing, setRelBrokListing] = useState('')
+  const [relBrokCoop, setRelBrokCoop] = useState('')
+  const [relIrrevBy, setRelIrrevBy] = useState('Buyer')
+  const [relIrrevTime, setRelIrrevTime] = useState('11:59 p.m.')
+  const [relIrrevDate, setRelIrrevDate] = useState(() =>
+    new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+  )
+  // Batch D — 325/326/328 Multiple Representation Consent: deal.consent.
+  const [cstKind, setCstKind] = useState<'325' | '326' | '328'>('326')
+  const [cstParty, setCstParty] = useState('')
+  const [cstBrokerage, setCstBrokerage] = useState('')
+  const [cstProperty, setCstProperty] = useState('')
+  const [cstComments, setCstComments] = useState('')
+  // Batch D — listing admin (240/241/242 sale, 212/213/214 lease):
+  // answers in deal.listing_admin.
+  const [admKind, setAdmKind] = useState<'sale' | 'lease'>('sale')
+  const [admAction, setAdmAction] = useState<'amend' | 'suspend' | 'cancel'>('amend')
+  const [admParty, setAdmParty] = useState('')
+  const [admBrokerage, setAdmBrokerage] = useState('')
+  const [admProperty, setAdmProperty] = useState('')
+  const [admMls, setAdmMls] = useState('')
+  const [admLbr, setAdmLbr] = useState('')
+  const [admInterboard, setAdmInterboard] = useState('')
+  const [admBoard, setAdmBoard] = useState('')
+  const [admListingExpiry, setAdmListingExpiry] = useState('')
+  const [admAgreementExpiry, setAdmAgreementExpiry] = useState('')
+  const [admCurrentPrice, setAdmCurrentPrice] = useState('')
+  const [admNewPrice, setAdmNewPrice] = useState('')
+  const [admCurrentExpiry, setAdmCurrentExpiry] = useState('')
+  const [admNewExpiry, setAdmNewExpiry] = useState('')
+  const [admAmendA, setAdmAmendA] = useState('')
+  const [admAmendB, setAdmAmendB] = useState('')
+  const [admSuspFrom, setAdmSuspFrom] = useState('')
+  const [admSuspUntil, setAdmSuspUntil] = useState('')
+  const [admReasons, setAdmReasons] = useState('')
+  const admFormFor = (): string =>
+    admKind === 'sale'
+      ? admAction === 'amend'
+        ? '240'
+        : admAction === 'suspend'
+          ? '241'
+          : '242'
+      : admAction === 'amend'
+        ? '212'
+        : admAction === 'suspend'
+          ? '213'
+          : '214'
   const [synSends, setSynSends] = useState<any[]>([])
   const pkgFileRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -694,6 +750,61 @@ export default function PrepareOfferPage() {
     if (li.commission_purchase_other) setLstPurchOther(li.commission_purchase_other)
     if (li.holdover_days) setLstHoldover(li.holdover_days)
     if (li.schedule_a_text) setLstSchedA(li.schedule_a_text)
+    const rm = deal.removal || {}
+    if (rm.deadline_time) setRemTime(rm.deadline_time)
+    if (rm.deadline_date?.day) {
+      const j = joinDate(rm.deadline_date)
+      if (j) setRemDate(j)
+    }
+    if (rm.conditions_text) setRemConditions(rm.conditions_text)
+    const rl = deal.release || {}
+    if (rl.deposit_amount) setRelDeposit(rl.deposit_amount)
+    else if (deal.deposit) setRelDeposit(String(deal.deposit))
+    if (rl.deposit_words) setRelDepositWords(rl.deposit_words)
+    if (rl.payable_to_1) setRelPayable1(rl.payable_to_1)
+    if (rl.payable_to_2) setRelPayable2(rl.payable_to_2)
+    if (rl.brokerage_listing) setRelBrokListing(rl.brokerage_listing)
+    else if (deal.listing_brokerage?.brokerage) setRelBrokListing(deal.listing_brokerage.brokerage)
+    if (rl.brokerage_coop) setRelBrokCoop(rl.brokerage_coop)
+    else if (deal.selling_brokerage?.brokerage) setRelBrokCoop(deal.selling_brokerage.brokerage)
+    if (rl.irrev_by) setRelIrrevBy(rl.irrev_by)
+    else if (deal.irrevocable?.by) setRelIrrevBy(deal.irrevocable.by)
+    if (rl.irrev_time) setRelIrrevTime(rl.irrev_time)
+    else if (deal.irrevocable?.time) setRelIrrevTime(deal.irrevocable.time)
+    const rlDate = rl.irrev_date?.day ? rl.irrev_date : deal.irrevocable?.date
+    if (rlDate?.day) {
+      const j = joinDate(rlDate)
+      if (j) setRelIrrevDate(j)
+    }
+    const cs = deal.consent || {}
+    if (cs.kind) setCstKind(cs.kind)
+    if (cs.party_name) setCstParty(cs.party_name)
+    if (cs.brokerage_name) setCstBrokerage(cs.brokerage_name)
+    if (cs.property_address) setCstProperty(cs.property_address)
+    if (cs.comments) setCstComments(cs.comments)
+    const la = deal.listing_admin || {}
+    if (la.kind) setAdmKind(la.kind)
+    if (la.action) setAdmAction(la.action)
+    if (la.party_name) setAdmParty(la.party_name)
+    else if (liClients[0]) setAdmParty(liClients.filter(Boolean).join(' and '))
+    if (la.brokerage_name) setAdmBrokerage(la.brokerage_name)
+    if (la.property_address) setAdmProperty(la.property_address)
+    else if (li.property_address) setAdmProperty(li.property_address)
+    if (la.mls_numbers) setAdmMls(la.mls_numbers)
+    if (la.lbr_id) setAdmLbr(la.lbr_id)
+    if (la.interboard_mls_number) setAdmInterboard(la.interboard_mls_number)
+    if (la.board) setAdmBoard(la.board)
+    if (la.listing_expiry_date) setAdmListingExpiry(la.listing_expiry_date)
+    if (la.agreement_expiry_date) setAdmAgreementExpiry(la.agreement_expiry_date)
+    if (la.current_price) setAdmCurrentPrice(la.current_price)
+    if (la.new_price) setAdmNewPrice(la.new_price)
+    if (la.current_expiry) setAdmCurrentExpiry(la.current_expiry)
+    if (la.new_expiry) setAdmNewExpiry(la.new_expiry)
+    if (la.amendment_a) setAdmAmendA(la.amendment_a)
+    if (la.amendment_b) setAdmAmendB(la.amendment_b)
+    if (la.suspension_from) setAdmSuspFrom(la.suspension_from)
+    if (la.suspension_until) setAdmSuspUntil(la.suspension_until)
+    if (la.reasons) setAdmReasons(la.reasons)
     setSynInfo(deal.syngrafii || null)
     setSynSends(
       Array.isArray(deal.syngrafii_sends)
@@ -1120,6 +1231,51 @@ export default function PrepareOfferPage() {
           holdover_days: lstHoldover || undefined,
           schedule_a_text: lstSchedA || undefined,
         },
+        removal: {
+          deadline_time: remTime || undefined,
+          deadline_date: splitDate(remDate),
+          conditions_text: remConditions || undefined,
+        },
+        release: {
+          deposit_amount: relDeposit || undefined,
+          deposit_words: relDepositWords || undefined,
+          payable_to_1: relPayable1 || undefined,
+          payable_to_2: relPayable2 || undefined,
+          brokerage_listing: relBrokListing || undefined,
+          brokerage_coop: relBrokCoop || undefined,
+          irrev_by: relIrrevBy || undefined,
+          irrev_time: relIrrevTime || undefined,
+          irrev_date: splitDate(relIrrevDate),
+        },
+        consent: {
+          kind: cstKind,
+          party_name: cstParty || undefined,
+          brokerage_name: cstBrokerage || undefined,
+          property_address: cstProperty || undefined,
+          comments: cstComments || undefined,
+        },
+        listing_admin: {
+          kind: admKind,
+          action: admAction,
+          party_name: admParty || undefined,
+          brokerage_name: admBrokerage || undefined,
+          property_address: admProperty || undefined,
+          mls_numbers: admMls || undefined,
+          lbr_id: admLbr || undefined,
+          interboard_mls_number: admInterboard || undefined,
+          board: admBoard || undefined,
+          listing_expiry_date: admListingExpiry || undefined,
+          agreement_expiry_date: admAgreementExpiry || undefined,
+          current_price: admCurrentPrice || undefined,
+          new_price: admNewPrice || undefined,
+          current_expiry: admCurrentExpiry || undefined,
+          new_expiry: admNewExpiry || undefined,
+          amendment_a: admAmendA || undefined,
+          amendment_b: admAmendB || undefined,
+          suspension_from: admSuspFrom || undefined,
+          suspension_until: admSuspUntil || undefined,
+          reasons: admReasons || undefined,
+        },
         client: pkgClient || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
@@ -1166,7 +1322,15 @@ export default function PrepareOfferPage() {
                     ? repKind
                     : tab === 'listing'
                       ? lstKind
-                      : null
+                      : tab === 'remove'
+                        ? '121'
+                        : tab === 'release'
+                          ? '122'
+                          : tab === 'consent'
+                            ? cstKind
+                            : tab === 'lstadmin'
+                              ? admFormFor()
+                              : null
 
   const formLabel = (): string =>
     tab === 'offer'
@@ -1189,7 +1353,15 @@ export default function PrepareOfferPage() {
                     ? lstKind === '272'
                       ? 'Form 272 — Landlord Listing Agreement'
                       : 'Form 271 — Seller Listing Agreement'
-                    : 'Form 161 — Disclosure of Interest'
+                    : tab === 'remove'
+                      ? 'Form 121 — Notice to Remove Condition(s)'
+                      : tab === 'release'
+                        ? 'Form 122 — Mutual Release'
+                        : tab === 'consent'
+                          ? `Form ${cstKind} — Multiple Representation Consent`
+                          : tab === 'lstadmin'
+                            ? `Form ${admFormFor()} — Listing ${admAction === 'amend' ? 'Amendment' : admAction === 'suspend' ? 'Suspension' : 'Cancellation'}`
+                            : 'Form 161 — Disclosure of Interest'
 
   const surfaceFile = (data: any) => {
     const f = (data.files || [])[0]
@@ -1636,7 +1808,7 @@ export default function PrepareOfferPage() {
               }}
               className={`px-4 py-2 rounded-full text-sm border transition ${
                 tab === key ||
-                (key === 'library' && ['nof', 'waiver', 'amend', 'disclosure'].includes(tab))
+                (key === 'library' && ['nof', 'waiver', 'amend', 'disclosure', 'remove', 'release', 'consent', 'lstadmin'].includes(tab))
                   ? 'bg-black text-white'
                   : 'hover:bg-gray-100'
               }`}
@@ -2985,6 +3157,10 @@ export default function PrepareOfferPage() {
                 ['waiver', '123', 'Waiver — Form 123', 'When the buyer waives a condition instead of fulfilling it.'],
                 ['amend', '120', 'Amendment — Form 120', 'Changes the signed agreement — a closing-date move, a price change.'],
                 ['disclosure', '161', 'Disclosure of Interest — Form 161', 'Rare — when you or a related person have an interest in the property.'],
+                ['remove', '121', 'Notice to Remove Condition(s) — Form 121', 'When conditions are removed rather than fulfilled or waived.'],
+                ['release', '122', 'Mutual Release — Form 122', 'Releases the deposit and ends the agreement when a deal dies.'],
+                ['consent', '326', 'Multiple Representation Consent — Forms 325/326/328', 'Seller (325), buyer (326) or tenant (328) consent to multiple representation.'],
+                ['lstadmin', '240', 'Listing Amendment / Suspension / Cancellation', 'Forms 240–242 (sale) and 212–214 (lease) — price changes, suspensions, cancellations.'],
               ] as const
             ).map(([key, code, label, blurb]) => {
               const inPkg = pkgDocs.some((d) => d.form === code)
@@ -3017,6 +3193,272 @@ export default function PrepareOfferPage() {
             Looking for a team document or any other file? Those go in through Package
             Files (“Add a file”) instead.
           </p>
+        </div>
+
+        {/* NOTICE TO REMOVE CONDITIONS — Form 121 (Batch D). Answers in
+            deal.removal; buyer/seller/agreement date/property come from
+            the offer itself. */}
+        <div className={tab === 'remove' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Notice to Remove Condition(s) — Form 121</h2>
+          <p className="text-sm text-gray-600">
+            For when conditions are removed outright rather than fulfilled (Form 124) or waived
+            (Form 123). Buyer, seller, agreement date and property come from the offer — just give
+            the deadline and the condition(s) being removed. Signatures stay blank for signing.
+          </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Deadline time (include a.m./p.m.)</label>
+              <input className={inputCls} value={remTime} onChange={(e) => setRemTime(e.target.value)} placeholder="11:59 p.m." />
+            </div>
+            <div>
+              <label className={labelCls}>Deadline date</label>
+              <input type="date" className={inputCls} value={remDate} onChange={(e) => setRemDate(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Condition(s) being removed</label>
+            <textarea className={inputCls} rows={4} value={remConditions} onChange={(e) => setRemConditions(e.target.value)} placeholder="e.g. The condition in paragraph 3 of Schedule A (arranging satisfactory financing) is hereby removed." />
+          </div>
+        </div>
+
+        {/* MUTUAL RELEASE — Form 122 (Batch D). Answers in deal.release;
+            deposit, brokerages and irrevocability default from the
+            offer. The two brokerages share one printed line, so a very
+            long brokerage name can crowd its half. */}
+        <div className={tab === 'release' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Mutual Release — Form 122</h2>
+          <p className="text-sm text-gray-600">
+            When a deal dies and the deposit is released. The deposit, brokerages and
+            irrevocability prefill from the offer — adjust who the deposit is payable to, and
+            the rest follows. Signatures and the Confirmation of Acceptance stay blank.
+          </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Deposit amount ($)</label>
+              <input className={inputCls} value={relDeposit} onChange={(e) => setRelDeposit(e.target.value)} placeholder="50000" />
+            </div>
+            <div>
+              <label className={labelCls}>Deposit in words (blank = derived from the amount)</label>
+              <input className={inputCls} value={relDepositWords} onChange={(e) => setRelDepositWords(e.target.value)} placeholder="Fifty Thousand" />
+            </div>
+            <div>
+              <label className={labelCls}>Deposit payable to (line 1)</label>
+              <input className={inputCls} value={relPayable1} onChange={(e) => setRelPayable1(e.target.value)} placeholder="e.g. The Buyer" />
+            </div>
+            <div>
+              <label className={labelCls}>Payable to (line 2, if any)</label>
+              <input className={inputCls} value={relPayable2} onChange={(e) => setRelPayable2(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Listing brokerage</label>
+              <input className={inputCls} value={relBrokListing} onChange={(e) => setRelBrokListing(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Co-operating brokerage</label>
+              <input className={inputCls} value={relBrokCoop} onChange={(e) => setRelBrokCoop(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>This release is irrevocable by</label>
+              <input className={inputCls} value={relIrrevBy} onChange={(e) => setRelIrrevBy(e.target.value)} placeholder="Buyer" />
+            </div>
+            <div>
+              <label className={labelCls}>Irrevocable until (time, with a.m./p.m.)</label>
+              <input className={inputCls} value={relIrrevTime} onChange={(e) => setRelIrrevTime(e.target.value)} placeholder="11:59 p.m." />
+            </div>
+            <div>
+              <label className={labelCls}>Irrevocable date</label>
+              <input type="date" className={inputCls} value={relIrrevDate} onChange={(e) => setRelIrrevDate(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        {/* MULTIPLE REPRESENTATION CONSENT — Forms 325/326/328 (Batch D).
+            Header-only forms: party, brokerage, property, optional
+            comments. Initials and signatures stay blank. */}
+        <div className={tab === 'consent' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Multiple Representation Consent — Form {cstKind}</h2>
+          <p className="text-sm text-gray-600">
+            The consent a client signs when the brokerage represents more than one party.
+            Party, brokerage and property prefill from the offer/listing — initials and
+            signatures stay blank for signing.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCstKind('325')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${cstKind === '325' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Seller — 325
+            </button>
+            <button
+              onClick={() => setCstKind('326')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${cstKind === '326' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Buyer — 326
+            </button>
+            <button
+              onClick={() => setCstKind('328')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${cstKind === '328' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Tenant — 328
+            </button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>{cstKind === '325' ? 'Seller name(s)' : cstKind === '326' ? 'Buyer name(s)' : 'Tenant name(s)'}</label>
+              <input className={inputCls} value={cstParty} onChange={(e) => setCstParty(e.target.value)} placeholder="Prefills from the offer — override if needed" />
+            </div>
+            <div>
+              <label className={labelCls}>Brokerage</label>
+              <input className={inputCls} value={cstBrokerage} onChange={(e) => setCstBrokerage(e.target.value)} placeholder="RE/MAX HALLMARK FIRST GROUP REALTY LTD." />
+            </div>
+            <div>
+              <label className={labelCls}>Property</label>
+              <input className={inputCls} value={cstProperty} onChange={(e) => setCstProperty(e.target.value)} placeholder="Prefills from the listing/offer" />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Comments (optional, 2 lines)</label>
+            <textarea className={inputCls} rows={2} value={cstComments} onChange={(e) => setCstComments(e.target.value)} />
+          </div>
+        </div>
+
+        {/* LISTING ADMIN — Amendment (240/212), Suspension (241/213),
+            Cancellation (242/214) (Batch D). Answers in
+            deal.listing_admin; party/brokerage/property prefill from
+            the Listing tab. */}
+        <div className={tab === 'lstadmin' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Listing Amendment / Suspension / Cancellation — Form {admFormFor()}</h2>
+          <p className="text-sm text-gray-600">
+            Changes to a signed listing agreement. Party, brokerage and property prefill from
+            the Listing tab — the MLS numbers and the change itself are answered here.
+            Signatures and initials stay blank for signing.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setAdmKind('sale')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${admKind === 'sale' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Sale listing
+            </button>
+            <button
+              onClick={() => setAdmKind('lease')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${admKind === 'lease' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Lease listing
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setAdmAction('amend')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${admAction === 'amend' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Amend — {admKind === 'sale' ? '240' : '212'}
+            </button>
+            <button
+              onClick={() => setAdmAction('suspend')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${admAction === 'suspend' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Suspend — {admKind === 'sale' ? '241' : '213'}
+            </button>
+            <button
+              onClick={() => setAdmAction('cancel')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${admAction === 'cancel' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Cancel — {admKind === 'sale' ? '242' : '214'}
+            </button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>{admKind === 'sale' ? 'Seller name(s)' : 'Landlord name(s)'}</label>
+              <input className={inputCls} value={admParty} onChange={(e) => setAdmParty(e.target.value)} placeholder="Prefills from the Listing tab" />
+            </div>
+            <div>
+              <label className={labelCls}>Brokerage</label>
+              <input className={inputCls} value={admBrokerage} onChange={(e) => setAdmBrokerage(e.target.value)} placeholder="RE/MAX HALLMARK FIRST GROUP REALTY LTD." />
+            </div>
+            <div>
+              <label className={labelCls}>Property address</label>
+              <input className={inputCls} value={admProperty} onChange={(e) => setAdmProperty(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>MLS number(s)</label>
+              <input className={inputCls} value={admMls} onChange={(e) => setAdmMls(e.target.value)} placeholder="E14083510" />
+            </div>
+            <div>
+              <label className={labelCls}>LBR ID</label>
+              <input className={inputCls} value={admLbr} onChange={(e) => setAdmLbr(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Interboard MLS number</label>
+              <input className={inputCls} value={admInterboard} onChange={(e) => setAdmInterboard(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Board</label>
+              <input className={inputCls} value={admBoard} onChange={(e) => setAdmBoard(e.target.value)} placeholder="e.g. TRREB" />
+            </div>
+            {admAction === 'amend' && (
+              <div>
+                <label className={labelCls}>Listing expiry date (as on the agreement)</label>
+                <input className={inputCls} value={admListingExpiry} onChange={(e) => setAdmListingExpiry(e.target.value)} placeholder="e.g. January 31, 2027" />
+              </div>
+            )}
+            {admAction !== 'amend' && (
+              <div>
+                <label className={labelCls}>Agreement expiry date</label>
+                <input className={inputCls} value={admAgreementExpiry} onChange={(e) => setAdmAgreementExpiry(e.target.value)} placeholder="e.g. January 31, 2027" />
+              </div>
+            )}
+          </div>
+          {admAction === 'amend' && (
+            <>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Current price</label>
+                  <input className={inputCls} value={admCurrentPrice} onChange={(e) => setAdmCurrentPrice(e.target.value)} placeholder="$799,900" />
+                </div>
+                <div>
+                  <label className={labelCls}>New price</label>
+                  <input className={inputCls} value={admNewPrice} onChange={(e) => setAdmNewPrice(e.target.value)} placeholder="$784,900" />
+                </div>
+                <div>
+                  <label className={labelCls}>Current expiry</label>
+                  <input className={inputCls} value={admCurrentExpiry} onChange={(e) => setAdmCurrentExpiry(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelCls}>New expiry</label>
+                  <input className={inputCls} value={admNewExpiry} onChange={(e) => setAdmNewExpiry(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Amendment 3(a) — other changes (2 lines)</label>
+                <textarea className={inputCls} rows={2} value={admAmendA} onChange={(e) => setAdmAmendA(e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Amendment 3(b) — other changes (2 lines)</label>
+                <textarea className={inputCls} rows={2} value={admAmendB} onChange={(e) => setAdmAmendB(e.target.value)} />
+              </div>
+            </>
+          )}
+          {admAction === 'suspend' && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Date of suspension</label>
+                <input className={inputCls} value={admSuspFrom} onChange={(e) => setAdmSuspFrom(e.target.value)} placeholder="e.g. October 30, 2026" />
+              </div>
+              <div>
+                <label className={labelCls}>Suspended until</label>
+                <input className={inputCls} value={admSuspUntil} onChange={(e) => setAdmSuspUntil(e.target.value)} placeholder="e.g. November 15, 2026" />
+              </div>
+            </div>
+          )}
+          {admAction === 'cancel' && (
+            <div>
+              <label className={labelCls}>Cancellation reasons (first line is short — it follows the printed text)</label>
+              <textarea className={inputCls} rows={2} value={admReasons} onChange={(e) => setAdmReasons(e.target.value)} />
+            </div>
+          )}
         </div>
 
         {/* PACKAGE FILES */}

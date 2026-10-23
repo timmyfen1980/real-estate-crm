@@ -1,0 +1,92 @@
+{
+ "property_address": {
+  "blank": "PROPERTY ADDRESS",
+  "rect": [
+   131,
+   114,
+   571,
+   127
+  ]
+ },
+ "seller": {
+  "blank": "SELLER",
+  "rect": [
+   83,
+   141,
+   571,
+   154
+  ]
+ },
+ "brokerage": {
+  "blank": "BROKERAGE",
+  "rect": [
+   99,
+   163,
+   571,
+   176
+  ]
+ },
+ "mls_numbers": {
+  "blank": "MLS NUMBERS",
+  "rect": [
+   117,
+   186,
+   362,
+   199
+  ]
+ },
+ "lbr_id": {
+  "blank": "LBR ID",
+  "rect": [
+   407,
+   186,
+   571,
+   199
+  ]
+ },
+ "interboard_mls_number": {
+  "blank": "INTERBOARD MLS NUMBER",
+  "rect": [
+   163,
+   209,
+   279,
+   222
+  ]
+ },
+ "board": {
+  "blank": "BOARD",
+  "rect": [
+   318,
+   209,
+   571,
+   222
+  ]
+ },
+ "agreement_expiry_date": {
+  "blank": "AGREEMENT EXPIRY DATE",
+  "rect": [
+   153,
+   232,
+   571,
+   245
+  ]
+ },
+ "suspension_from": {
+  "blank": "Date of Suspension",
+  "rect": [
+   41,
+   277,
+   311,
+   290
+  ]
+ },
+ "suspension_until": {
+  "blank": "until",
+  "rect": [
+   331,
+   277,
+   571,
+   290
+  ]
+ }
+}

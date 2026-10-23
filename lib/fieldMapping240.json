@@ -1,0 +1,132 @@
+{
+ "property_address": {
+  "blank": "form240.0.0",
+  "rect": [
+   130,
+   112,
+   571,
+   125
+  ]
+ },
+ "seller": {
+  "blank": "form240.0.1",
+  "rect": [
+   73,
+   139,
+   571,
+   152
+  ]
+ },
+ "brokerage": {
+  "blank": "form240.1.0",
+  "rect": [
+   98,
+   161,
+   571,
+   174
+  ]
+ },
+ "mls_numbers": {
+  "blank": "form240.1.1",
+  "rect": [
+   116,
+   182,
+   347,
+   195
+  ]
+ },
+ "lbr_id": {
+  "blank": "form240.2.0",
+  "rect": [
+   391,
+   182,
+   571,
+   195
+  ]
+ },
+ "interboard_mls_number": {
+  "blank": "form240.2.1",
+  "rect": [
+   162,
+   203,
+   293,
+   216
+  ]
+ },
+ "board": {
+  "blank": "form240.3.0",
+  "rect": [
+   329,
+   203,
+   571,
+   216
+  ]
+ },
+ "listing_expiry_date": {
+  "blank": "form240.3.1",
+  "rect": [
+   132,
+   224,
+   571,
+   237
+  ]
+ },
+ "current_price": {
+  "blank": "form240.4.0",
+  "rect": [
+   142,
+   271,
+   301,
+   284
+  ]
+ },
+ "new_price": {
+  "blank": "form240.4.1",
+  "rect": [
+   367,
+   271,
+   505,
+   284
+  ]
+ },
+ "current_expiry": {
+  "blank": "form240.5.0",
+  "rect": [
+   142,
+   309,
+   300,
+   322
+  ]
+ },
+ "new_expiry": {
+  "blank": "form240.5.1",
+  "rect": [
+   365,
+   309,
+   505,
+   322
+  ]
+ },
+ "_lines": {
+  "amendment_a": [
+   {
+    "name": "form240.6.0",
+    "w": 420
+   },
+   {
+    "name": "form240.6.1",
+    "w": 429
+   }
+  ],
+  "amendment_b": [
+   {
+    "name": "form240.7.0",
+    "w": 420
+   },
+   {
+    "name": "form240.7.1",
+    "w": 430
+   }
+  ]
+ }
+}

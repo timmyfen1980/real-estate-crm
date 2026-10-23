@@ -33,6 +33,17 @@ import {
   buildForm372,
   buildForm271,
   buildForm272,
+  buildForm121,
+  buildForm122,
+  buildForm325,
+  buildForm326,
+  buildForm328,
+  buildForm240,
+  buildForm241,
+  buildForm242,
+  buildForm212,
+  buildForm213,
+  buildForm214,
   validateDeal,
   validateAps,
   validate801,
@@ -42,6 +53,10 @@ import {
   validateDisclosure,
   validateRep,
   validateListing,
+  validateRemoval,
+  validateRelease,
+  validateConsent,
+  validateListingAdmin,
 } from "@/lib/offerPdf";
 import library from "@/lib/clauseLibrary.json";
 
@@ -87,7 +102,7 @@ async function authorized(req: NextRequest): Promise<boolean> {
 }
 
 async function loadTemplate(
-  name: "form100" | "form101" | "form102" | "form801" | "form320" | "form324" | "form123" | "form124" | "form120" | "form161" | "form371" | "form372" | "form271" | "form272"
+  name: "form100" | "form101" | "form102" | "form801" | "form320" | "form324" | "form123" | "form124" | "form120" | "form161" | "form371" | "form372" | "form271" | "form272" | "form121" | "form122" | "form325" | "form326" | "form328" | "form240" | "form241" | "form242" | "form212" | "form213" | "form214"
 ): Promise<Uint8Array | null> {
   const { data, error } = await serviceClient()
     .storage.from(BUCKET)
@@ -420,6 +435,17 @@ export async function POST(req: NextRequest) {
     if (forms.includes("372")) missing.push(...validateRep(deal, "372"));
     if (forms.includes("271")) missing.push(...validateListing(deal, "271"));
     if (forms.includes("272")) missing.push(...validateListing(deal, "272"));
+    if (forms.includes("121")) missing.push(...validateRemoval(deal));
+    if (forms.includes("122")) missing.push(...validateRelease(deal));
+    if (forms.includes("325")) missing.push(...validateConsent(deal, "325"));
+    if (forms.includes("326")) missing.push(...validateConsent(deal, "326"));
+    if (forms.includes("328")) missing.push(...validateConsent(deal, "328"));
+    if (forms.includes("240")) missing.push(...validateListingAdmin(deal, "240"));
+    if (forms.includes("241")) missing.push(...validateListingAdmin(deal, "241"));
+    if (forms.includes("242")) missing.push(...validateListingAdmin(deal, "242"));
+    if (forms.includes("212")) missing.push(...validateListingAdmin(deal, "212"));
+    if (forms.includes("213")) missing.push(...validateListingAdmin(deal, "213"));
+    if (forms.includes("214")) missing.push(...validateListingAdmin(deal, "214"));
 
     let paragraphs: string[] = [];
     if (forms.includes("100") || forms.includes("101") || forms.includes("102")) {
@@ -679,6 +705,182 @@ export async function POST(req: NextRequest) {
       files.push({
         form: "272",
         filename: `Form 272 - ${clientName}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("121")) {
+      const tpl = await loadTemplate("form121");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 121 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm121(deal, tpl);
+      files.push({
+        form: "121",
+        filename: `Form 121 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("122")) {
+      const tpl = await loadTemplate("form122");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 122 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm122(deal, tpl);
+      files.push({
+        form: "122",
+        filename: `Form 122 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("325")) {
+      const tpl = await loadTemplate("form325");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 325 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm325(deal, tpl);
+      files.push({
+        form: "325",
+        filename: `Form 325 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("326")) {
+      const tpl = await loadTemplate("form326");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 326 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm326(deal, tpl);
+      files.push({
+        form: "326",
+        filename: `Form 326 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("328")) {
+      const tpl = await loadTemplate("form328");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 328 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm328(deal, tpl);
+      files.push({
+        form: "328",
+        filename: `Form 328 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("240")) {
+      const tpl = await loadTemplate("form240");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 240 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm240(deal, tpl);
+      files.push({
+        form: "240",
+        filename: `Form 240 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("241")) {
+      const tpl = await loadTemplate("form241");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 241 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm241(deal, tpl);
+      files.push({
+        form: "241",
+        filename: `Form 241 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("242")) {
+      const tpl = await loadTemplate("form242");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 242 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm242(deal, tpl);
+      files.push({
+        form: "242",
+        filename: `Form 242 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("212")) {
+      const tpl = await loadTemplate("form212");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 212 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm212(deal, tpl);
+      files.push({
+        form: "212",
+        filename: `Form 212 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("213")) {
+      const tpl = await loadTemplate("form213");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 213 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm213(deal, tpl);
+      files.push({
+        form: "213",
+        filename: `Form 213 - ${addr}.pdf`,
+        pages,
+        base64: Buffer.from(bytes).toString("base64"),
+      });
+    }
+    if (forms.includes("214")) {
+      const tpl = await loadTemplate("form214");
+      if (!tpl) {
+        return NextResponse.json(
+          { ok: false, code: "templates_missing", error: "The Form 214 blank is not in storage yet." },
+          { status: 503 }
+        );
+      }
+      const { bytes, pages } = await buildForm214(deal, tpl);
+      files.push({
+        form: "214",
+        filename: `Form 214 - ${addr}.pdf`,
         pages,
         base64: Buffer.from(bytes).toString("base64"),
       });

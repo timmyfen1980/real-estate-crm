@@ -1,0 +1,41 @@
+{
+ "tenant": {
+  "blank": "Text20",
+  "rect": [
+   79,
+   97,
+   523,
+   110
+  ]
+ },
+ "brokerage": {
+  "blank": "Text21",
+  "rect": [
+   97,
+   118,
+   485,
+   131
+  ]
+ },
+ "property": {
+  "blank": "Text22",
+  "rect": [
+   111,
+   139,
+   516,
+   152
+  ]
+ },
+ "_lines": {
+  "comments": [
+   {
+    "name": "COMMENTS 1",
+    "w": 471
+   },
+   {
+    "name": "COMMENTS 2",
+    "w": 525
+   }
+  ]
+ }
+}
