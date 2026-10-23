@@ -61,7 +61,7 @@ export default function PrepareOfferPage() {
   // across the top are its forms, all fed by the same answers below)
   const params = useParams()
   const packageId = String((params as any)?.id || '')
-  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'rep' | 'library' | 'files'>('offer')
+  const [tab, setTab] = useState<'offer' | '801' | 'coop' | 'nof' | 'waiver' | 'amend' | 'disclosure' | 'rep' | 'listing' | 'library' | 'files'>('offer')
   const [pkgLoaded, setPkgLoaded] = useState(false)
   const [pkgStatus, setPkgStatus] = useState('draft')
   const [pkgDocs, setPkgDocs] = useState<any[]>([])
@@ -135,6 +135,31 @@ export default function PrepareOfferPage() {
   const [repCommLease, setRepCommLease] = useState('')
   const [repHoldover, setRepHoldover] = useState('90')
   const [repSchedA, setRepSchedA] = useState('')
+  // Listing agreements (271 Seller / 272 Landlord — Batch B):
+  // answers feed deal.listing and buildListingForm.
+  const [lstKind, setLstKind] = useState<'271' | '272'>('271')
+  const [lstClient1, setLstClient1] = useState('')
+  const [lstClient2, setLstClient2] = useState('')
+  const [lstProperty, setLstProperty] = useState('')
+  const [lstRep1, setLstRep1] = useState('')
+  const [lstRep2, setLstRep2] = useState('')
+  const [lstBrokerageAddress, setLstBrokerageAddress] = useState('')
+  const [lstBrokeragePhone, setLstBrokeragePhone] = useState('')
+  const [lstStartDate, setLstStartDate] = useState(todayToronto())
+  const [lstStartTime, setLstStartTime] = useState('')
+  const [lstEndDate, setLstEndDate] = useState('')
+  const [lstPrice, setLstPrice] = useState('')
+  const [lstPriceWords, setLstPriceWords] = useState('')
+  const [lstTotalPct, setLstTotalPct] = useState('5')
+  const [lstTotalOther, setLstTotalOther] = useState('')
+  const [lstTotalText, setLstTotalText] = useState('')
+  const [lstCoopPct, setLstCoopPct] = useState('2.5')
+  const [lstCoopOther, setLstCoopOther] = useState('')
+  const [lstCoopText, setLstCoopText] = useState('')
+  const [lstPurchPct, setLstPurchPct] = useState('')
+  const [lstPurchOther, setLstPurchOther] = useState('')
+  const [lstHoldover, setLstHoldover] = useState('90')
+  const [lstSchedA, setLstSchedA] = useState('')
   const [synSends, setSynSends] = useState<any[]>([])
   const pkgFileRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -158,7 +183,7 @@ export default function PrepareOfferPage() {
   // /dashboard/offers/<id>#waiver opens that later-stage form directly.
   useEffect(() => {
     const h = window.location.hash.replace('#', '')
-    if (h === 'nof' || h === 'waiver' || h === 'amend' || h === 'disclosure' || h === 'rep') {
+    if (h === 'nof' || h === 'waiver' || h === 'amend' || h === 'disclosure' || h === 'rep' || h === 'listing') {
       setTab(h)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -563,6 +588,43 @@ export default function PrepareOfferPage() {
     if (rp.commission_lease) setRepCommLease(rp.commission_lease)
     if (rp.holdover_days) setRepHoldover(rp.holdover_days)
     if (rp.schedule_a_text) setRepSchedA(rp.schedule_a_text)
+    const li = deal.listing || {}
+    if (li.kind) setLstKind(li.kind)
+    const liClients = Array.isArray(li.clients) ? li.clients : []
+    if (liClients[0]) setLstClient1(liClients[0])
+    else if (Array.isArray(deal.sellers) && deal.sellers[0]) setLstClient1(deal.sellers[0])
+    if (liClients[1]) setLstClient2(liClients[1])
+    else if (Array.isArray(deal.sellers) && deal.sellers[1]) setLstClient2(deal.sellers[1])
+    if (li.property_address) setLstProperty(li.property_address)
+    else if (deal.property?.address) {
+      setLstProperty([deal.property.address, deal.property.city].filter(Boolean).join(', '))
+    }
+    const liReps = Array.isArray(li.designated_reps) ? li.designated_reps : []
+    if (liReps[0]) setLstRep1(liReps[0])
+    if (liReps[1]) setLstRep2(liReps[1])
+    if (li.brokerage_address) setLstBrokerageAddress(li.brokerage_address)
+    if (li.brokerage_phone) setLstBrokeragePhone(li.brokerage_phone)
+    if (li.term_start?.day) {
+      const j = joinDate(li.term_start)
+      if (j) setLstStartDate(j)
+    }
+    if (li.term_start?.time) setLstStartTime(li.term_start.time)
+    if (li.term_end?.day) {
+      const j = joinDate(li.term_end)
+      if (j) setLstEndDate(j)
+    }
+    if (li.price) setLstPrice(li.price)
+    if (li.price_words) setLstPriceWords(li.price_words)
+    if (li.commission_total_pct) setLstTotalPct(li.commission_total_pct)
+    if (li.commission_total_other) setLstTotalOther(li.commission_total_other)
+    if (li.commission_total) setLstTotalText(li.commission_total)
+    if (li.commission_coop_pct) setLstCoopPct(li.commission_coop_pct)
+    if (li.commission_coop_other) setLstCoopOther(li.commission_coop_other)
+    if (li.commission_coop) setLstCoopText(li.commission_coop)
+    if (li.commission_purchase_pct) setLstPurchPct(li.commission_purchase_pct)
+    if (li.commission_purchase_other) setLstPurchOther(li.commission_purchase_other)
+    if (li.holdover_days) setLstHoldover(li.holdover_days)
+    if (li.schedule_a_text) setLstSchedA(li.schedule_a_text)
     setSynInfo(deal.syngrafii || null)
     setSynSends(
       Array.isArray(deal.syngrafii_sends)
@@ -924,6 +986,28 @@ export default function PrepareOfferPage() {
           holdover_days: repHoldover || undefined,
           schedule_a_text: repSchedA || undefined,
         },
+        listing: {
+          kind: lstKind,
+          clients: [lstClient1, lstClient2].map((s) => s.trim()).filter(Boolean),
+          property_address: lstProperty || undefined,
+          designated_reps: [lstRep1, lstRep2].map((s) => s.trim()).filter(Boolean),
+          brokerage_address: lstBrokerageAddress || undefined,
+          brokerage_phone: lstBrokeragePhone || undefined,
+          term_start: { ...splitDate(lstStartDate), time: lstStartTime || undefined },
+          term_end: splitDate(lstEndDate),
+          price: lstPrice || undefined,
+          price_words: lstPriceWords || undefined,
+          commission_total_pct: lstTotalPct || undefined,
+          commission_total_other: lstTotalOther || undefined,
+          commission_total: lstTotalText || undefined,
+          commission_coop_pct: lstCoopPct || undefined,
+          commission_coop_other: lstCoopOther || undefined,
+          commission_coop: lstCoopText || undefined,
+          commission_purchase_pct: lstPurchPct || undefined,
+          commission_purchase_other: lstPurchOther || undefined,
+          holdover_days: lstHoldover || undefined,
+          schedule_a_text: lstSchedA || undefined,
+        },
         client: pkgClient || undefined,
         inspector_name: inspectorName || undefined,
         inspection_deadline: inspectionDeadline || undefined,
@@ -967,7 +1051,9 @@ export default function PrepareOfferPage() {
                   ? '161'
                   : tab === 'rep'
                     ? repKind
-                    : null
+                    : tab === 'listing'
+                      ? lstKind
+                      : null
 
   const formLabel = (): string =>
     tab === 'offer'
@@ -986,7 +1072,11 @@ export default function PrepareOfferPage() {
                   ? repKind === '372'
                     ? 'Form 372 — Tenant Representation Agreement'
                     : 'Form 371 — Buyer Representation Agreement'
-                  : 'Form 161 — Disclosure of Interest'
+                  : tab === 'listing'
+                    ? lstKind === '272'
+                      ? 'Form 272 — Landlord Listing Agreement'
+                      : 'Form 271 — Seller Listing Agreement'
+                    : 'Form 161 — Disclosure of Interest'
 
   const surfaceFile = (data: any) => {
     const f = (data.files || [])[0]
@@ -1407,6 +1497,7 @@ export default function PrepareOfferPage() {
               ['801', 'Form 801'],
               ['coop', 'Confirmation — 320'],
               ['rep', 'Representation — 371/372'],
+              ['listing', 'Listing — 271/272'],
               ['library', 'Add from Library'],
               ['files', `Package Files${pkgDocs.length ? ` (${pkgDocs.length})` : ''}`],
             ] as const
@@ -2477,6 +2568,142 @@ export default function PrepareOfferPage() {
           <p className="text-xs text-gray-500">
             The brokerage name is fixed: RE/MAX HALLMARK FIRST GROUP REALTY LTD. Use Preview to
             check the filled form, then Save to package.
+          </p>
+        </div>
+
+        {/* LISTING — Forms 271 (Seller) / 272 (Landlord), designated
+            representation. Answers live in deal.listing. */}
+        <div className={tab === 'listing' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Listing Agreement — {lstKind === '272' ? 'Form 272 (Landlord)' : 'Form 271 (Seller)'}</h2>
+          <p className="text-sm text-gray-600">
+            Designated representation, as always for the FC Group. Client names prefill from the
+            offer's sellers and the property from the offer — adjust for a standalone listing.
+            The price in words is spelled out from the figures automatically. Signatures and
+            initials stay blank for signing.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setLstKind('271')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${lstKind === '271' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Seller — Form 271
+            </button>
+            <button
+              onClick={() => setLstKind('272')}
+              className={`px-4 py-2 rounded-full text-sm border transition ${lstKind === '272' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
+            >
+              Landlord — Form 272
+            </button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>{lstKind === '272' ? 'Landlord 1' : 'Seller 1'}</label>
+              <input className={inputCls} value={lstClient1} onChange={(e) => setLstClient1(e.target.value)} placeholder="Full legal name" />
+            </div>
+            <div>
+              <label className={labelCls}>{lstKind === '272' ? 'Landlord 2 (if any)' : 'Seller 2 (if any)'}</label>
+              <input className={inputCls} value={lstClient2} onChange={(e) => setLstClient2(e.target.value)} placeholder="Full legal name" />
+            </div>
+            <div>
+              <label className={labelCls}>Property</label>
+              <input className={inputCls} value={lstProperty} onChange={(e) => setLstProperty(e.target.value)} placeholder="Street address, municipality" />
+            </div>
+            <div>
+              <label className={labelCls}>{lstKind === '272' ? 'Rent (figures, CDN$)' : 'List price (figures, CDN$)'}</label>
+              <input className={inputCls} value={lstPrice} onChange={(e) => setLstPrice(e.target.value)} placeholder={lstKind === '272' ? '2400' : '784900'} />
+            </div>
+            <div>
+              <label className={labelCls}>Designated representative 1</label>
+              <input className={inputCls} value={lstRep1} onChange={(e) => setLstRep1(e.target.value)} placeholder="Tim Fennessey, Salesperson" />
+            </div>
+            <div>
+              <label className={labelCls}>Designated representative 2 (if any)</label>
+              <input className={inputCls} value={lstRep2} onChange={(e) => setLstRep2(e.target.value)} placeholder="Name, Designation" />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Listing period starts</label>
+              <input type="date" className={inputCls} value={lstStartDate} onChange={(e) => setLstStartDate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Commencing at (time, if any)</label>
+              <input className={inputCls} value={lstStartTime} onChange={(e) => setLstStartTime(e.target.value)} placeholder="e.g. 12:00 p.m." />
+            </div>
+            <div>
+              <label className={labelCls}>Expires (11:59 p.m.)</label>
+              <input type="date" className={inputCls} value={lstEndDate} onChange={(e) => setLstEndDate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Holdover period (days)</label>
+              <input className={inputCls} value={lstHoldover} onChange={(e) => setLstHoldover(e.target.value)} placeholder="90" />
+            </div>
+            <div>
+              <label className={labelCls}>Brokerage address (line 2 of the header)</label>
+              <input className={inputCls} value={lstBrokerageAddress} onChange={(e) => setLstBrokerageAddress(e.target.value)} placeholder="Brokerage street address" />
+            </div>
+            <div>
+              <label className={labelCls}>Brokerage phone</label>
+              <input className={inputCls} value={lstBrokeragePhone} onChange={(e) => setLstBrokeragePhone(e.target.value)} placeholder="905 493-7355" />
+            </div>
+          </div>
+          {lstKind === '271' ? (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Total commission — % of sale price</label>
+                <input className={inputCls} value={lstTotalPct} onChange={(e) => setLstTotalPct(e.target.value)} placeholder="5" />
+              </div>
+              <div>
+                <label className={labelCls}>…or other total commission wording</label>
+                <input className={inputCls} value={lstTotalOther} onChange={(e) => setLstTotalOther(e.target.value)} placeholder="Only if not a straight %" />
+              </div>
+              <div>
+                <label className={labelCls}>Co-operating brokerage — % of sale price</label>
+                <input className={inputCls} value={lstCoopPct} onChange={(e) => setLstCoopPct(e.target.value)} placeholder="2.5" />
+              </div>
+              <div>
+                <label className={labelCls}>…or other co-op wording</label>
+                <input className={inputCls} value={lstCoopOther} onChange={(e) => setLstCoopOther(e.target.value)} placeholder="Only if not a straight %" />
+              </div>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Total commission (wording)</label>
+                <input className={inputCls} value={lstTotalText} onChange={(e) => setLstTotalText(e.target.value)} placeholder="e.g. One month's rent plus HST" />
+              </div>
+              <div>
+                <label className={labelCls}>Co-operating brokerage commission (wording)</label>
+                <input className={inputCls} value={lstCoopText} onChange={(e) => setLstCoopText(e.target.value)} placeholder="e.g. 50% of one month's rent plus HST" />
+              </div>
+              <div>
+                <label className={labelCls}>If the tenant buys — commission % of sale price</label>
+                <input className={inputCls} value={lstPurchPct} onChange={(e) => setLstPurchPct(e.target.value)} placeholder="5" />
+              </div>
+              <div>
+                <label className={labelCls}>…or other purchase wording</label>
+                <input className={inputCls} value={lstPurchOther} onChange={(e) => setLstPurchOther(e.target.value)} placeholder="Only if not a straight %" />
+              </div>
+            </div>
+          )}
+          <div>
+            <label className={labelCls}>Schedule A — additional terms (one paragraph per line)</label>
+            <textarea
+              className={inputCls}
+              rows={4}
+              value={lstSchedA}
+              onChange={(e) => setLstSchedA(e.target.value)}
+              placeholder="Anything beyond the printed agreement goes here — it prints on the Schedule A page."
+            />
+          </div>
+          {lstKind === '272' && (
+            <p className="text-xs text-amber-600">
+              Note: the 272's renewal/option commission line on page 2 has no fillable field on
+              the blank itself — if you need it set, put the wording in Schedule A.
+            </p>
+          )}
+          <p className="text-xs text-gray-500">
+            The brokerage name is fixed: RE/MAX HALLMARK FIRST GROUP REALTY LTD.
           </p>
         </div>
 

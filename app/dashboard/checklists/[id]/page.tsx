@@ -74,6 +74,19 @@ export default function ClientFileDetailPage() {
     propType: string;
   }>(null);
   const [repBusy, setRepBusy] = useState(false);
+  const [lstPrep, setLstPrep] = useState<null | {
+    kind: '271' | '272';
+    designatedRep: string;
+    termStart: string;
+    termEnd: string;
+    price: string;
+    totalPct: string;
+    coopPct: string;
+    totalText: string;
+    coopText: string;
+    holdover: string;
+  }>(null);
+  const [lstBusy, setLstBusy] = useState(false);
   const [contact, setContact] = useState<any>(null);
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
@@ -269,6 +282,73 @@ export default function ClientFileDetailPage() {
       alert(err.message || 'Failed to prepare the agreement.');
     } finally {
       setRepBusy(false);
+    }
+  };
+
+  const openLstPrep = () => {
+    if (!listingKindHere) return;
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+    const end = (() => {
+      const [y, m, d] = today.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1 + 6, d));
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getUTCDate()).padStart(2, '0');
+      return `${dt.getUTCFullYear()}-${mm}-${dd}`;
+    })();
+    setLstPrep({
+      kind: listingKindHere,
+      designatedRep: 'Tim Fennessey, Salesperson',
+      termStart: today,
+      termEnd: end,
+      price: (fPrice || '').replace(/[$,]/g, ''),
+      totalPct: '5',
+      coopPct: '2.5',
+      totalText: listingKindHere === '272' ? "One month's rent plus HST" : '',
+      coopText: listingKindHere === '272' ? "50% of one month's rent plus HST" : '',
+      holdover: '90',
+    });
+  };
+
+  const submitLstPrep = async () => {
+    if (!lstPrep || !file?.crm_contact_id) return;
+    setLstBusy(true);
+    try {
+      const res = await fetch('/api/client-files/generate-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: file.crm_contact_id,
+          client_file_id: file.id,
+          kind: lstPrep.kind,
+          answers: {
+            designated_reps: [lstPrep.designatedRep],
+            term_start: lstPrep.termStart,
+            term_end: lstPrep.termEnd,
+            price: lstPrep.price || undefined,
+            commission_total_pct: lstPrep.kind === '271' ? lstPrep.totalPct : undefined,
+            commission_coop_pct: lstPrep.kind === '271' ? lstPrep.coopPct : undefined,
+            commission_total: lstPrep.kind === '272' ? lstPrep.totalText : undefined,
+            commission_coop: lstPrep.kind === '272' ? lstPrep.coopText : undefined,
+            holdover_days: lstPrep.holdover,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const miss = Array.isArray(data.missing) && data.missing.length
+          ? ' Still needed: ' + data.missing.join('; ')
+          : '';
+        throw new Error((data.error || 'Preparation failed') + miss);
+      }
+      setLstPrep(null);
+      alert(
+        `Form ${lstPrep.kind} prepared and saved to this client file — it's on the checklist row, ready to send for signature.`
+      );
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to prepare the listing agreement.');
+    } finally {
+      setLstBusy(false);
     }
   };
 
@@ -625,6 +705,12 @@ export default function ClientFileDetailPage() {
     if (f.includes('372')) return '372';
     return null;
   })();
+  const listingKindHere: '271' | '272' | null = (() => {
+    const f = (repDocs[0]?.form || '') + ' ' + (repDocs[0]?.document || '');
+    if (f.includes('271')) return '271';
+    if (f.includes('272')) return '272';
+    return null;
+  })();
   const readyChips: { label: string; done: boolean; todo: string }[] = [
     { label: 'Photo ID', done: idDocReceived, todo: 'needed' },
     { label: 'FINTRAC 630', done: has630, todo: 'not filed' },
@@ -907,6 +993,28 @@ export default function ClientFileDetailPage() {
                 </span>
               </div>
             )}
+
+            {/* Listing agreement — prepare the 271/272 from here */}
+            {listingKindHere && (
+              <div className="mt-3 flex items-center flex-wrap gap-2 border-t pt-3">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
+                  Listing
+                </span>
+                <button
+                  onClick={openLstPrep}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300"
+                >
+                  Prepare Form {listingKindHere}
+                </button>
+                <span className="text-xs text-gray-500 ml-1">
+                  {repReceived
+                    ? 'Signed copy on file ✓'
+                    : repDocs[0]?.file_url
+                      ? 'Prepared — ready to send for signature'
+                      : 'Not prepared yet'}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -1141,6 +1249,122 @@ export default function ClientFileDetailPage() {
       </div>
 
       {/* Delete confirmation modal */}
+      {lstPrep && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold">
+              Prepare Form {lstPrep.kind} — {lstPrep.kind === '272' ? 'Landlord' : 'Seller'} Listing Agreement
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Filled from this file's details — the client names, the property address from Deal
+              Details, and the price spelled out in words automatically. The prepared copy lands
+              on the checklist row, ready to send for signature.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium">Designated representative</label>
+                <input
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  value={lstPrep.designatedRep}
+                  onChange={(e) => setLstPrep({ ...lstPrep, designatedRep: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Listing starts</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={lstPrep.termStart}
+                    onChange={(e) => setLstPrep({ ...lstPrep, termStart: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Listing expires</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={lstPrep.termEnd}
+                    onChange={(e) => setLstPrep({ ...lstPrep, termEnd: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">{lstPrep.kind === '272' ? 'Rent (CDN$)' : 'List price (CDN$)'}</label>
+                  <input
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    placeholder={lstPrep.kind === '272' ? '2400' : '784900'}
+                    value={lstPrep.price}
+                    onChange={(e) => setLstPrep({ ...lstPrep, price: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Holdover (days)</label>
+                  <input
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={lstPrep.holdover}
+                    onChange={(e) => setLstPrep({ ...lstPrep, holdover: e.target.value })}
+                  />
+                </div>
+              </div>
+              {lstPrep.kind === '271' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium">Total commission — %</label>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={lstPrep.totalPct}
+                      onChange={(e) => setLstPrep({ ...lstPrep, totalPct: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Co-op brokerage — %</label>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={lstPrep.coopPct}
+                      onChange={(e) => setLstPrep({ ...lstPrep, coopPct: e.target.value })}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium">Total commission (wording)</label>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={lstPrep.totalText}
+                      onChange={(e) => setLstPrep({ ...lstPrep, totalText: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Co-op brokerage commission (wording)</label>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={lstPrep.coopText}
+                      onChange={(e) => setLstPrep({ ...lstPrep, coopText: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mt-5 flex gap-2 justify-end">
+              <button
+                onClick={() => setLstPrep(null)}
+                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitLstPrep}
+                disabled={lstBusy}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+              >
+                {lstBusy ? 'Preparing…' : `Prepare Form ${lstPrep.kind}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {repPrep && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
