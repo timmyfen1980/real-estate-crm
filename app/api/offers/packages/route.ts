@@ -291,7 +291,7 @@ export async function GET(req: NextRequest) {
     }
     const { data, error } = await supabase
       .from("offer_packages")
-      .select("id,address,city,mls,status,partial,documents,created_at,updated_at")
+      .select("id,address,city,mls,status,partial,documents,created_at,updated_at,created_by")
       .eq("account_id", FC_ACCOUNT_ID)
       .order("address", { ascending: true });
     if (error) {

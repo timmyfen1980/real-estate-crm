@@ -1336,7 +1336,7 @@ export default function PrepareOfferPage() {
     tab === 'offer'
       ? `Form ${apsForm} — the Offer`
       : tab === '801'
-        ? 'Form 801'
+        ? 'Form 801 — Offer Summary'
         : tab === 'coop'
           ? 'Form 320 — Confirmation of Co-operation'
           : tab === 'nof'
@@ -1633,8 +1633,9 @@ export default function PrepareOfferPage() {
               {address || 'Offer package'}
               {city ? <span className="text-gray-500 font-normal">, {city}</span> : null}
             </h1>
+            <span className="text-xs text-gray-400 ml-auto">Status</span>
             <select
-              className="border rounded-md px-2 py-1.5 text-sm ml-auto"
+              className="border rounded-md px-2 py-1.5 text-sm"
               value={pkgStatus}
               onChange={async (e) => {
                 const v = e.target.value
@@ -1647,6 +1648,7 @@ export default function PrepareOfferPage() {
               }}
             >
               <option value="draft">Draft</option>
+              <option value="in_review">Ready for review</option>
               <option value="ready">Ready for Signature</option>
               <option value="out">Out for Signature</option>
               <option value="signed">Signed</option>
@@ -1780,10 +1782,10 @@ export default function PrepareOfferPage() {
           {(
             [
               ['offer', `Offer — Form ${apsForm}`],
-              ['801', 'Form 801'],
-              ['coop', 'Confirmation — 320'],
-              ['rep', 'Representation — 371/372'],
-              ['listing', 'Listing — 271/272'],
+              ['801', 'Form 801 — Offer Summary'],
+              ['coop', 'Confirmation of Co-operation — 320'],
+              ['rep', 'Representation Agreement — 371/372'],
+              ['listing', 'Listing Agreement — 271/272'],
               ['library', 'Add from Library'],
               ['files', `Package Files${pkgDocs.length ? ` (${pkgDocs.length})` : ''}`],
             ] as const

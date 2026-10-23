@@ -96,6 +96,10 @@ export default function Dashboard() {
   // the email_followups table is unreachable) — the card fails quiet.
   const [emailFollowups, setEmailFollowups] = useState<EmailFollowup[] | null>(null)
 
+  // Ready-for-review count: null = line hidden (still loading or the
+  // packages endpoint unreachable) — fails quiet like the cards above.
+  const [reviewCount, setReviewCount] = useState<number | null>(null)
+
   // Closings Ahead: null = card hidden. No CRM code references a
   // closing_date column on deals, so the query is expected to error and
   // the card stays hidden until such a column exists — fail quiet.
@@ -146,6 +150,20 @@ export default function Dashboard() {
       } catch {
         // Fail quiet: no follow-ups card.
       }
+    }
+
+    // Ready-for-review count (fail-quiet): packages Beth has assembled
+    // and handed over, waiting in the Offers list for an agent to check.
+    try {
+      const pkgRes = await fetch('/api/offers/packages')
+      const pkgData = await pkgRes.json()
+      if (pkgData?.ok && Array.isArray(pkgData.packages)) {
+        setReviewCount(
+          pkgData.packages.filter((p: any) => p.status === 'in_review').length
+        )
+      }
+    } catch {
+      // Fail quiet: no review line.
     }
 
     const leadQuery = supabase
@@ -525,6 +543,19 @@ export default function Dashboard() {
           Offers are built under <span className="font-medium text-gray-700">Prepare an Offer</span>.
           Rea, bottom-right, can answer questions and start things for you.
         </p>
+
+        {/* READY FOR REVIEW — shown only while packages are waiting. */}
+        {reviewCount !== null && reviewCount > 0 && (
+          <p className="text-sm px-1">
+            <Link
+              href="/dashboard/offers"
+              className="font-medium text-blue-700 underline"
+            >
+              {reviewCount} offer package{reviewCount === 1 ? '' : 's'} ready for review →
+            </Link>{' '}
+            <span className="text-gray-500">waiting in Offers for an agent to check.</span>
+          </p>
+        )}
 
         {/* COMMAND BAR — PERFORMANCE MODE */}
         <div className="bg-gray-900 text-white rounded-xl px-5 py-3 flex gap-10 text-sm items-center shadow-md">

@@ -8,9 +8,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabaseClient'
 
 const STATUSES = [
   { value: 'draft', label: 'Draft' },
+  { value: 'in_review', label: 'Ready for review' },
   { value: 'ready', label: 'Ready for Signature' },
   { value: 'out', label: 'Out for Signature' },
   { value: 'signed', label: 'Signed' },
@@ -25,6 +27,7 @@ export default function OffersPage() {
   const [busyId, setBusyId] = useState('')
   const [formsFor, setFormsFor] = useState('')
   const [confirmRemove, setConfirmRemove] = useState('')
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({})
   const fileRef = useRef<HTMLInputElement>(null)
   const addTarget = useRef<string>('')
 
@@ -39,6 +42,31 @@ export default function OffersPage() {
       }
       setPackages(data.packages || [])
       setTableMissing(!!data.table_missing)
+      // Names for the review queue ("put together by …"): resolve the
+      // creators of in-review packages from profiles, fail-quiet — the
+      // queue still works without names.
+      const creatorIds = Array.from(
+        new Set(
+          (data.packages || [])
+            .filter((p: any) => p.status === 'in_review' && p.created_by)
+            .map((p: any) => p.created_by as string)
+        )
+      )
+      if (creatorIds.length > 0) {
+        try {
+          const { data: profs } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', creatorIds)
+          const map: Record<string, string> = {}
+          ;(profs || []).forEach((pr: any) => {
+            if (pr.full_name) map[pr.id] = pr.full_name
+          })
+          setCreatorNames(map)
+        } catch {
+          // names are a nicety only
+        }
+      }
     } catch {
       setError('Could not load offer packages.')
     } finally {
@@ -234,6 +262,64 @@ export default function OffersPage() {
             will be saved here automatically.
           </div>
         )}
+
+        {/* READY FOR REVIEW — the handoff queue (Tim, 2026-10-23): Beth
+            assembles a package, sets it "Ready for review", and it waits
+            here for Tim or Aidan to check before anything moves on to
+            Ready for Signature. Longest-waiting first; hidden when empty. */}
+        {(() => {
+          const reviewPkgs = packages
+            .filter((p) => p.status === 'in_review')
+            .slice()
+            .sort((a, b) =>
+              String(a.updated_at || '').localeCompare(String(b.updated_at || ''))
+            )
+          if (reviewPkgs.length === 0) return null
+          return (
+            <div className="bg-white rounded-2xl shadow p-6 space-y-3 border-2 border-blue-200">
+              <h2 className="font-semibold text-lg">
+                Ready for review{' '}
+                <span className="text-sm font-normal text-gray-500">
+                  ({reviewPkgs.length} waiting)
+                </span>
+              </h2>
+              <p className="text-sm text-gray-500">
+                Assembled and finished — waiting for Tim or Aidan to check before anything
+                goes out.
+              </p>
+              <div className="divide-y divide-gray-100">
+                {reviewPkgs.map((pkg) => (
+                  <div key={pkg.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                    <Link
+                      href={`/dashboard/offers/${pkg.id}`}
+                      className="font-medium text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-600"
+                    >
+                      {pkg.address}
+                      {pkg.city ? (
+                        <span className="text-gray-500 font-normal">, {pkg.city}</span>
+                      ) : null}
+                    </Link>
+                    {pkg.created_by && creatorNames[pkg.created_by] && (
+                      <span className="text-xs text-gray-500">
+                        Put together by {creatorNames[pkg.created_by].split(' ')[0]}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400">
+                      Updated{' '}
+                      {new Date(pkg.updated_at || pkg.created_at).toLocaleDateString('en-CA')}
+                    </span>
+                    <Link
+                      href={`/dashboard/offers/${pkg.id}`}
+                      className="ml-auto text-sm font-medium border border-black px-3 py-1.5 rounded-md hover:bg-black hover:text-white transition"
+                    >
+                      Open package →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         {packages.map((pkg) => {
           const docs: any[] = Array.isArray(pkg.documents) ? pkg.documents : []
