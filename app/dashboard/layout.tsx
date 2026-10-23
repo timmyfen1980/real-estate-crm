@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import ReaChat from '@/app/components/ReaChat'
+import LoginScan from '@/app/components/LoginScan'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -695,6 +696,7 @@ const handleLogout = async () => {
 
       </div>
       <ReaChat />
+      <LoginScan />
     </div>
   )
 }
