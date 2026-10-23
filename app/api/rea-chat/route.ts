@@ -8,12 +8,16 @@
 // Rea answers from live CRM data via tools — never from memory alone:
 //   get_my_tasks, get_leads_needing_attention, get_closings_ahead,
 //   search_listings, start_offer (hands off to the offer workspace).
-// She drafts and points; she never sends email or changes records here.
+// Guided offer intake (voice or text): begin_offer_intake creates a real
+// offer package, update_offer_fields writes each answer into its deal,
+// get_offer_status reads it back, generate_offer_forms builds the PDFs.
+// She drafts and points; she never sends email.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { validateDeal, validate801, validateRep } from "@/lib/offerPdf";
 
 const FC_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 const MODEL = "gpt-4o-mini";
@@ -204,6 +208,625 @@ async function searchListings(args: any) {
   return { total: data?.total ?? rows.length, listings: rows };
 }
 
+// ---------------------------------------------------------------------------
+// guided offer intake (voice or text)
+// ---------------------------------------------------------------------------
+// The chat builds a real offer package the same way the workspace does:
+// a package row is created up front, the property is prefilled from the
+// DLA/IDX feed (the same /api/offers/prefill the Prepare-an-Offer page
+// uses), and the "still needed" list comes from the SAME validators the
+// generate route enforces (lib/offerPdf) — so Rea asks only for what is
+// actually missing, one question at a time, and every answer is written
+// into the package's deal snapshot via the same update the workspace
+// autosave performs. Defaults mirror the workspace's own defaults
+// (agreement date today, irrevocable by the Buyer at 11:59 p.m.,
+// deposit held by our brokerage, 90-day holdover on the 371) and are
+// always surfaced in the read-back summary for correction.
+
+const OUR_BROKERAGE = "RE/MAX Hallmark First Group Realty Ltd.";
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DATE_PATHS = [
+  "agreement_date",
+  "completion_date",
+  "title_search_date",
+  "irrevocable.date",
+  "submitted.date",
+  "rep.term_start",
+  "rep.term_end",
+];
+const NAME_PATHS = ["buyers", "sellers", "rep.clients", "rep.designated_reps"];
+const STANDARD_KEEP = ["A", "STD-SURVEY", "STD-VIEWINGS", "STD-WARRANTY", "ZB"];
+
+interface IntakeQuestion {
+  key: string;
+  question: string;
+  options?: string[];
+}
+
+function splitIso(iso: string) {
+  if (!iso) return { day: "", month: "", year: "" };
+  const [y, m, d] = String(iso).split("-");
+  return { day: d || "", month: MONTH_NAMES[Number(m) - 1] || "", year: (y || "").slice(2) };
+}
+
+function splitToIso(d: any): string {
+  if (!d || !d.day || !d.month) return "";
+  const mi = MONTH_NAMES.indexOf(d.month);
+  if (mi < 0) return "";
+  const yr = String(d.year || "").length === 2 ? `20${d.year}` : String(d.year || "");
+  if (!yr) return "";
+  return `${yr}-${String(mi + 1).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+}
+
+function addMonthsIso(iso: string, months: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y || 2026, (m || 1) - 1, d || 1));
+  dt.setUTCMonth(dt.getUTCMonth() + months);
+  return dt.toISOString().slice(0, 10);
+}
+
+function setPath(obj: any, path: string, value: any): void {
+  const keys = path.split(".");
+  let cur = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (cur[keys[i]] == null || typeof cur[keys[i]] !== "object") cur[keys[i]] = {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = value;
+}
+
+function fmtMoney(v: any): string {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? `$${n.toLocaleString("en-US")}` : "";
+}
+
+function fmtSplitDate(d: any): string {
+  if (!d || !d.day || !d.month) return "";
+  const yr = d.year ? (String(d.year).length === 2 ? `20${d.year}` : d.year) : "";
+  return `${d.month} ${d.day}${yr ? `, ${yr}` : ""}`;
+}
+
+function textLines(t: any): string[] {
+  if (Array.isArray(t)) return t.map(String).map((s) => s.trim()).filter(Boolean);
+  if (!t) return [];
+  return String(t)
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// Collapse a validator's raw missing path ("irrevocable.date.day",
+// "rep.clients (buyer name(s))", "term_end.month") to the one
+// conversational question that covers it.
+function baseMissingPath(m: string): string {
+  const p = m.split(" (")[0].trim();
+  if (p.startsWith("term_start")) return "rep.term_start";
+  if (p.startsWith("term_end")) return "rep.term_end";
+  if (p === "rep.commission") return "rep.commission_purchase_pct";
+  if (p.startsWith("submitted")) return "submitted";
+  for (const dp of DATE_PATHS) {
+    if (p === dp || p.startsWith(dp + ".")) return dp;
+  }
+  return p;
+}
+
+function questionCatalogue(deal: any): IntakeQuestion[] {
+  const completionIso = splitToIso(deal?.completion_date);
+  const titleIso = completionIso ? addDays(completionIso, -15) : "";
+  const titleLabel = titleIso ? fmtSplitDate(splitIso(titleIso)) : "";
+  return [
+    { key: "buyers", question: "What are the buyers' full legal names?" },
+    {
+      key: "sellers",
+      question:
+        "What are the sellers' full legal names? (Say \"not yet\" if you don't have them — we can still draft the rest.)",
+    },
+    { key: "property.address", question: "What's the property address?" },
+    { key: "property.city", question: "What city is the property in?" },
+    {
+      key: "property.legal_description",
+      question:
+        "What's the legal description? It's on the listing sheet or the DLA printout — or say \"not yet\".",
+    },
+    { key: "price", question: "What's the offer price?" },
+    { key: "deposit", question: "How much is the deposit?" },
+    {
+      key: "deposit_due",
+      question: "When is the deposit due?",
+      options: ["Upon acceptance", "Within 24 hours of acceptance", "With the offer"],
+    },
+    { key: "deposit_holder", question: "Who will hold the deposit?" },
+    {
+      key: "irrevocable.date",
+      question: `The offer is irrevocable by the Buyer until ${deal?.irrevocable?.time || "11:59 p.m."} — on what date?`,
+    },
+    { key: "completion_date", question: "What's the closing date?" },
+    {
+      key: "title_search_date",
+      question: titleLabel
+        ? `Title search date — ${titleLabel} (about two weeks before closing) is typical. Use that, or give me a different date.`
+        : "What's the title search (requisition) date?",
+      options: titleLabel ? [titleLabel] : undefined,
+    },
+    {
+      key: "hst",
+      question: "HST — is it in addition to the purchase price, or included in it?",
+      options: ["In addition", "Included"],
+    },
+    { key: "listing_brokerage.brokerage", question: "What's the listing brokerage?" },
+    { key: "listing_brokerage.agent", question: "Who's the listing agent?" },
+    { key: "selling_brokerage.agent", question: "Which of our agents is presenting the offer?" },
+    {
+      key: "submitted",
+      question:
+        "How is the offer being submitted, and at what time? (For example: by email at 6:30 p.m.)",
+    },
+    {
+      key: "rep.term_end",
+      question: "The buyer representation agreement starts today — how long should it run?",
+      options: ["6 months", "3 months", "12 months"],
+    },
+    {
+      key: "rep.geographic_location",
+      question: "What area should the buyer agreement cover?",
+      options: ["Durham Region", "Durham Region and the GTA", "The GTA"],
+    },
+    {
+      key: "rep.commission_purchase_pct",
+      question: "If they buy, what commission percent goes on the buyer agreement? (2.5% is the usual.)",
+    },
+    {
+      key: "rep.designated_reps",
+      question: "Who are the designated representatives on the buyer agreement?",
+    },
+    { key: "rep.clients", question: "What are the buyers' full legal names for the agreement?" },
+  ];
+}
+
+function computeStillNeeded(deal: any, forms: string[]): IntakeQuestion[] {
+  const missing = new Set<string>();
+  if (forms.some((f) => ["100", "101", "102"].includes(f))) {
+    for (const m of validateDeal(deal)) missing.add(baseMissingPath(m));
+  }
+  if (forms.includes("801")) {
+    for (const m of validate801(deal)) missing.add(baseMissingPath(m));
+  }
+  if (forms.includes("371")) {
+    for (const m of validateRep(deal, "371")) missing.add(baseMissingPath(m));
+  }
+  // The buyer agreement's clients are the buyers — never ask twice.
+  if (Array.isArray(deal?.buyers) && deal.buyers.filter(Boolean).length) {
+    missing.delete("rep.clients");
+  }
+  // Seeded by default (workspace defaults) — covered by the read-back.
+  missing.delete("rep.term_start");
+  missing.delete("rep.designated_reps");
+  const skipped: string[] = Array.isArray(deal?.intake_skipped) ? deal.intake_skipped : [];
+  const out = questionCatalogue(deal).filter(
+    (q) => missing.has(q.key) && !skipped.includes(q.key)
+  );
+  if (forms.some((f) => ["100", "101", "102"].includes(f))) {
+    if (!deal?.intake_conditions_done) {
+      out.push({
+        key: "conditions",
+        question:
+          "Conditions — keep the standard financing and home inspection clauses (5 banking days each, to 6:00 p.m.)?",
+        options: [
+          "Standard — financing + inspection",
+          "Financing only",
+          "Inspection only",
+          "No conditions",
+        ],
+      });
+    }
+    if (
+      !(Array.isArray(deal?.chattels) && deal.chattels.filter(Boolean).length) &&
+      !deal?.intake_chattels_done
+    ) {
+      out.push({
+        key: "chattels",
+        question:
+          "Chattels included — say \"standard\" for the usual list (fridge, stove, dishwasher, washer, dryer, light fixtures, window coverings, furnace and A/C), or tell me what's included.",
+      });
+    }
+  }
+  return out;
+}
+
+function buildSummary(deal: any, forms: string[]) {
+  const ct = deal?.condition_terms || {};
+  const codes: string[] | null = Array.isArray(deal?.standard_codes)
+    ? deal.standard_codes.map(String)
+    : null;
+  const hasB = !codes || codes.includes("B");
+  const hasC = !codes || codes.includes("C");
+  const condParts: string[] = [];
+  if (hasB) {
+    condParts.push(
+      `financing (${ct.financing?.days || "5"} banking days, to ${ct.financing?.time || "6:00 p.m."})`
+    );
+  }
+  if (hasC) {
+    condParts.push(
+      `home inspection (${ct.inspection?.days || "5"} banking days, to ${ct.inspection?.time || "6:00 p.m."})`
+    );
+  }
+  const rep = forms.includes("371") ? deal?.rep : null;
+  return {
+    property: [deal?.property?.address, deal?.property?.city].filter(Boolean).join(", "),
+    buyers: (deal?.buyers || []).filter(Boolean).join(" and "),
+    sellers: (deal?.sellers || []).filter(Boolean).join(" and "),
+    price: fmtMoney(deal?.price),
+    deposit: [
+      fmtMoney(deal?.deposit),
+      deal?.deposit_due === "upon_acceptance" ? "upon acceptance" : deal?.deposit_due || "",
+      deal?.deposit_holder ? `held by ${deal.deposit_holder}` : "",
+    ]
+      .filter(Boolean)
+      .join(", "),
+    closing: fmtSplitDate(deal?.completion_date),
+    title_search: fmtSplitDate(deal?.title_search_date),
+    irrevocable: deal?.irrevocable
+      ? `by ${deal.irrevocable.by || "the Buyer"} until ${deal.irrevocable.time || ""} on ${fmtSplitDate(deal.irrevocable.date)}`
+      : "",
+    hst: deal?.hst === "in_addition" ? "in addition to the price" : deal?.hst === "included" ? "included in the price" : "",
+    conditions: condParts.length ? condParts.join(" + ") : "none",
+    chattels: (deal?.chattels || []).filter(Boolean).join("; "),
+    buyer_agreement: rep
+      ? [
+          rep.commission_purchase_pct ? `${rep.commission_purchase_pct}% commission on a purchase` : "",
+          rep.holdover_days ? `${rep.holdover_days}-day holdover` : "",
+          rep.geographic_location ? `covers ${rep.geographic_location}` : "",
+          rep.term_start && rep.term_end
+            ? `runs ${fmtSplitDate(rep.term_start)} to ${fmtSplitDate(rep.term_end)}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : undefined,
+    forms,
+  };
+}
+
+function intakeState(packageId: string, deal: any, forms: string[]) {
+  const still = computeStillNeeded(deal, forms);
+  return {
+    package_id: packageId,
+    workspace: `/dashboard/offers/${packageId}`,
+    property: deal?.property || {},
+    list_price: deal?.intake_list_price || undefined,
+    still_needed: still,
+    next_question: still[0] || null,
+    skipped: Array.isArray(deal?.intake_skipped) ? deal.intake_skipped : [],
+    summary: buildSummary(deal, forms),
+    ready_to_generate: still.length === 0,
+  };
+}
+
+async function loadPackageDeal(packageId: string): Promise<any | null> {
+  const supabase = serviceClient();
+  const { data } = await supabase
+    .from("offer_packages")
+    .select("deal")
+    .eq("account_id", FC_ACCOUNT_ID)
+    .eq("id", packageId)
+    .maybeSingle();
+  return data?.deal || null;
+}
+
+async function savePackageDeal(packageId: string, deal: any): Promise<void> {
+  const supabase = serviceClient();
+  const prop = deal.property || {};
+  const { error } = await supabase
+    .from("offer_packages")
+    .update({
+      deal,
+      address: prop.address || undefined,
+      city: prop.city || undefined,
+      mls: prop.mls || undefined,
+    })
+    .eq("account_id", FC_ACCOUNT_ID)
+    .eq("id", packageId);
+  if (error) throw new Error(error.message);
+}
+
+async function beginOfferIntake(
+  args: any,
+  ctx: { userId: string; name: string; origin: string }
+) {
+  const forms: string[] = ["100"];
+  if (args?.include_bra) forms.push("371");
+  if (args?.include_801) forms.push("801");
+  const mls = String(args?.mls || "").trim();
+  const query = String(args?.query || "").trim();
+  let prefill: any = {};
+  if (mls || query) {
+    try {
+      const res = await fetch(`${ctx.origin}/api/offers/prefill`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.REA_AGENT_SECRET || ""}`,
+        },
+        body: JSON.stringify(mls ? { mls } : { query }),
+      });
+      const data: any = await res.json().catch(() => null);
+      if (data?.ok && Array.isArray(data.candidates) && data.candidates.length) {
+        return {
+          status: "choose_property",
+          candidates: data.candidates.map((c: any) => ({
+            mls: c.key,
+            address: c.address,
+            city: c.city,
+            price: c.price,
+          })),
+          note: "Ask which property, then call begin_offer_intake again with its mls.",
+        };
+      }
+      if (data?.ok && data.prefill) prefill = data.prefill;
+    } catch {
+      // Prefill is a convenience — the questions cover whatever it misses.
+    }
+  }
+  const today = torontoToday();
+  const buyers: string[] = Array.isArray(args?.buyer_names)
+    ? args.buyer_names.map(String).map((s: string) => s.trim()).filter(Boolean)
+    : [];
+  const deal: any = {
+    buyers,
+    sellers: [],
+    property: {
+      address: prefill.address || (mls ? "" : query),
+      city: prefill.city || "",
+      legal_description: prefill.legal_description || undefined,
+      pin: prefill.pin ? String(prefill.pin) : undefined,
+      frontage: prefill.frontage ? String(prefill.frontage) : undefined,
+      depth: prefill.depth ? String(prefill.depth) : undefined,
+      frontage_side: prefill.street_side || undefined,
+      frontage_street: prefill.street_name || undefined,
+      mls: mls || prefill.mls || undefined,
+    },
+    agreement_date: splitIso(today),
+    deposit_holder: OUR_BROKERAGE,
+    irrevocable: { by: "The Buyer", time: "11:59 p.m.", date: splitIso(today) },
+    chattels: textLines(prefill.chattels),
+    exclusions: textLines(prefill.exclusions),
+    listing_brokerage: prefill.listing_brokerage
+      ? {
+          brokerage: String(prefill.listing_brokerage),
+          agent: prefill.listing_agent || undefined,
+          phone: prefill.listing_agent_phone || undefined,
+        }
+      : undefined,
+    selling_brokerage: { brokerage: OUR_BROKERAGE, agent: ctx.name },
+    submitted: { via: "", time: "", date: splitIso(today) },
+    coop: prefill.coop_share
+      ? { share: String(prefill.coop_share), basis: "of the purchase price" }
+      : undefined,
+    intake_forms: forms,
+    intake_list_price: prefill.list_price ? Number(prefill.list_price) : undefined,
+  };
+  if (forms.includes("371")) {
+    deal.rep = {
+      kind: "371",
+      clients: buyers,
+      designated_reps: [ctx.name],
+      term_start: splitIso(today),
+      geographic_location: "",
+      commission_purchase_pct: "",
+      holdover_days: "90",
+    };
+  }
+  const supabase = serviceClient();
+  const { data: pkg, error } = await supabase
+    .from("offer_packages")
+    .insert({
+      account_id: FC_ACCOUNT_ID,
+      created_by: ctx.userId,
+      address: deal.property.address || "Untitled offer",
+      city: deal.property.city || null,
+      mls: deal.property.mls || null,
+      status: "draft",
+      partial: false,
+      deal,
+      documents: [],
+    })
+    .select("id")
+    .single();
+  if (error) return { error: `Could not create the package: ${error.message}` };
+  return {
+    status: "started",
+    prefill_source: prefill.address ? "listing_feed" : "none",
+    ...intakeState(pkg.id, deal, forms),
+  };
+}
+
+function applyConditions(deal: any, value: any): void {
+  const v = value && typeof value === "object" ? value : { choice: String(value || "standard") };
+  const choice = String(v.choice || "standard").toLowerCase();
+  const fin = {
+    days: String(v.financing_days || "5"),
+    time: String(v.financing_time || "6:00 p.m."),
+  };
+  const insp = {
+    days: String(v.inspection_days || "5"),
+    time: String(v.inspection_time || "6:00 p.m."),
+  };
+  if (choice.includes("no conditions") || choice === "none") {
+    deal.standard_codes = [...STANDARD_KEEP];
+    delete deal.condition_terms;
+  } else if (choice.includes("financing only")) {
+    deal.standard_codes = [...STANDARD_KEEP, "B"];
+    deal.condition_terms = { financing: fin };
+  } else if (choice.includes("inspection only")) {
+    deal.standard_codes = [...STANDARD_KEEP, "C"];
+    deal.condition_terms = { inspection: insp };
+  } else {
+    deal.standard_codes = null;
+    deal.condition_terms = { financing: fin, inspection: insp };
+  }
+  deal.intake_conditions_done = true;
+}
+
+async function updateOfferFields(args: any) {
+  const packageId = String(args?.package_id || "");
+  if (!packageId) return { error: "Missing package_id." };
+  const deal = await loadPackageDeal(packageId);
+  if (!deal) return { error: "Package not found." };
+  const forms: string[] =
+    Array.isArray(deal.intake_forms) && deal.intake_forms.length ? deal.intake_forms : ["100"];
+  const fields: any[] = Array.isArray(args?.fields) ? args.fields : [];
+  for (const f of fields) {
+    const path = String(f?.path || "");
+    let value = f?.value;
+    if (!path) continue;
+    if (path === "__skip") {
+      const key = String(value || "");
+      if (key) {
+        deal.intake_skipped = Array.from(
+          new Set([...(Array.isArray(deal.intake_skipped) ? deal.intake_skipped : []), key])
+        );
+        if (key === "conditions") deal.intake_conditions_done = true;
+        if (key === "chattels") deal.intake_chattels_done = true;
+      }
+      continue;
+    }
+    if (path === "conditions") {
+      applyConditions(deal, value);
+      continue;
+    }
+    if (path === "chattels") {
+      deal.chattels = textLines(value);
+      deal.intake_chattels_done = true;
+      continue;
+    }
+    if (path === "submitted") {
+      if (value && typeof value === "object") {
+        deal.submitted = {
+          ...(deal.submitted || {}),
+          ...(value.via ? { via: String(value.via) } : {}),
+          ...(value.time ? { time: String(value.time) } : {}),
+        };
+      }
+      continue;
+    }
+    if (DATE_PATHS.includes(path)) {
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        value = splitIso(value);
+      } else if (value && typeof value === "object" && value.months) {
+        value = splitIso(addMonthsIso(torontoToday(), Number(value.months) || 6));
+      } else if (typeof value === "string" && /month/i.test(value)) {
+        value = splitIso(addMonthsIso(torontoToday(), parseInt(value, 10) || 6));
+      }
+      setPath(deal, path, value);
+      continue;
+    }
+    if (NAME_PATHS.includes(path)) {
+      value = Array.isArray(value)
+        ? value.map(String).map((s: string) => s.trim()).filter(Boolean)
+        : String(value || "")
+            .split(/\s+&\s+|\s+and\s+/i)
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+      setPath(deal, path, value);
+      continue;
+    }
+    if (path === "price" || path === "deposit") {
+      const n = Number(String(value).replace(/[^0-9.]/g, ""));
+      setPath(deal, path, Number.isFinite(n) && n > 0 ? n : value);
+      continue;
+    }
+    if (path === "deposit_due") {
+      setPath(deal, path, /upon acceptance/i.test(String(value)) ? "upon_acceptance" : String(value));
+      continue;
+    }
+    if (path === "hst") {
+      setPath(
+        deal,
+        path,
+        /addition/i.test(String(value))
+          ? "in_addition"
+          : /included/i.test(String(value))
+            ? "included"
+            : value
+      );
+      continue;
+    }
+    setPath(deal, path, value);
+  }
+  // Keep the buyer agreement's clients in step with the buyers.
+  if (
+    deal.rep &&
+    Array.isArray(deal.buyers) &&
+    deal.buyers.filter(Boolean).length &&
+    !(Array.isArray(deal.rep.clients) && deal.rep.clients.filter(Boolean).length)
+  ) {
+    deal.rep.clients = deal.buyers;
+  }
+  await savePackageDeal(packageId, deal);
+  return intakeState(packageId, deal, forms);
+}
+
+async function getOfferStatus(args: any) {
+  const packageId = String(args?.package_id || "");
+  if (!packageId) return { error: "Missing package_id." };
+  const deal = await loadPackageDeal(packageId);
+  if (!deal) return { error: "Package not found." };
+  const forms: string[] =
+    Array.isArray(deal.intake_forms) && deal.intake_forms.length ? deal.intake_forms : ["100"];
+  return intakeState(packageId, deal, forms);
+}
+
+async function generateOfferForms(args: any, ctx: { origin: string }) {
+  const packageId = String(args?.package_id || "");
+  if (!packageId) return { error: "Missing package_id." };
+  const deal = await loadPackageDeal(packageId);
+  if (!deal) return { error: "Package not found." };
+  const forms: string[] =
+    Array.isArray(args?.forms) && args.forms.length
+      ? args.forms.map(String)
+      : Array.isArray(deal.intake_forms) && deal.intake_forms.length
+        ? deal.intake_forms
+        : ["100"];
+  const allowPartial = args?.allow_partial === true;
+  const still = computeStillNeeded(deal, forms);
+  if (still.length && !allowPartial) {
+    return { generated: false, reason: "still_missing", ...intakeState(packageId, deal, forms) };
+  }
+  const res = await fetch(`${ctx.origin}/api/offers/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.REA_AGENT_SECRET || ""}`,
+    },
+    body: JSON.stringify({ deal, forms, package_id: packageId, allow_partial: allowPartial }),
+  });
+  const data: any = await res.json().catch(() => null);
+  if (!data?.ok) {
+    return {
+      generated: false,
+      error: data?.error || "Generation failed.",
+      missing: data?.missing || undefined,
+      ...intakeState(packageId, deal, forms),
+    };
+  }
+  return {
+    generated: true,
+    partial: !!data.partial,
+    files: (data.files || []).map((f: any) => ({
+      form: f.form,
+      filename: f.filename,
+      pages: f.pages,
+    })),
+    package_id: packageId,
+    workspace: `/dashboard/offers/${packageId}`,
+    summary: buildSummary(deal, forms),
+  };
+}
+
 const TOOLS = [
   {
     type: "function",
@@ -254,27 +877,115 @@ const TOOLS = [
     function: {
       name: "start_offer",
       description:
-        "The user wants to prepare an offer. Returns a link to the offer workspace; mention the MLS# if they gave one.",
+        "The user wants to prepare an offer on their own in the workspace. Returns a link to the offer workspace; mention the MLS# if they gave one. When they want YOU to build it with them question by question, use begin_offer_intake instead.",
       parameters: {
         type: "object",
         properties: { mls: { type: "string" } },
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "begin_offer_intake",
+      description:
+        "Start a guided offer intake (works the same by voice or text): creates the offer package, prefills the property from the listing feed, and returns still_needed plus next_question. Use this FIRST when the user asks you to put together an offer or a buyer package. Set include_bra=true when they mention buyer representation or a buyer package (adds Form 371 to the same intake). If it returns status choose_property, list the candidates, let the user pick, then call again with that mls.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The property address as the user said it" },
+          mls: { type: "string", description: "MLS number / ListingKey, if given" },
+          buyer_names: { type: "array", items: { type: "string" } },
+          include_bra: { type: "boolean" },
+          include_801: { type: "boolean" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_offer_fields",
+      description:
+        "Record the user's answers into the intake package. Pass EVERY fact the user just gave, even several at once. Dates as YYYY-MM-DD strings (rep.term_end may be {months: 6}); money as plain numbers; names as plain strings. Special paths: 'conditions' with value {choice: 'standard' | 'financing only' | 'inspection only' | 'none', financing_days, inspection_days}; 'chattels' with a string or an array (if the user says 'standard', pass exactly: 'All existing light fixtures, broadloom where laid. Window coverings, fridge, stove, dishwasher, washer, dryer, air conditioner, furnace and related equipment.'); 'submitted' with {via, time} for the 801; and {path: '__skip', value: '<question key>'} when the user says skip / not yet. Returns the updated still_needed and next_question.",
+      parameters: {
+        type: "object",
+        properties: {
+          package_id: { type: "string" },
+          fields: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                path: { type: "string" },
+                value: { description: "The answer value (string, number, array, or object per the path)" },
+              },
+              required: ["path", "value"],
+            },
+          },
+        },
+        required: ["package_id", "fields"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_offer_status",
+      description:
+        "The intake package's current state: everything collected so far as a plain summary, plus what is still needed. Use it to read the summary back for confirmation before generating.",
+      parameters: {
+        type: "object",
+        properties: { package_id: { type: "string" } },
+        required: ["package_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_offer_forms",
+      description:
+        "Generate the intake package's PDFs into the package. Call ONLY after you have read the summary back and the user confirmed it. If details are still missing it refuses and returns them; pass allow_partial=true only when the user explicitly wants a draft with the skipped items left blank.",
+      parameters: {
+        type: "object",
+        properties: {
+          package_id: { type: "string" },
+          forms: { type: "array", items: { type: "string" } },
+          allow_partial: { type: "boolean" },
+        },
+        required: ["package_id"],
+      },
+    },
+  },
 ];
 
-async function runTool(name: string, args: any, userId: string) {
+interface ToolCtx {
+  userId: string;
+  name: string;
+  origin: string;
+}
+
+async function runTool(name: string, args: any, ctx: ToolCtx) {
   switch (name) {
     case "get_my_tasks":
-      return getMyTasks(userId);
+      return getMyTasks(ctx.userId);
     case "get_leads_needing_attention":
-      return getLeadsNeedingAttention(userId);
+      return getLeadsNeedingAttention(ctx.userId);
     case "get_closings_ahead":
       return getClosingsAhead();
     case "search_listings":
       return searchListings(args || {});
     case "start_offer":
       return { workspace: "/dashboard/offers/new", mls: args?.mls || null };
+    case "begin_offer_intake":
+      return beginOfferIntake(args || {}, ctx);
+    case "update_offer_fields":
+      return updateOfferFields(args || {});
+    case "get_offer_status":
+      return getOfferStatus(args || {});
+    case "generate_offer_forms":
+      return generateOfferForms(args || {}, ctx);
     default:
       return { error: "unknown tool" };
   }
@@ -311,9 +1022,27 @@ export async function POST(req: NextRequest) {
         `answers with real numbers, no filler. Use your tools for anything about tasks, leads, ` +
         `closings or listings instead of guessing. Rules: you never send email; leads flagged ` +
         `as working with another realtor are hands-off (price-change emails only) and your ` +
-        `tools already exclude them; for offers, use start_offer and point them to the workspace. ` +
-        `When a tool returns a workspace link or listing links, mention them plainly — the chat ` +
-        `shows them as buttons under your message.`,
+        `tools already exclude them. When a tool returns a workspace link or listing links, ` +
+        `mention them plainly — the chat shows them as buttons under your message. ` +
+        `GUIDED OFFER INTAKE: when they ask you to put together an offer — or a buyer package ` +
+        `(buyer representation plus an offer) — call begin_offer_intake with the address or MLS# ` +
+        `they gave (include_bra=true for a buyer package). If it returns choose_property, list ` +
+        `the candidates and call again with the picked mls. Then ask ONLY the next_question it ` +
+        `returns, one question at a time, in plain words — never bundle questions and never ask ` +
+        `for anything the tools already filled. Every time they answer, call update_offer_fields ` +
+        `with everything they gave you (they may answer several questions in one breath, by voice ` +
+        `or text). Never invent a value they did not give. If they say skip or "not yet", record ` +
+        `it with update_offer_fields {path: "__skip", value: "<question key>"} and move on. When ` +
+        `next_question is null, call get_offer_status, read the summary back plainly — price, ` +
+        `deposit, closing, irrevocability, conditions, chattels, and the buyer agreement terms ` +
+        `if included, naming anything skipped as still to get — and ask them to confirm or ` +
+        `correct it. Only after they confirm, call generate_offer_forms; if they correct ` +
+        `something, update_offer_fields and read the summary back again.`,
+    };
+    const ctx: ToolCtx = {
+      userId: member.userId,
+      name: member.name,
+      origin: new URL(req.url).origin,
     };
     const messages: any[] = [
       system,
@@ -322,8 +1051,9 @@ export async function POST(req: NextRequest) {
         .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) })),
     ];
     const links: { label: string; href: string }[] = [];
+    let suggestions: string[] | undefined;
 
-    for (let round = 0; round < 4; round++) {
+    for (let round = 0; round < 6; round++) {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -354,6 +1084,7 @@ export async function POST(req: NextRequest) {
           ok: true,
           reply: msg.content || "Done.",
           links: links.length ? links : undefined,
+          suggestions,
         });
       }
       for (const call of calls) {
@@ -363,9 +1094,21 @@ export async function POST(req: NextRequest) {
         } catch {
           args = {};
         }
-        const result = await runTool(call.function.name, args, member.userId);
+        const result: any = await runTool(call.function.name, args, ctx);
         if (call.function.name === "start_offer") {
           links.push({ label: "Open the offer workspace", href: "/dashboard/offers/new" });
+        }
+        if (result?.workspace && !links.some((l) => l.href === result.workspace)) {
+          links.push({ label: "Open the package workspace", href: result.workspace });
+        }
+        if (result?.status === "choose_property" && Array.isArray(result.candidates)) {
+          suggestions = result.candidates.map(
+            (c: any) => `${c.address}${c.city ? `, ${c.city}` : ""} — MLS# ${c.mls}`
+          );
+        } else if (result?.next_question?.options) {
+          suggestions = result.next_question.options;
+        } else if (result && "next_question" in result) {
+          suggestions = undefined;
         }
         if (call.function.name === "search_listings" && (result as any).listings) {
           for (const l of (result as any).listings.slice(0, 5)) {
@@ -383,6 +1126,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       reply: "Here's what I found — anything else?",
       links: links.length ? links : undefined,
+      suggestions,
     });
   } catch (e: any) {
     return NextResponse.json(
