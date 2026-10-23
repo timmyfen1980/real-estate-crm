@@ -1489,3 +1489,365 @@ export async function buildForm161(
   const bytes = await finalDoc.save();
   return { bytes, pages: 1 };
 }
+
+// ---------------------------------------------------------------------------
+// Forms 371 / 372 — Buyer / Tenant Designated Representation Agreements.
+// The FC Group is always designated representation, so only the
+// designated forms (371 buyer, 372 tenant) are wired — never the
+// brokerage versions (300/346). Unlike the offer forms, these are
+// standalone agreements: the answers live in deal.rep, collected by
+// the workspace's Representation section (or the client-file Prepare
+// flow). Signature, date-of-signing and initials fields are left
+// blank for iinked / ink, exactly like the notice forms.
+// Field names were mapped from the blanks' geometry 2026-10-23 (the
+// SkySlope auto-names are meaningless — "POSTAL CODE_5" is the expiry
+// day — the tables below are keyed by position, verified by a marker
+// fill audit). Multi-entry roles repeat the value (page 1 + the
+// Schedule A header on page 4) or wrap across ruled lines.
+// ---------------------------------------------------------------------------
+
+interface RepFields {
+  brokerage_name: string[];
+  brokerage_address: string[];
+  buyer_name: string[];
+  designated_rep: string[];
+  property_type_use: string[];
+  geographic_location: string[];
+  commission_purchase_other: string | string[];
+  commission_lease: string | string[];
+  buyer_address: string;
+  buyer_municipality: string;
+  buyer_postal: string;
+  brokerage_phone: string;
+  term_start_time: string;
+  term_start_day: string;
+  term_start_month: string;
+  term_start_year: string;
+  term_end_day: string;
+  term_end_month: string;
+  term_end_year: string;
+  commission_purchase_pct: string;
+  holdover_days: string;
+  insurance_rep_name: string;
+  schedule_a_lines: string[];
+}
+
+const REP_FIELDS_371: RepFields = {
+  brokerage_name: [
+    "ADDRESS 1_1_0_0",
+    "BUYER_1_0_0",
+  ],
+  brokerage_address: [
+    "ADDRESS 1_0_0_0",
+    "ADDRESS 2_0_0_0",
+  ],
+  buyer_name: [
+    "ADDRESS_1_0_0",
+    "BUYER_0_0_0",
+  ],
+  designated_rep: [
+    "DESIGNATED REPRESENTATIVES 1_0_0_0",
+    "DESIGNATED REPRESENTATIVES 2_0_0_0",
+  ],
+  property_type_use: [
+    "DESIGNATED REPRESENTATIVES 2_1_0_0",
+    "DESIGNATED REPRESENTATIVES 2_2_0_0",
+  ],
+  geographic_location: [
+    "DESIGNATED REPRESENTATIVES 2_3_0_0",
+    "DESIGNATED REPRESENTATIVES 2_4_0_0",
+  ],
+  term_start_time: "POSTAL CODE_1_0_0",
+  term_start_day: "POSTAL CODE_2_0_0",
+  term_start_month: "POSTAL CODE_3_0_0",
+  term_start_year: "POSTAL CODE_4_0_0",
+  term_end_day: "POSTAL CODE_5_0_0",
+  term_end_month: "POSTAL CODE_6_0_0",
+  term_end_year: "POSTAL CODE_7_0_0",
+  buyer_address: "ADDRESS_0_0_0",
+  buyer_municipality: "MUNICIPALITY_0_0_0",
+  buyer_postal: "POSTAL CODE_0_0_0",
+  brokerage_phone: "Tel No_0_0_0",
+  commission_purchase_pct: "Text1",
+  commission_purchase_other: "or_0_0_0",
+  commission_lease: "or for a lease a commission of_0_0_0",
+  holdover_days: "Text1_8_0_0",
+  insurance_rep_name: "DECLARATION OF INSURANCE_0_0_0",
+  schedule_a_lines: [
+    "asd.0_0_0_0",
+    "asd.1_0_0_0",
+    "asd.2_0_0_0",
+    "asd.3_0_0_0",
+    "asd.4_0_0_0",
+    "asd.5_0_0_0",
+    "asd.6_0_0_0",
+    "asd.7_0_0_0",
+    "asd.8_0_0_0",
+    "asd.9_0_0_0",
+    "asd.10_0_0_0",
+    "asd.11_0_0_0",
+    "asd.12_0_0_0",
+    "asd.13_0_0_0",
+    "asd.14_0_0_0",
+    "asd.15_0_0_0",
+    "asd.16_0_0_0",
+    "asd.17_0_0_0",
+    "asd.18_0_0_0",
+    "asd.19_0_0_0",
+    "asd.20_0_0_0",
+    "asd.21_0_0_0",
+    "asd.22_0_0_0",
+    "asd.23_0_0_0",
+    "asd.24_0_0_0",
+    "asd.25_0_0_0",
+    "asd.26.0_0_0_0",
+    "asd.26.1_0_0_0",
+    "asd.26.2_0_0_0",
+    "asd.26.3_0_0_0",
+    "asd.26.4_0_0_0",
+    "asd.26.5_0_0_0",
+    "asd.26.6_0_0_0",
+    "asd.26.7_0_0_0",
+  ],
+};
+
+const REP_FIELDS_372: RepFields = {
+  brokerage_name: [
+    "ADDRESS_1",
+    "TENANT_1",
+  ],
+  brokerage_address: [
+    "ADDRESS_0",
+    "commencing at_1",
+  ],
+  buyer_name: [
+    "ADDRESS_2_1",
+    "TENANT_0",
+  ],
+  designated_rep: [
+    "DESIGNATED REPRESENTATIVES 1_0",
+    "DESIGNATED REPRESENTATIVES 2_0",
+  ],
+  property_type_use: [
+    "on the_5",
+    "on the_6",
+  ],
+  geographic_location: [
+    "on the_7",
+    "on the_8",
+  ],
+  commission_purchase_other: [
+    "of the sale price of the property  or_0",
+    "of the sale price of the property  or_1",
+  ],
+  commission_lease: [
+    "If during the currency of this Agreement the Tenant enters into a lease or agreement to lease of the general description indicated above_0",
+    "the Tenant agrees that the Brokerage is entitled to be paid a commission of_0",
+  ],
+  term_start_time: "commencing at_0",
+  term_start_day: "on the_0",
+  term_start_month: "on the_1",
+  term_start_year: "on the_2_3",
+  term_end_day: "commencing at_4",
+  term_end_month: "on the_3",
+  term_end_year: "on the_4",
+  buyer_address: "ADDRESS_2_0",
+  brokerage_phone: "commencing at_2",
+  commission_purchase_pct: "or for an agreement to purchase any property of the general description indicated above the Tenant agrees that the Brokerage is entitled to be paid a_0",
+  holdover_days: "of the sale price of the property  or_2",
+  insurance_rep_name: "Name of SalespersonBrokerBroker of Record_0",
+  schedule_a_lines: [
+    "Text3.0_0",
+    "Text3.1_0",
+    "Text3.2_0",
+    "Text3.3_0",
+    "Text3.4_0",
+    "Text3.5_0",
+    "Text3.6_0",
+    "Text3.7_0",
+    "Text3.8_0",
+    "Text3.9_0",
+    "Text3.10_0",
+    "Text3.11_0",
+    "Text3.12_0",
+    "Text3.13_0",
+    "Text3.14_0",
+    "Text3.15_0",
+    "Text3.16_0",
+    "Text3.17_0",
+    "Text3.18_0",
+    "Text3.19_0",
+    "Text3.20_0",
+    "Text3.21_0",
+    "Text3.22_0",
+    "Text3.23_0",
+    "Text3.24_0",
+    "Text3.25_0",
+    "Text3.26_0",
+    "Text3.27_0",
+    "Text3.28_0",
+    "Text3.29.0_0",
+    "Text3.29.1_0",
+    "Text3.29.2_0",
+    "Text3.29.3_0",
+  ],
+  buyer_municipality: "",
+  buyer_postal: "",
+};
+
+export function validateRep(deal: any, kind: "371" | "372"): string[] {
+  const missing: string[] = [];
+  const rep = deal?.rep || {};
+  if (!Array.isArray(rep.clients) || rep.clients.filter(Boolean).length === 0) {
+    missing.push(kind === "371" ? "rep.clients (buyer name(s))" : "rep.clients (tenant name(s))");
+  }
+  if (!Array.isArray(rep.designated_reps) || rep.designated_reps.filter(Boolean).length === 0) {
+    missing.push("rep.designated_reps (designated representative(s))");
+  }
+  reqDate(rep, "term_start", missing);
+  reqDate(rep, "term_end", missing);
+  if (!rep.geographic_location) missing.push("rep.geographic_location");
+  if (!rep.commission_purchase_pct && !rep.commission_purchase_other && !rep.commission_lease) {
+    missing.push("rep.commission (a purchase %, an alternate commission, or a lease commission)");
+  }
+  if (!rep.holdover_days) missing.push("rep.holdover_days");
+  return missing;
+}
+
+// Wrap a free-text value across a fixed set of ruled-line fields,
+// pre-wrapped at each field's own width (pdf-lib's wrapping
+// overflows single-line fields). Throws a plain-language error when
+// the text cannot fit, like the notice builder.
+function fillRuledLines(
+  setText: (name: string, value?: string) => void,
+  fields: string[],
+  widths: number[],
+  value: string | undefined,
+  font: PDFFont,
+  what: string
+): void {
+  if (!value || !String(value).trim()) return;
+  const lines: string[] = [];
+  let rest = String(value).trim();
+  for (let i = 0; i < fields.length && rest; i++) {
+    const wrapped = wrapText(rest, font, 10, widths[i]);
+    lines.push(wrapped[0]);
+    rest = wrapped.slice(1).join(" ");
+  }
+  if (rest) {
+    throw new Error(`The ${what} is too long for the form — it needs more than ${fields.length} lines. Shorten it and try again.`);
+  }
+  fields.forEach((name, i) => setText(name, lines[i]));
+}
+
+async function buildRepForm(
+  deal: any,
+  templateBytes: Uint8Array,
+  kind: "371" | "372"
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  createdCount = 0;
+  const F = kind === "371" ? REP_FIELDS_371 : REP_FIELDS_372;
+  const rep = deal.rep || {};
+  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const form = doc.getForm();
+  const setText = (name: string, value?: string): void => {
+    if (!name || value === undefined || value === null || String(value) === "") return;
+    try {
+      const field = form.getTextField(name);
+      field.setText(String(value));
+      // The blanks carry DA font size 0 (auto): pdf-lib then scales
+      // text to each field's height, which renders oversized and can
+      // clip on the taller Schedule A lines (verified on the 372).
+      // Pin every filled field to 10pt Helvetica so the rendered size
+      // always matches the wrap math.
+      try {
+        (field as any).acroField.dict.set(PDFName.of("DA"), PDFString.of("/Helv 10 Tf 0 g"));
+      } catch {
+        // appearance falls back to auto sizing
+      }
+    } catch {
+      // a renamed/absent widget leaves the value out rather than failing
+    }
+  };
+  const setAll = (names: string[], value?: string): void => {
+    for (const n of names) setText(n, value);
+  };
+  const join = (arr: string[]) => (arr || []).filter(Boolean).join(" and ");
+
+  // Header — brokerage (the same value repeats on the Schedule A page).
+  setAll(F.brokerage_name, rep.brokerage_name || "RE/MAX HALLMARK FIRST GROUP REALTY LTD.");
+  setText(F.brokerage_address[0], rep.brokerage_address);
+  if (F.brokerage_address[1]) setText(F.brokerage_address[1], rep.brokerage_address2);
+  setText(F.brokerage_phone, rep.brokerage_phone);
+
+  // Client (buyer / tenant).
+  setAll(F.buyer_name, join(rep.clients));
+  setText(F.buyer_address, rep.client_address);
+  setText(F.buyer_municipality, rep.client_municipality);
+  setText(F.buyer_postal, rep.client_postal);
+
+  // Designated representative(s) — one per ruled line.
+  (rep.designated_reps || []).forEach((r: string, i: number) => setText(F.designated_rep[i], r));
+  setText(F.insurance_rep_name, (rep.designated_reps || [])[0]);
+
+  // Term — commencement (time + day/month/year) and expiry (11:59 p.m.
+  // is printed on the form; the year blanks follow a printed "20").
+  const ts = rep.term_start || {};
+  const te = rep.term_end || {};
+  setText(F.term_start_time, ts.time);
+  setText(F.term_start_day, ts.day);
+  setText(F.term_start_month, ts.month);
+  setText(F.term_start_year, ts.year);
+  setText(F.term_end_day, te.day);
+  setText(F.term_end_month, te.month);
+  setText(F.term_end_year, te.year);
+
+  // The search description — each value wraps across two ruled lines.
+  fillRuledLines(setText, F.property_type_use, [300, 512], rep.property_type_use, helvetica, "property type (use)");
+  fillRuledLines(setText, F.geographic_location, [300, 512], rep.geographic_location, helvetica, "geographic location");
+
+  // Commission (¶2). The purchase % blank sits before the printed
+  // "% of the sale price", so it takes the bare number.
+  setText(F.commission_purchase_pct, rep.commission_purchase_pct);
+  const otherFields = Array.isArray(F.commission_purchase_other) ? F.commission_purchase_other : [F.commission_purchase_other];
+  fillRuledLines(setText, otherFields, otherFields.map(() => 512), rep.commission_purchase_other, helvetica, "alternate commission");
+  const leaseFields = Array.isArray(F.commission_lease) ? F.commission_lease : [F.commission_lease];
+  fillRuledLines(setText, leaseFields, leaseFields.map(() => 512), rep.commission_lease, helvetica, "lease commission");
+  setText(F.holdover_days, rep.holdover_days);
+
+  // Schedule A (page 4) — free text across the ruled lines.
+  if (rep.schedule_a_text && String(rep.schedule_a_text).trim()) {
+    const paragraphs = String(rep.schedule_a_text).split(/\n+/).map((s: string) => s.trim()).filter(Boolean);
+    const wrapped: string[] = [];
+    paragraphs.forEach((para: string, i: number) => {
+      if (i > 0) wrapped.push("");
+      wrapped.push(...wrapText(para, helvetica, 10, 512));
+    });
+    if (wrapped.length > F.schedule_a_lines.length) {
+      throw new Error(
+        `The Schedule A text needs ${wrapped.length} lines but the form has ${F.schedule_a_lines.length} — shorten it and try again.`
+      );
+    }
+    F.schedule_a_lines.forEach((name, i) => setText(name, wrapped[i]));
+  }
+
+  form.updateFieldAppearances(helvetica);
+  const finalDoc = await stripCreatedFieldBackgrounds(doc);
+  const bytes = await finalDoc.save();
+  return { bytes, pages: doc.getPageCount() };
+}
+
+export async function buildForm371(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildRepForm(deal, templateBytes, "371");
+}
+
+export async function buildForm372(
+  deal: any,
+  templateBytes: Uint8Array
+): Promise<{ bytes: Uint8Array; pages: number }> {
+  return buildRepForm(deal, templateBytes, "372");
+}
