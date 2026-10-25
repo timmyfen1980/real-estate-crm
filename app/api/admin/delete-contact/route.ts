@@ -100,7 +100,12 @@ export async function POST(req: NextRequest) {
     // 5. Property links
     deleted.property_contacts = await countDelete('property_contacts', 'contact_id', contactId);
 
-    // 6. Deals: null the FK rather than deleting deal records
+    // 6. Leads (including open-house sign-in leads, which are rows in `leads`
+    // with an open_house_event_id). Without this, deleting the contact fails
+    // on leads_contact_id_fkey.
+    deleted.leads = await countDelete('leads', 'contact_id', contactId);
+
+    // 7. Deals: null the FK rather than deleting deal records
     const { error: dealsErr, count: dealsCount } = await supabase
       .from('deals')
       .update({ contact_id: null }, { count: 'exact' })
@@ -108,7 +113,7 @@ export async function POST(req: NextRequest) {
     if (dealsErr) throw new Error(`deals: ${dealsErr.message}`);
     deleted.deals_unlinked = dealsCount || 0;
 
-    // 7. Finally the contact itself
+    // 8. Finally the contact itself
     const { error: contactErr } = await supabase.from('contacts').delete().eq('id', contactId);
     if (contactErr) throw new Error(`contacts: ${contactErr.message}`);
     deleted.contacts = 1;
