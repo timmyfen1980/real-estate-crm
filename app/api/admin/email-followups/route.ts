@@ -2,26 +2,36 @@
 // /api/admin/email-followups — sync endpoint behind the dashboard's
 // Email Follow-ups card.
 // Auth: Bearer REA_AGENT_SECRET.
-// The hourly inbox scanner (Rea) reads the owner's unreplied inbox mail
-// and syncs it here; the dashboard card reads the table directly and
-// lets the owner dismiss rows (status='dismissed'). Dismissed rows are
-// NEVER resurrected by later syncs — the scanner keeps sending them in
-// open_items and this route skips them.
-// GET  -> { open: [...rows], dismissed_ids: [...] } for the FC account.
+// The external inbox scanner (Rea) reads the owner's unreplied inbox
+// mail and syncs it here; the dashboard card reads the table directly
+// and lets each user dismiss their own rows (status='dismissed').
+// Dismissed rows are NEVER resurrected by later syncs — the scanner
+// keeps sending them in open_items and this route skips them.
+//
+// Per-user rows (2026-11-02): every row belongs to a mailbox owner
+// (user_id). POST items may carry user_id; items WITHOUT one default
+// to the account owner — that is what keeps the external scanner's
+// existing payloads (which know nothing about user_id) landing as
+// Tim's rows. Upserts match within the item's user only (message_id +
+// user_id identity; see lib/emailFollowups.ts), so two team members
+// who received the same email each keep their own row. resolved_ids
+// apply to the body's user_id when given, else to the owner.
+// GET  -> { open: [...rows incl. user_id], dismissed_ids: [...] } for
+//         the FC account (unchanged shape; callers scope by user_id).
 // POST { open_items: [{ message_id, sender_name, sender_email, subject,
-//          snippet, received_at }], resolved_ids: [message_id, ...] }
-//      -> upserts open_items as status='open' (skipping dismissed ids),
-//         marks resolved_ids 'resolved' where currently 'open',
-//         returns counts.
+//          snippet, received_at, user_id? }], resolved_ids: [...],
+//          user_id? }
+//      -> per-user upserts + resolves, returns summed counts.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { syncFollowupsForUser } from '@/lib/emailFollowups';
 
 const ACCOUNT_ID = 'a540905b-7cd7-4dd6-bba0-162c07978bd6';
 
 const ROW_COLUMNS =
-  'id, account_id, message_id, sender_name, sender_email, subject, snippet, received_at, status, first_seen_at, last_seen_at';
+  'id, account_id, user_id, message_id, sender_name, sender_email, subject, snippet, received_at, status, first_seen_at, last_seen_at';
 
 function authorized(req: NextRequest): boolean {
   const token = (req.headers.get('authorization') || '').replace('Bearer ', '').trim();
@@ -37,6 +47,23 @@ function db(): SupabaseClient {
 
 function cleanString(value: any): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+// The account owner's user id — the default mailbox owner for any sync
+// payload that does not name a user (the external scanner syncs the
+// owner's inbox only). Resolved lazily and only when actually needed,
+// so a payload where every item carries user_id and no resolved_ids
+// are present never depends on this lookup.
+async function ownerUserId(supabase: SupabaseClient): Promise<string> {
+  const { data, error } = await supabase
+    .from('account_users')
+    .select('user_id')
+    .eq('account_id', ACCOUNT_ID)
+    .eq('role', 'owner')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.user_id) throw new Error('Account owner not found.');
+  return data.user_id as string;
 }
 
 export async function GET(req: NextRequest) {
@@ -81,144 +108,55 @@ export async function POST(req: NextRequest) {
       .filter((id: any) => typeof id === 'string' && id.trim() !== '');
 
     const supabase = db();
-    const nowIso = new Date().toISOString();
 
-    // Identity matching (fixed 2026-10-21): Outlook hands the scanner the
-    // same email under two different message-id formats (a 120-char and a
-    // 152-char form), and exact-id matching let both live as separate open
-    // rows — the dashboard showed the REMAX dues email twice. An incoming
-    // item now matches an existing row when the message_id matches OR the
-    // (sender_email, subject, received_at) triple matches. Matches collapse
-    // to one keeper row (extras deleted), a dismissal on ANY matching row
-    // skips the item (dismissals are final), and the keeper adopts the
-    // incoming message_id.
-    const { data: allRows, error: allRowsError } = await supabase
-      .from('email_followups')
-      .select(
-        'id, message_id, sender_email, subject, received_at, status, first_seen_at'
-      )
-      .eq('account_id', ACCOUNT_ID)
-      .in('status', ['open', 'dismissed'])
-      .order('first_seen_at', { ascending: true });
-    if (allRowsError) throw allRowsError;
-    const existing: any[] = allRows || [];
-
-    const tripleOf = (
-      sender: string | null,
-      subject: string | null,
-      received: string | null
-    ) =>
-      (sender || '').toLowerCase() +
-      '|' +
-      (subject || '') +
-      '|' +
-      (received || '');
-
-    let skippedDismissed = 0;
-    let deduped = 0;
-    let written = 0;
-
+    // Group open items by their mailbox owner. An item's own user_id
+    // wins; the body's top-level user_id is next; the account owner is
+    // the fallback (the external scanner's payloads land as the
+    // owner's rows, exactly as before per-user rows existed).
+    const bodyUserId = cleanString(body?.user_id);
+    const itemsByUser = new Map<string, any[]>();
+    let ownerId: string | null = null;
     for (const item of rawOpenItems) {
-      const messageId = cleanString(item?.message_id);
-      if (!messageId) continue;
-      const senderEmail = cleanString(item?.sender_email);
-      const subject = cleanString(item?.subject);
-      const receivedAt = cleanString(item?.received_at);
-      const triple = tripleOf(senderEmail, subject, receivedAt);
-
-      const matches = existing.filter(
-        (row: any) =>
-          row.message_id === messageId ||
-          tripleOf(row.sender_email, row.subject, row.received_at) === triple
-      );
-      if (matches.some((row: any) => row.status === 'dismissed')) {
-        skippedDismissed++;
-        continue;
+      let itemUserId = cleanString(item?.user_id) || bodyUserId;
+      if (!itemUserId) {
+        if (!ownerId) ownerId = await ownerUserId(supabase);
+        itemUserId = ownerId;
       }
-      const openMatches = matches.filter((row: any) => row.status === 'open');
-      const keeper =
-        openMatches.find((row: any) => row.message_id === messageId) ||
-        openMatches[0];
-
-      if (keeper) {
-        const extras = openMatches.filter((row: any) => row.id !== keeper.id);
-        if (extras.length > 0) {
-          const { error: dedupeError } = await supabase
-            .from('email_followups')
-            .delete()
-            .in(
-              'id',
-              extras.map((row: any) => row.id)
-            );
-          if (dedupeError) throw dedupeError;
-          deduped += extras.length;
-          for (const ex of extras) {
-            const idx = existing.indexOf(ex);
-            if (idx >= 0) existing.splice(idx, 1);
-          }
-        }
-        const { error: updateError } = await supabase
-          .from('email_followups')
-          .update({
-            message_id: messageId,
-            sender_name: cleanString(item?.sender_name),
-            sender_email: senderEmail,
-            subject,
-            snippet: cleanString(item?.snippet),
-            received_at: receivedAt,
-            last_seen_at: nowIso,
-          })
-          .eq('id', keeper.id);
-        if (updateError) throw updateError;
-        keeper.message_id = messageId;
-      } else {
-        const { error: insertError } = await supabase
-          .from('email_followups')
-          .insert({
-            account_id: ACCOUNT_ID,
-            message_id: messageId,
-            sender_name: cleanString(item?.sender_name),
-            sender_email: senderEmail,
-            subject,
-            snippet: cleanString(item?.snippet),
-            received_at: receivedAt,
-            status: 'open',
-            first_seen_at: nowIso,
-            last_seen_at: nowIso,
-          });
-        if (insertError) throw insertError;
-        existing.push({
-          id: 'new-' + messageId,
-          message_id: messageId,
-          sender_email: senderEmail,
-          subject,
-          received_at: receivedAt,
-          status: 'open',
-          first_seen_at: nowIso,
-        });
-      }
-      written++;
+      const group = itemsByUser.get(itemUserId) || [];
+      group.push(item);
+      itemsByUser.set(itemUserId, group);
     }
 
-    let resolvedCount = 0;
+    // resolved_ids belong to one user's sync: the body's user_id when
+    // given, otherwise the owner's (the external scanner resolves the
+    // owner's rows only).
+    let resolvedUserId: string | null = null;
     if (resolvedIds.length > 0) {
-      const { data: resolvedRows, error: resolvedError } = await supabase
-        .from('email_followups')
-        .update({ status: 'resolved', last_seen_at: nowIso })
-        .eq('account_id', ACCOUNT_ID)
-        .eq('status', 'open')
-        .in('message_id', resolvedIds)
-        .select('id');
-      if (resolvedError) throw resolvedError;
-      resolvedCount = (resolvedRows || []).length;
+      resolvedUserId = bodyUserId;
+      if (!resolvedUserId) {
+        if (!ownerId) ownerId = await ownerUserId(supabase);
+        resolvedUserId = ownerId;
+      }
     }
 
-    return NextResponse.json({
-      upserted: written,
-      deduped,
-      skipped_dismissed: skippedDismissed,
-      resolved: resolvedCount,
-    });
+    const totals = { upserted: 0, deduped: 0, skipped_dismissed: 0, resolved: 0 };
+    const userIds = new Set<string>(itemsByUser.keys());
+    if (resolvedUserId) userIds.add(resolvedUserId);
+    for (const userId of Array.from(userIds)) {
+      const counts = await syncFollowupsForUser(
+        supabase,
+        ACCOUNT_ID,
+        userId,
+        itemsByUser.get(userId) || [],
+        userId === resolvedUserId ? resolvedIds : []
+      );
+      totals.upserted += counts.upserted;
+      totals.deduped += counts.deduped;
+      totals.skipped_dismissed += counts.skipped_dismissed;
+      totals.resolved += counts.resolved;
+    }
+
+    return NextResponse.json(totals);
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Sync failed.' }, { status: 500 });
   }

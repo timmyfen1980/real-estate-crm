@@ -92,8 +92,9 @@ export default function Dashboard() {
     attention: false, // default open (safe fallback)
   })
 
-  // Email follow-ups: null = card hidden (not the owner, still loading, or
-  // the email_followups table is unreachable) — the card fails quiet.
+  // Email follow-ups: null = card hidden (still loading, or the
+  // email_followups table is unreachable) — the card fails quiet. Every
+  // user sees only their own rows (scoped by user_id below).
   const [emailFollowups, setEmailFollowups] = useState<EmailFollowup[] | null>(null)
 
   // Ready-for-review count: null = line hidden (still loading or the
@@ -132,24 +133,24 @@ export default function Dashboard() {
     setCurrentUserId(user.id)
     setAccountId(accountIdValue)
 
-    // Email follow-ups (owner only): unreplied inbox mail flagged by the
-    // hourly scanner. Fail-quiet — if the email_followups table does not
-    // exist yet or the query errors, the dashboard renders without the card.
-    if (owner) {
-      try {
-        const { data: followupData, error: followupError } = await supabase
-          .from('email_followups')
-          .select('id, sender_name, sender_email, subject, snippet, received_at')
-          .eq('account_id', accountIdValue)
-          .eq('status', 'open')
-          .order('received_at', { ascending: true })
-          .limit(10)
-        if (!followupError) {
-          setEmailFollowups(followupData || [])
-        }
-      } catch {
-        // Fail quiet: no follow-ups card.
+    // Email follow-ups (per user): the signed-in user's own unreplied
+    // inbox mail flagged by the inbox scanners. Fail-quiet — if the
+    // email_followups table does not exist yet or the query errors, the
+    // dashboard renders without the card.
+    try {
+      const { data: followupData, error: followupError } = await supabase
+        .from('email_followups')
+        .select('id, sender_name, sender_email, subject, snippet, received_at')
+        .eq('account_id', accountIdValue)
+        .eq('user_id', user.id)
+        .eq('status', 'open')
+        .order('received_at', { ascending: true })
+        .limit(10)
+      if (!followupError) {
+        setEmailFollowups(followupData || [])
       }
+    } catch {
+      // Fail quiet: no follow-ups card.
     }
 
     // Ready-for-review count (fail-quiet): packages Beth has assembled
@@ -243,10 +244,12 @@ export default function Dashboard() {
   }
 
   const dismissFollowup = async (id: string) => {
+    if (!currentUserId) return
     const { error } = await supabase
       .from('email_followups')
       .update({ status: 'dismissed' })
       .eq('id', id)
+      .eq('user_id', currentUserId)
 
     if (error) {
       console.error('DISMISS FOLLOWUP ERROR:', error)
@@ -706,9 +709,10 @@ export default function Dashboard() {
               )}
             </SectionCard>
 
-            {/* EMAIL FOLLOW-UPS — owner only, fed by the hourly inbox scanner.
-                Hidden entirely until the email_followups table exists. */}
-            {isOwner && emailFollowups !== null && (
+            {/* EMAIL FOLLOW-UPS — per user (own rows only), fed by the
+                inbox scanners. Hidden entirely until the email_followups
+                table exists. */}
+            {emailFollowups !== null && (
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
                 <div className="mb-4 border-b border-gray-100 pb-2">
                   <h2 className="text-xs font-semibold tracking-wider uppercase text-gray-500">
