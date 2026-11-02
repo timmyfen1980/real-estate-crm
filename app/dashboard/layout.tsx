@@ -10,6 +10,7 @@ import {
   Activity,
   Building2,
   ChevronDown,
+  Clock,
   DoorOpen,
   FileText,
   FolderOpen,
@@ -506,6 +507,15 @@ const handleLogout = async () => {
               <span>Send Tenant Link</span>
             </span>
           </Link>
+
+          {(userRole === 'owner' || userEmail === 'beth@thefcgroup.ca') && (
+            <Link href="/dashboard/beth-hours" className={navItemClass('/dashboard/beth-hours')}>
+              <span className="flex items-center gap-3">
+                <Clock className={iconClass} />
+                <span>Beth&apos;s Hours</span>
+              </span>
+            </Link>
+          )}
 
         </nav>
       </aside>
