@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { buildEmailTemplate, buildNewsletterEmail } from '@/lib/emailTemplates'
+import { sendFollowupEmail } from '@/lib/outlookSend'
 import {
   torontoYearMonth,
   issueKeyFor,
@@ -484,18 +485,28 @@ console.log('Email template built successfully')
 
       // =====================================
       // SEND EMAIL
+      // Drip/follow-up steps send from the contact's assigned user's
+      // own Outlook when that user is connected (Resend fallback via
+      // the account default sender otherwise). The newsletter block
+      // above does NOT use this — it stays on Resend as the team.
       // =====================================
       console.log(
   `Sending "${sequence.subject}" to ${contact.email}`
 )
-      const send = await resend.emails.send({
-        from: fromEmail,
+      const followup = await sendFollowupEmail({
+        supabase,
+        accountId,
+        senderUserId: contact.assigned_user_id || null,
         to: contact.email,
         subject: sequence.subject,
         html: body,
+        fallbackFrom: fromEmail,
         ...(attachments.length ? { attachments } : {}),
       })
-console.log('Resend response:', send)
+      const send = followup.error
+        ? { error: followup.error, data: null }
+        : { error: null, data: { id: followup.resendId } }
+console.log(`Sent via ${followup.channel} from ${followup.from}:`, send)
       // =====================================
       // LOG EMAIL
       // =====================================

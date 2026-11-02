@@ -13,10 +13,14 @@ export const MS_TENANT_ID = "9508556b-d87a-4ab2-b760-c0895fa328dc";
 export const MS_CLIENT_ID = "a24695ac-2797-4259-86c7-58e29d385cdb";
 export const MS_REDIRECT_URI =
   "https://crm.thefcgroup.ca/api/auth/microsoft/callback";
-// Read mail + calendar, see the profile, and keep the connection alive
-// with a refresh token. No Mail.Send — the CRM never sends as the user.
+// Read mail + calendar, see the profile, keep the connection alive with
+// a refresh token — and, since 2026-11-02, send follow-up email as the
+// user (Mail.Send, used by lib/outlookSend.ts). Connections made before
+// Mail.Send was added do NOT hold it: they keep working for reads, and
+// follow-up sends fall back to Resend until the user clicks Connect
+// once more and consents to the new scope.
 export const MS_SCOPES =
-  "openid profile offline_access User.Read Mail.Read Calendars.Read";
+  "openid profile offline_access User.Read Mail.Read Calendars.Read Mail.Send";
 
 const AUTHORITY = `https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0`;
 
@@ -78,10 +82,16 @@ export function msExchangeCode(code: string): Promise<MsTokens> {
 }
 
 export function msRefreshTokens(refreshToken: string): Promise<MsTokens> {
+  // No scope parameter on purpose: a refresh may only ever claim scopes
+  // the user has already consented to. Naming MS_SCOPES here would make
+  // every refresh fail for connections made before Mail.Send was added
+  // (they never consented to it), breaking their mail/calendar reads
+  // until they re-connect. With scope omitted, Microsoft issues a token
+  // carrying exactly the granted scopes — and once a user re-consents,
+  // the same refresh automatically carries Mail.Send too.
   return tokenRequest({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    scope: MS_SCOPES,
   });
 }
 
@@ -101,4 +111,39 @@ export async function msGraphMe(
     email: data.mail || data.userPrincipalName || "",
     displayName: data.displayName || "",
   };
+}
+
+// Send one email AS the token's user via Microsoft Graph. The message
+// comes from that user's own mailbox and a copy lands in their Sent
+// Items (saveToSentItems), so replies thread back to them naturally.
+// Graph answers 202 Accepted with no body on success; anything else
+// throws an error carrying the HTTP status so callers can decide
+// whether to retry with a fresh token or fall back to another channel.
+export async function msGraphSendMail(
+  accessToken: string,
+  msg: { to: string; subject: string; html: string }
+): Promise<void> {
+  const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: {
+        subject: msg.subject,
+        body: { contentType: "HTML", content: msg.html },
+        toRecipients: [{ emailAddress: { address: msg.to } }],
+      },
+      saveToSentItems: true,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    const err: any = new Error(
+      `Microsoft Graph sendMail failed: ${res.status} ${detail.slice(0, 300)}`.trim()
+    );
+    err.status = res.status;
+    throw err;
+  }
 }

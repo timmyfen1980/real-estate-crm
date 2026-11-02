@@ -5,8 +5,16 @@
 // lead in their account. The human clicking Send IS the sender — this
 // route never sends on its own.
 //
+// Transport: the lead's assigned user is the sender of record. When
+// that user has connected their Outlook (and consented to Mail.Send),
+// the email sends from their own mailbox via Microsoft Graph and
+// lands in their Sent Items; otherwise it falls back to Resend from
+// the team address with the agent as Reply-To, exactly as before.
+// lib/outlookSend.ts owns that choice.
+//
 // On success it:
-//   - logs the email (email_logs, status 'sent', with the Resend id)
+//   - logs the email (email_logs, status 'sent', with the Resend id —
+//     or "outlook:<mailbox>" when it went out through Graph)
 //   - stamps the lead's last_contacted_at and sets the next follow-up
 //     7 days out (Toronto)
 //   - records lead_activity type 'email_sent'
@@ -19,9 +27,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
+import { sendFollowupEmail } from '@/lib/outlookSend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const TEAM_PHONE = '905 493-7355';
 const BROKERAGE = 'RE/MAX HALLMARK FIRST GROUP REALTY LTD.';
 
@@ -238,20 +245,30 @@ export async function POST(req: NextRequest) {
       agent,
     });
 
+    // Sender of record: the lead's assigned user (the helper falls
+    // back to the account owner when the lead is unassigned, and to
+    // Resend when that user has no usable Outlook connection).
     let resendId: string | null = null;
+    let sentChannel: 'outlook' | 'resend' = 'resend';
+    let sentFrom = `${agent.name} <info@thefcgroup.ca>`;
     try {
-      const response = await resend.emails.send({
-        from: `${agent.name} <info@thefcgroup.ca>`,
+      const result = await sendFollowupEmail({
+        supabase,
+        accountId,
+        senderUserId: lead.assigned_user_id || null,
         to,
-        replyTo: agent.email,
         subject,
         html,
         text: `Hi ${lead.first_name || 'there'},\n\n${bodyText}\n\n${agent.name}\n${agent.email}\n${TEAM_PHONE}\n${BROKERAGE}`,
+        fallbackFrom: `${agent.name} <info@thefcgroup.ca>`,
+        fallbackReplyTo: agent.email,
       });
-      if ((response as any)?.error) {
-        throw new Error((response as any).error.message || 'Resend send failed.');
+      if (result.error) {
+        throw new Error(result.error.message || 'The email could not be sent.');
       }
-      resendId = (response as any)?.data?.id || null;
+      resendId = result.resendId;
+      sentChannel = result.channel;
+      sentFrom = result.from;
     } catch (sendErr: any) {
       await supabase.from('email_logs').insert({
         account_id: accountId,
@@ -290,7 +307,13 @@ export async function POST(req: NextRequest) {
         account_id: accountId,
         user_id: user.id,
         type: 'email_sent',
-        metadata: { subject, to, via: 'followup_button' },
+        metadata: {
+          subject,
+          to,
+          via: 'followup_button',
+          channel: sentChannel,
+          from: sentFrom,
+        },
       },
     ]);
 
@@ -301,7 +324,12 @@ export async function POST(req: NextRequest) {
       .in('source', ['drip_checkin', 'lead_followup'])
       .eq('status', 'pending');
 
-    return NextResponse.json({ ok: true, next_followup_date: nextFollowup });
+    return NextResponse.json({
+      ok: true,
+      next_followup_date: nextFollowup,
+      sent_via: sentChannel,
+      sent_from: sentFrom,
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || 'Server error.' },
