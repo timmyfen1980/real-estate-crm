@@ -100,6 +100,9 @@ const [statusError, setStatusError] = useState<string | null>(null)
 const [assignmentSaved, setAssignmentSaved] = useState(false)
 const [assignmentError, setAssignmentError] = useState<string | null>(null)
 const [followupError, setFollowupError] = useState<string | null>(null)
+const [followupDoneSaving, setFollowupDoneSaving] = useState(false)
+const [followupDoneSaved, setFollowupDoneSaved] = useState(false)
+const [followupDoneError, setFollowupDoneError] = useState<string | null>(null)
 const [enrollments, setEnrollments] = useState<any[]>([])
 const [leadTasks, setLeadTasks] = useState<Task[]>([])
 const [clientFileId, setClientFileId] = useState<string | null>(null)
@@ -603,6 +606,33 @@ const { data: propertyData, error: propertyError } = await supabase
     }
   }
 
+const markFollowupDone = async () => {
+  if (!lead || followupDoneSaving) return
+  setFollowupDoneSaving(true)
+  setFollowupDoneError(null)
+  try {
+    const res = await fetch(`/api/leads/${lead.id}/followup-done`, {
+      method: 'POST'
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data.error || 'Could not mark the follow-up done.')
+    }
+    setFollowupDoneSaved(true)
+    window.dispatchEvent(new Event('rea:counts-refresh'))
+    await loadData()
+    setTimeout(() => setFollowupDoneSaved(false), 3000)
+  } catch (err) {
+    setFollowupDoneError(
+      err instanceof Error
+        ? err.message
+        : 'Could not mark the follow-up done — please try again.'
+    )
+  } finally {
+    setFollowupDoneSaving(false)
+  }
+}
+
 const completeLeadTask = async (task: Task) => {
   const { error } = await supabase
     .from('tasks')
@@ -669,12 +699,29 @@ const toggleEnrollment = async (enrollment: any) => {
       <p className="text-gray-500 mt-1">
         Created {new Date(lead.created_at).toLocaleString()}
       </p>
-      <button
-        onClick={() => setFollowUpOpen(true)}
-        className="mt-3 bg-[#0f2a44] text-white px-5 py-2 rounded-lg hover:opacity-90 transition"
-      >
-        ✉ Follow up
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setFollowUpOpen(true)}
+          className="bg-[#0f2a44] text-white px-5 py-2 rounded-lg hover:opacity-90 transition"
+        >
+          ✉ Follow up
+        </button>
+        <button
+          onClick={markFollowupDone}
+          disabled={followupDoneSaving}
+          className="border border-[#0f2a44] text-[#0f2a44] px-5 py-2 rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
+        >
+          {followupDoneSaving
+            ? 'Marking...'
+            : '✓ Follow-up done — sent from my email'}
+        </button>
+        {followupDoneSaved && (
+          <span className="text-sm text-green-600">Marked done ✓</span>
+        )}
+      </div>
+      {followupDoneError && (
+        <p className="text-sm text-red-600 mt-2">{followupDoneError}</p>
+      )}
     </div>
 
     <div className="flex gap-6 items-start">
