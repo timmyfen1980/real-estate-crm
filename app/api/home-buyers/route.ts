@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { properName } from "@/lib/nameCase";
+import {
+  parseCampaignParam,
+  resolveActiveCampaignSlug,
+  stampContactCampaign,
+} from "@/lib/leadCampaigns";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -57,6 +62,10 @@ const area = formData.get("area") as string;
 const timeline = formData.get("timeline") as string;
 const hear_about_us = formData.get("hear_about_us") as string;
 
+// Lead-campaign attribution (Tim, 2026-11-03): a tracked link's
+// ?c=<slug> may arrive as a form field or stay on the posted URL.
+const rawCampaign = parseCampaignParam(req, formData);
+
 const buyerNotes = `
 Home Buyer Guide Lead
 
@@ -91,6 +100,11 @@ How They Heard About Us: ${hear_about_us || "N/A"}
       throw new Error("Account not found");
     }
 
+    const campaignSlug = await resolveActiveCampaignSlug(
+      account.id,
+      rawCampaign
+    );
+
     const { data: existingLead } = await supabaseAdmin
       .from("leads")
       .select("id")
@@ -110,6 +124,8 @@ How They Heard About Us: ${hear_about_us || "N/A"}
 
     if (existingContact) {
       contactId = existingContact.id;
+
+      await stampContactCampaign(contactId, campaignSlug);
     } else {
       const { data: newContact, error: contactError } =
         await supabaseAdmin
@@ -124,6 +140,7 @@ How They Heard About Us: ${hear_about_us || "N/A"}
             lifecycle_stage: "New",
             source: "Home Buyers Guide",
             original_source: "Home Buyers Guide",
+            ...(campaignSlug ? { campaign: campaignSlug } : {}),
                       
           })
           .select("id")

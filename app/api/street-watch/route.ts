@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { properName } from "@/lib/nameCase";
+import {
+  parseCampaignParam,
+  resolveActiveCampaignSlug,
+  stampContactCampaign,
+} from "@/lib/leadCampaigns";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -45,6 +50,10 @@ export async function POST(req: Request) {
     const phone = formData.get("phone") as string;
     const property_address = formData.get("property_address") as string;
 
+    // Lead-campaign attribution (Tim, 2026-11-03): a tracked link's
+    // ?c=<slug> may arrive as a form field or stay on the posted URL.
+    const rawCampaign = parseCampaignParam(req, formData);
+
     if (!first_name || !email) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -65,6 +74,11 @@ export async function POST(req: Request) {
 
     if (!account) throw new Error("Account not found");
 
+    const campaignSlug = await resolveActiveCampaignSlug(
+      account.id,
+      rawCampaign
+    );
+
     const { data: existingLead } = await supabaseAdmin
       .from("leads")
       .select("id")
@@ -84,6 +98,8 @@ export async function POST(req: Request) {
 
     if (existingContact) {
       contactId = existingContact.id;
+
+      await stampContactCampaign(contactId, campaignSlug);
 
       const CAMPAIGN_ID = "de93a220-2ca8-4022-9a33-7f584a0e2799";
 
@@ -116,6 +132,7 @@ export async function POST(req: Request) {
           lifecycle_stage: "New",
           source: "Watch My Area",
           original_source: "Watch My Area",
+          ...(campaignSlug ? { campaign: campaignSlug } : {}),
         })
         .select("id")
         .single();

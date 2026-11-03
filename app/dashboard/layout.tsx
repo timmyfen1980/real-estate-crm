@@ -23,6 +23,7 @@ import {
   ListChecks,
   ListTodo,
   Mail,
+  Megaphone,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -498,6 +499,13 @@ const handleLogout = async () => {
             <span className="flex items-center gap-3">
               <Gift className={iconClass} />
               <span>Giveaway</span>
+            </span>
+          </Link>
+
+          <Link href="/dashboard/lead-campaigns" className={navItemClass('/dashboard/lead-campaigns')}>
+            <span className="flex items-center gap-3">
+              <Megaphone className={iconClass} />
+              <span>Lead Campaigns</span>
             </span>
           </Link>
 
