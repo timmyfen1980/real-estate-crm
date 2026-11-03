@@ -330,7 +330,8 @@ export default function LeadCampaignsPage() {
       if (!res.ok) throw new Error(json.error || 'Creative action failed.');
       await load();
     } catch (err: any) {
-      alert(err.message || 'Creative action failed.');
+      console.error('Creative action failed:', err);
+      alert("That didn't work — please try again.");
     } finally {
       setCreativeBusyId('');
     }
@@ -349,7 +350,8 @@ export default function LeadCampaignsPage() {
       if (!res.ok) throw new Error(json.error || 'Upload failed.');
       await load();
     } catch (err: any) {
-      alert(err.message || 'Upload failed.');
+      console.error('Photo upload failed:', err);
+      alert("The upload didn't work — please try again.");
     } finally {
       setCreativeBusyId('');
     }
@@ -368,6 +370,34 @@ export default function LeadCampaignsPage() {
       await load();
     } catch (err: any) {
       alert(err.message || 'Could not save.');
+    } finally {
+      setSavingId('');
+    }
+  }
+
+  async function deleteCampaign(c: LeadCampaign) {
+    if (
+      !window.confirm(
+        `Delete "${c.name}"?\n\nThis removes the campaign and its photos/graphic. ` +
+          'Contacts already captured keep their campaign tag, and the idea stays as-is. ' +
+          'This cannot be undone.'
+      )
+    ) {
+      return;
+    }
+    setSavingId(c.id);
+    try {
+      const res = await fetch('/api/lead-campaigns', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not delete.');
+      await load();
+    } catch (err: any) {
+      console.error('Delete campaign failed:', err);
+      alert("Couldn't delete that campaign — please try again.");
     } finally {
       setSavingId('');
     }
@@ -844,6 +874,19 @@ export default function LeadCampaignsPage() {
                     : 'Approve creative'}
                 </button>
               )}
+              <button
+                style={{
+                  ...plainBtn,
+                  marginLeft: 'auto',
+                  borderColor: '#fecaca',
+                  color: '#b91c1c',
+                  background: '#fff',
+                }}
+                disabled={savingId === c.id}
+                onClick={() => deleteCampaign(c)}
+              >
+                {savingId === c.id ? 'Working…' : 'Delete campaign'}
+              </button>
             </div>
           </div>
 

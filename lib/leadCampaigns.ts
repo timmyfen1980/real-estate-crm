@@ -61,6 +61,36 @@ export const META_STATUSES = [
 export const CAMPAIGN_SELECT =
   'id, account_id, name, slug, goal, channel, capture_type, capture_url, tracked_url, caption, status, budget_amount, budget_days, audience, meta_campaign_id, meta_status, spend, creative, created_by, created_at';
 
+// Route ids must be real uuids before they touch a query — a malformed
+// id used to reach Postgres and come back as a raw
+// 'invalid input syntax for type uuid' error in a browser alert
+// (Tim hit exactly that on Fetch photos, Nov 3, 2026).
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(v: unknown): v is string {
+  return typeof v === 'string' && UUID_RE.test(v);
+}
+
+// Error text that is safe to show a person. Known, human messages
+// (thrown deliberately by the libraries) pass through; database /
+// driver internals are replaced with a plain fallback.
+export function publicErrorMessage(
+  err: any,
+  fallback = 'Something went wrong on the server — please try again.'
+): string {
+  const m = String((err && err.message) || '');
+  if (!m) return fallback;
+  if (
+    /invalid input syntax|duplicate key|violates|does not exist|permission denied|PGRST|JWT/i.test(
+      m
+    )
+  ) {
+    return fallback;
+  }
+  return m;
+}
+
 export const IDEA_SELECT =
   'id, play, title, subject, hook, suggested_caption, capture_type, goal, suggested_budget, suggested_days, audience, source_ref, status, built_campaign_id, created_at, expires_at';
 

@@ -5,6 +5,10 @@
 // POST  /api/lead-campaigns — create a campaign (slug + tracked URL,
 //        optional budget/days/audience).
 // PATCH /api/lead-campaigns — update status / caption / budget fields.
+// DELETE /api/lead-campaigns — delete a campaign (account-scoped) and
+//        best-effort remove its campaign-creatives/<id>/ files.
+//        Captured contacts keep their campaign slug stamp; the idea
+//        that produced the campaign is left untouched.
 //
 // Counts (per campaign, contacts stamped via contacts.campaign = slug):
 //   pulled    = stamped contacts
@@ -25,10 +29,15 @@ import {
   CAMPAIGN_SELECT,
   CAPTURE_URLS,
   IDEA_SELECT,
+  isUuid,
+  publicErrorMessage,
   requireLeadCampaignAccess,
   slugify,
 } from '@/lib/leadCampaigns';
-import { parseCreative } from '@/lib/leadCampaignCreative';
+import {
+  CREATIVE_BUCKET,
+  parseCreative,
+} from '@/lib/leadCampaignCreative';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -137,7 +146,7 @@ export async function GET() {
       campaigns: rows.map((c: any) => ({ ...c, counts: counts[c.slug] })),
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(err) }, { status: 500 });
   }
 }
 
@@ -259,7 +268,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(err) }, { status: 500 });
   }
 }
 
@@ -272,9 +281,9 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json();
     const id = typeof body.id === 'string' ? body.id : '';
-    if (!id) {
+    if (!isUuid(id)) {
       return NextResponse.json(
-        { error: 'Missing campaign id.' },
+        { error: 'Invalid campaign id.' },
         { status: 400 }
       );
     }
@@ -373,6 +382,67 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ campaign: data });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(err) }, { status: 500 });
+  }
+}
+
+// DELETE /api/lead-campaigns { id } — Tim's ask (Nov 3, 2026): a
+// campaign can be deleted from its card. Account-scoped; the row goes
+// away and its campaign-creatives/<id>/ storage files are removed
+// best-effort. Contacts already stamped with the campaign's slug KEEP
+// the stamp (capture history stays truthful), and the idea that
+// produced the campaign is left exactly as-is.
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireLeadCampaignAccess();
+    if (!auth.ok) return auth.response;
+    const { ctx } = auth;
+    const supabase = ctx.supabase;
+
+    const body = await req.json().catch(() => ({}));
+    const id = typeof body?.id === 'string' ? body.id : '';
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid campaign id.' },
+        { status: 400 }
+      );
+    }
+
+    const { data: gone, error } = await supabase
+      .from('lead_campaigns')
+      .delete()
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .select('id');
+    if (error) throw error;
+    if (!gone || !gone.length) {
+      return NextResponse.json(
+        { error: 'Campaign not found.' },
+        { status: 404 }
+      );
+    }
+
+    // Best-effort storage cleanup — a failure here must not fail the
+    // delete; the row is already gone.
+    try {
+      const prefix = `campaign-creatives/${id}`;
+      const { data: files } = await supabase.storage
+        .from(CREATIVE_BUCKET)
+        .list(prefix, { limit: 100 });
+      if (files && files.length) {
+        await supabase.storage
+          .from(CREATIVE_BUCKET)
+          .remove(files.map((f: any) => `${prefix}/${f.name}`));
+      }
+    } catch {
+      // best-effort only
+    }
+
+    return NextResponse.json({ ok: true, deleted: id });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: publicErrorMessage(err) },
+      { status: 500 }
+    );
   }
 }

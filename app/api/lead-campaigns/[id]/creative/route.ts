@@ -14,7 +14,12 @@
 // authenticated policies).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { CAMPAIGN_SELECT, requireLeadCampaignAccess } from '@/lib/leadCampaigns';
+import {
+  CAMPAIGN_SELECT,
+  isUuid,
+  publicErrorMessage,
+  requireLeadCampaignAccess,
+} from '@/lib/leadCampaigns';
 import {
   CREATIVE_BUCKET,
   addUploadedPhoto,
@@ -50,6 +55,12 @@ export async function POST(
     const { ctx } = auth;
     const supabase = ctx.supabase;
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid campaign id.' },
+        { status: 400 }
+      );
+    }
 
     const campaign = await loadCampaign(supabase, ctx.accountId, id);
     if (!campaign) {
@@ -148,6 +159,9 @@ export async function POST(
 
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: publicErrorMessage(err) },
+      { status: 500 }
+    );
   }
 }

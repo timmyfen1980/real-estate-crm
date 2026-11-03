@@ -16,6 +16,7 @@ import {
   CAMPAIGN_SELECT,
   CAPTURE_URLS,
   IDEA_SELECT,
+  isUuid,
   requireLeadCampaignAccess,
   slugify,
 } from '@/lib/leadCampaigns';
@@ -31,6 +32,12 @@ export async function POST(
     const { id, action } = await params;
     if (action !== 'build' && action !== 'dismiss') {
       return NextResponse.json({ error: 'Unknown action.' }, { status: 404 });
+    }
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid idea id.' },
+        { status: 400 }
+      );
     }
     void req;
 

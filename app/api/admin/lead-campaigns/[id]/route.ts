@@ -9,7 +9,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { CAMPAIGN_SELECT, META_STATUSES } from '@/lib/leadCampaigns';
+import {
+  CAMPAIGN_SELECT,
+  META_STATUSES,
+  isUuid,
+} from '@/lib/leadCampaigns';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -37,6 +41,12 @@ export async function PATCH(
   }
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid campaign id.' },
+        { status: 400 }
+      );
+    }
     const body = await req.json().catch(() => ({}));
 
     const updates: Record<string, any> = {};
@@ -94,6 +104,12 @@ export async function POST(
   }
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid campaign id.' },
+        { status: 400 }
+      );
+    }
     const body = await req.json().catch(() => ({}));
     const action = typeof body?.action === 'string' ? body.action : '';
     if (!['fetch_photos', 'generate', 'backfill'].includes(action)) {
