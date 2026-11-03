@@ -21,6 +21,19 @@
 //     Resend dashboard: { email, category: 'bounced' | 'suppressed' }.
 //     They clear even when the API list misses them (the dashboard is
 //     authoritative); misses are reported in extras_not_found_in_api.
+//  4. The CRM's own webhook ledger — contacts already flagged
+//     email_invalid with reason suppressed / spam_complaint / bounced
+//     by real Resend webhook events, whose email is still stored.
+//     Those flags ARE Resend's reports, recorded event by event, so
+//     the contacts clear with the category their stored reason gives.
+//     ('failed'-reason contacts are NOT cleared: a send failure is not
+//     a confirmed dead address.)
+//
+//  Restricted-key reality (found 2026-11-03): the CRM's RESEND_API_KEY
+//  is send-only, so sources 1-2 answer 401 restricted_api_key. The
+//  sweep records that in api_error and carries on with sources 3-4
+//  instead of failing; with a full-access key in place it runs the
+//  complete sweep unchanged.
 //
 // Categories: an address is 'suppressed' when it is on the suppression
 // list with a complaint/manual origin or Tim lists it as suppressed;
@@ -182,8 +195,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const suppressions = await fetchAllSuppressions(apiKey);
-    const emailScan = await fetchBouncedRecipients(apiKey);
+    let suppressions: Suppression[] = [];
+    let apiError: string | null = null;
+    try {
+      suppressions = await fetchAllSuppressions(apiKey);
+    } catch (e: any) {
+      apiError = e?.message || 'Resend suppressions fetch failed.';
+    }
+    let emailScan: { recipients: Set<string>; scanned: number; truncated: boolean; error: string | null } = {
+      recipients: new Set<string>(),
+      scanned: 0,
+      truncated: false,
+      error: null,
+    };
+    try {
+      const scan = await fetchBouncedRecipients(apiKey);
+      emailScan = { ...scan, error: null };
+    } catch (e: any) {
+      emailScan.error = e?.message || 'Resend emails fetch failed.';
+    }
 
     // ---- Build the address set with per-address provenance ----
     const addresses = new Map<string, AddressInfo>();
@@ -308,6 +338,59 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ---- Source 4: contacts the webhook already flagged ----
+    // Snapshot semantics: this query runs after the loop above, so any
+    // contact already cleared there now has email NULL and is not
+    // picked up again. Only Resend-confirmed reasons qualify.
+    let webhookFlaggedCleared = 0;
+    {
+      const { data: flagged, error: flaggedError } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, email, email_invalid_reason, assigned_user_id')
+        .eq('account_id', ACCOUNT_ID)
+        .eq('email_invalid', true)
+        .not('email', 'is', null)
+        .in('email_invalid_reason', ['suppressed', 'spam_complaint', 'bounced']);
+      if (flaggedError) throw flaggedError;
+      for (const contact of (flagged || []) as any[]) {
+        const word = contact.email_invalid_reason === 'bounced' ? 'bounced' : 'suppressed';
+        matched++;
+        alreadyFlagged++;
+        const { error: updateError } = await supabase
+          .from('contacts')
+          .update({ email: null })
+          .eq('id', contact.id);
+        if (updateError) throw updateError;
+        cleared++;
+        webhookFlaggedCleared++;
+        if (word === 'bounced') bouncedCleared++;
+        else suppressedCleared++;
+
+        if (contact.assigned_user_id) {
+          const { error: noteError } = await supabase.from('notes').insert({
+            contact_id: contact.id,
+            user_id: contact.assigned_user_id,
+            content: `Email cleared \u2014 address ${word} (Resend, ${sweepDate})`,
+          });
+          if (noteError) notesFailed++;
+          else notesWritten++;
+        } else {
+          notesFailed++;
+        }
+
+        const name = [contact.first_name, contact.last_name]
+          .filter((part: any) => typeof part === 'string' && part.trim() !== '')
+          .join(' ')
+          .trim();
+        list.push({
+          name: name || '(no name)',
+          email_removed: (contact.email || '').trim().toLowerCase(),
+          category: word,
+          source: 'crm_webhook_flags',
+        });
+      }
+    }
+
     // ---- Cross-check: bounced recipients the sweep did NOT clear ----
     const notCleared: string[] = [];
     for (const email of emailScan.recipients) {
@@ -329,6 +412,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      api_error: apiError,
+      webhook_flagged_cleared: webhookFlaggedCleared,
       api_suppressions_total: suppressions.length,
       api_suppressions_by_origin: apiByOrigin,
       suppressed_found: suppressedFound,
@@ -343,6 +428,7 @@ export async function POST(req: NextRequest) {
       notes_failed: notesFailed,
       extras_not_found_in_api: extrasNotFoundInApi,
       emails_scan: {
+        error: emailScan.error,
         scanned: emailScan.scanned,
         truncated: emailScan.truncated,
         bounced_recipients: emailScan.recipients.size,
