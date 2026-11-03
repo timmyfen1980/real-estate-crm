@@ -17,7 +17,9 @@
 // senders (no-reply addresses, REALM/BrokerBay system mail, bank and
 // marketing notices) never become follow-ups — see isAutomatedSender
 // in lib/emailFollowups.ts, which also enforces the same filter in
-// the shared sync for both routes and every user. Mail from the
+// the shared sync for both routes and every user. Meeting reminder /
+// notice mail is likewise never a follow-up (isMeetingNotice, same
+// lib, mirrored in the candidate loop below). Mail from the
 // mailbox owner themselves is likewise never a follow-up: the scan
 // compares against ALL of the owner's addresses (connection email +
 // /me aliases), not just the connection email — a forward from the
@@ -52,6 +54,7 @@ import { msRefreshTokens } from '@/lib/microsoft';
 import {
   syncFollowupsForUser,
   isAutomatedSender,
+  isMeetingNotice,
 } from '@/lib/emailFollowups';
 
 const ACCOUNT_ID = 'a540905b-7cd7-4dd6-bba0-162c07978bd6';
@@ -160,6 +163,7 @@ interface UserScanResult {
   deduped?: number;
   skipped_dismissed?: number;
   skipped_automated?: number;
+  skipped_meeting?: number;
   skipped_self?: number;
   resolved?: number;
   verify_unknown?: number;
@@ -258,6 +262,9 @@ async function scanUser(
     if (senderEmail.endsWith('@thefcgroup.ca')) continue; // team-internal
     if (isAutomatedSender(senderEmail, msg.from?.emailAddress?.name)) {
       continue; // automated mail never becomes a follow-up
+    }
+    if (isMeetingNotice(msg.from?.emailAddress?.name, msg.subject)) {
+      continue; // meeting reminders/notices never become follow-ups
     }
     candidates.push({
       message_id: msg.id,

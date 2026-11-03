@@ -46,12 +46,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // real deal-processing mail), and crea.ca is not blocked either (only
 // its comms address is). A sender not listed here is treated as a
 // person. To block more automated mail, extend these constants.
+//
+// MEETING NOTICES (Tim, 2026-11-03): reminder/notice mail about
+// meetings is likewise never a follow-up, for every user — see
+// isMeetingNotice below. The check is subject-phrasing only and kept
+// narrow, so a person writing about meeting up is never filtered.
 
 // Domains that only ever send automated mail.
 const AUTOMATED_SENDER_DOMAINS: ReadonlySet<string> = new Set([
   'em.realmmlp.ca', // REALM saved-search alerts / activity notices
-  'mg.brokerbay.com', // BrokerBay system notices (see relay rule below)
-  'mg2.brokerbay.com', // BrokerBay system notices (see relay rule below)
+  'mg.brokerbay.com', // BrokerBay system notices
+  'mg2.brokerbay.com', // BrokerBay system notices
   'payments.interac.ca', // Interac e-Transfer notices
   'authentisign.com', // Authentisign signing-status pings
   'reablehub.com', // REable Hub post-ready / marketing notices
@@ -59,53 +64,26 @@ const AUTOMATED_SENDER_DOMAINS: ReadonlySet<string> = new Set([
   'easy.staples.ca', // Staples marketing
   'eg.expedia.com', // Expedia marketing
   'mail.trreb.ca', // TRREB membership comms
+  'data.realtor.ca', // REALTOR.ca DDF / system promos (ddf@)
+  'info.cibc.com', // CIBC marketing (real bank mail comes from cibc.com)
+  'marketing.mlbemail.com', // Toronto Blue Jays ticket promos
 ]);
 
-// BrokerBay is a relay as well as a notifier: most of its mail is a
-// system notice wearing a system label ("Showings - <brokerage>",
-// "Offer Updates", "BrokerBay", "Price Change Update"), but a message
-// FROM a person can arrive through it wearing that person's name
-// (2026-11-03: "JEFF D'ALTROY" about a property, amid 22 system
-// notices). For the two BrokerBay domains only, a plain person's
-// display name rescues the message; every other blocked domain stays
-// blocked regardless of name.
-const BROKERBAY_RELAY_DOMAINS: ReadonlySet<string> = new Set([
-  'mg.brokerbay.com',
-  'mg2.brokerbay.com',
-]);
-
-// Words that mark a display name as a system label rather than a
-// person ("Showings - X", "Offer Updates", "Price Change Update").
-const SYSTEM_LABEL_WORDS: readonly string[] = [
-  'showing',
-  'offer',
-  'update',
-  'brokerbay',
-  'notification',
-  'reminder',
-  'listing',
-  'feedback',
-  'price change',
-  'duplicate',
-  'alert',
-];
-
-function looksLikePlainPersonName(name: string | null | undefined): boolean {
-  if (!name) return false;
-  const n = name.trim().toLowerCase();
-  if (!n) return false;
-  if (n.includes(' - ')) return false; // "Showings - <brokerage>" labels
-  for (const word of SYSTEM_LABEL_WORDS) {
-    if (n.includes(word)) return false;
-  }
-  return true;
-}
+// BrokerBay is a relay as well as a notifier, and a person's message
+// can arrive through it wearing that person's name. An earlier build
+// rescued such messages by display name; Tim reviewed the one case
+// it saved (2026-11-03, a relayed property note) and ruled it does
+// not need attention — ALL BrokerBay-domain mail is system mail, no
+// name rescue. Do not re-add one without his say-so.
 
 // Exact addresses that send only automated mail even though their
 // domain also carries real mail.
 const AUTOMATED_SENDER_ADDRESSES: ReadonlySet<string> = new Set([
   'crea-comms@crea.ca', // CREA comms/dues (crea.ca itself carries people)
   'mario@homelifekingsview.com', // marketing blasts from a person's address
+  'recostakeholderrelations@reco.on.ca', // RECO stakeholder notices (reco.on.ca itself is NOT blocked)
+  'timbertrails@farsight.ca', // FarSight Homes builder promos
+  'pleduc@crea.ca', // CREA weekly newsletter sent from a person's address
 ]);
 
 // Local parts (the part before @) that mark an address as automated
@@ -141,8 +119,10 @@ function localPartIsAutomated(local: string): boolean {
 }
 
 // True when the sender is automated mail that should never become an
-// email follow-up. The display name is used ONLY for the BrokerBay
-// relay rescue above — never to block anyone by name alone.
+// email follow-up. The display name is never used to block anyone —
+// or to rescue anyone (the BrokerBay name rescue was removed
+// 2026-11-03 on Tim's ruling); the parameter stays only so existing
+// call sites keep their shape.
 export function isAutomatedSender(
   senderEmail: string | null | undefined,
   senderName?: string | null | undefined
@@ -153,16 +133,38 @@ export function isAutomatedSender(
   const local = email.slice(0, at);
   const domain = email.slice(at + 1);
   if (AUTOMATED_SENDER_ADDRESSES.has(email)) return true;
-  if (AUTOMATED_SENDER_DOMAINS.has(domain)) {
-    if (
-      BROKERBAY_RELAY_DOMAINS.has(domain) &&
-      looksLikePlainPersonName(senderName)
-    ) {
-      return false; // a person's message relayed through BrokerBay
-    }
-    return true;
-  }
+  if (AUTOMATED_SENDER_DOMAINS.has(domain)) return true;
   return localPartIsAutomated(local);
+}
+
+// Subject phrasing that marks a message as a meeting reminder /
+// notice / invitation rather than a person asking for a reply (Tim,
+// 2026-11-03: "reminder emails about meetings are not needed for
+// us"). Deliberately NARROW: these match the formulaic subjects of
+// meeting systems and office circulars ("Whitby Office Meeting:
+// Thursday Oct 29", "Meeting Reminder: ...", "Reminder: team
+// meeting at 10"). A human writing about meeting up — "Can we meet
+// Thursday about the offer?" — matches none of them ("meet" is not
+// "meeting", and there is no reminder/notice/invitation phrasing).
+// The sender name is accepted for symmetry with isAutomatedSender;
+// the decision is subject-only.
+const MEETING_NOTICE_PATTERNS: readonly RegExp[] = [
+  /\boffice meetings?\b/,
+  /\bmeetings? reminders?\b/,
+  /\bmeetings? invitations?\b/,
+  /\bmeetings? notices?\b/,
+  /\breminders?\b.{0,40}\bmeetings?\b/,
+  /\bmeetings?\b.{0,40}\breminders?\b/,
+  /\binvitations?\b.{0,40}\bmeetings?\b/,
+];
+
+export function isMeetingNotice(
+  senderName: string | null | undefined,
+  subject: string | null | undefined
+): boolean {
+  const s = (subject || '').trim().toLowerCase();
+  if (!s) return false;
+  return MEETING_NOTICE_PATTERNS.some((pattern) => pattern.test(s));
 }
 
 // The mailbox owner's own connected addresses (lowercased), so mail
@@ -199,6 +201,7 @@ export interface FollowupSyncCounts {
   deduped: number;
   skipped_dismissed: number;
   skipped_automated: number;
+  skipped_meeting: number;
   skipped_self: number;
   resolved: number;
 }
@@ -212,13 +215,15 @@ export async function syncFollowupsForUser(
 ): Promise<FollowupSyncCounts> {
   const nowIso = new Date().toISOString();
 
-  // Automated-mail filter + self-mail skip, applied to every sync
-  // for every user before any matching: automated senders never
-  // become follow-ups, and neither does mail from the mailbox owner
+  // Automated-mail filter + meeting-notice skip + self-mail skip,
+  // applied to every sync for every user before any matching:
+  // automated senders and meeting reminders/notices never become
+  // follow-ups, and neither does mail from the mailbox owner
   // themselves. (The CRM scanner also filters upstream; this is the
   // shared enforcement point both routes pass through.)
   const ownEmails = await ownMailboxEmails(supabase, userId);
   let skippedAutomated = 0;
+  let skippedMeeting = 0;
   let skippedSelf = 0;
   const openItems: any[] = [];
   for (const item of rawOpenItems) {
@@ -229,6 +234,10 @@ export async function syncFollowupsForUser(
     }
     if (isAutomatedSender(item?.sender_email, item?.sender_name)) {
       skippedAutomated++;
+      continue;
+    }
+    if (isMeetingNotice(item?.sender_name, item?.subject)) {
+      skippedMeeting++;
       continue;
     }
     openItems.push(item);
@@ -372,6 +381,7 @@ export async function syncFollowupsForUser(
     deduped,
     skipped_dismissed: skippedDismissed,
     skipped_automated: skippedAutomated,
+    skipped_meeting: skippedMeeting,
     skipped_self: skippedSelf,
     resolved: resolvedCount,
   };
