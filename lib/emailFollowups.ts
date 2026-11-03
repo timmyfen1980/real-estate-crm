@@ -124,7 +124,14 @@ export async function syncFollowupsForUser(
       if (updateError) throw updateError;
       keeper.message_id = messageId;
     } else {
-      const { error: insertError } = await supabase
+      // The insert must return the row's real uuid: the in-memory
+      // `existing` list feeds id-based updates/deletes later in this
+      // same sync (keeper update, dedupe delete), and a stand-in id
+      // built from the message_id reaches the uuid `id` column and
+      // throws "invalid input syntax for type uuid", aborting the
+      // sync after the inserts have already committed (2026-11-03:
+      // 511 rows written for one user, resolution never ran).
+      const { data: inserted, error: insertError } = await supabase
         .from('email_followups')
         .insert({
           account_id: accountId,
@@ -138,10 +145,12 @@ export async function syncFollowupsForUser(
           status: 'open',
           first_seen_at: nowIso,
           last_seen_at: nowIso,
-        });
+        })
+        .select('id')
+        .single();
       if (insertError) throw insertError;
       existing.push({
-        id: 'new-' + messageId,
+        id: inserted.id,
         message_id: messageId,
         sender_email: senderEmail,
         subject,

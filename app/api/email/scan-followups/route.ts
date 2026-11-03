@@ -13,6 +13,16 @@
 // since, are resolved. Dismissals are final (the shared sync in
 // lib/emailFollowups.ts skips dismissed matches).
 //
+// WINDOW + RESOLUTION (fixed 2026-11-03): like the owner's external
+// scanner, new candidates come only from the last 7 days of the inbox
+// (the first CRM run pulled ~5.5 weeks and wrote 511 rows). An open
+// row whose message falls outside that fetch window is never assumed
+// gone or present: its presence in the main inbox is verified by id
+// (one folder-scoped GET per such row, so Graph calls stay bounded by
+// the open-row count). A row resolves exactly when its message has
+// left the main inbox or its conversation has been replied to; a
+// message still sitting unanswered in the inbox keeps its row open.
+//
 // ANTI-DUPLICATION RULE: the account OWNER is deliberately excluded.
 // The owner's (Tim's) rows keep coming from the long-standing external
 // 09:00 scan of his inbox via the outlook-mail connector — if this
@@ -32,7 +42,8 @@ import { syncFollowupsForUser } from '@/lib/emailFollowups';
 
 const ACCOUNT_ID = 'a540905b-7cd7-4dd6-bba0-162c07978bd6';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
-const INBOX_PAGE_CAP = 20; // 20 x 100 = up to 2,000 inbox messages
+const WINDOW_DAYS = 7; // candidate window, parity with the owner's scan
+const INBOX_PAGE_CAP = 10; // 10 x 100 = up to 1,000 messages in the window
 const SENT_PAGE_CAP = 10; // 10 x 200 = up to 2,000 sent messages
 
 function authorized(req: NextRequest): boolean {
@@ -104,6 +115,28 @@ async function graphPageAll(
   return { items, complete: !url };
 }
 
+// Presence check for one message in the MAIN INBOX, by id. Uses the
+// folder-scoped GET so a message that was filed away or deleted 404s
+// here even though it may still exist elsewhere in the mailbox.
+// Returns 'present' with the conversationId, 'gone' on 404, or
+// 'unknown' on any other failure (the caller keeps the row open and
+// counts it rather than guessing).
+async function checkInboxMessage(
+  accessToken: string,
+  messageId: string
+): Promise<{ state: 'present' | 'gone' | 'unknown'; conversationId?: string | null }> {
+  const url =
+    `${GRAPH}/me/mailFolders/inbox/messages/${encodeURIComponent(messageId)}` +
+    `?$select=id,conversationId`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.status === 404) return { state: 'gone' };
+  if (!res.ok) return { state: 'unknown' };
+  const data: any = await res.json().catch(() => ({}));
+  return { state: 'present', conversationId: data?.conversationId || null };
+}
+
 interface UserScanResult {
   user_id: string;
   email: string;
@@ -113,6 +146,7 @@ interface UserScanResult {
   deduped?: number;
   skipped_dismissed?: number;
   resolved?: number;
+  verify_unknown?: number;
   error?: string;
 }
 
@@ -124,9 +158,15 @@ async function scanUser(
   const email = (conn.email as string) || '';
   const accessToken = await accessTokenFor(supabase, conn);
 
+  // Candidate window: only the last WINDOW_DAYS of the inbox can
+  // produce NEW follow-ups (parity with the owner's external scan).
+  const windowStartIso = new Date(
+    Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
   const inboxUrl =
     `${GRAPH}/me/mailFolders/inbox/messages` +
     `?$select=id,conversationId,subject,bodyPreview,receivedDateTime,from` +
+    `&$filter=receivedDateTime%20ge%20${encodeURIComponent(windowStartIso)}` +
     `&$orderby=receivedDateTime%20desc&$top=100`;
   const inbox = await graphPageAll(accessToken, inboxUrl, INBOX_PAGE_CAP);
 
@@ -170,10 +210,16 @@ async function scanUser(
     candidateIds.add(msg.id);
   }
 
-  // Resolve this user's currently-open rows that no longer qualify:
-  // still visible in the inbox but no longer a candidate (they replied
-  // since the row opened), or — only when the inbox walk was complete —
-  // gone from the inbox entirely (filed/deleted = dealt with).
+  // Resolve this user's currently-open rows that no longer qualify.
+  // Each open row's message falls into one of three states:
+  //  - still a candidate (in the window, >24h, unreplied): stays open.
+  //  - in the window fetch but no longer a candidate (replied since the
+  //    row opened, team/self mail): resolve.
+  //  - outside the window fetch: never guess. Verify presence in the
+  //    main inbox by id — gone (filed/deleted = dealt with) resolves,
+  //    still present but replied resolves, still present and unreplied
+  //    stays open. A failed check keeps the row open and is counted in
+  //    verify_unknown so it is visible in the run's counts.
   const { data: openRows, error: openError } = await supabase
     .from('email_followups')
     .select('message_id')
@@ -183,10 +229,24 @@ async function scanUser(
   if (openError) throw openError;
 
   const resolvedIds: string[] = [];
+  let verifyUnknown = 0;
   for (const row of openRows || []) {
     const mid = row.message_id as string;
     if (candidateIds.has(mid)) continue;
-    if (inboxIds.has(mid) || inbox.complete) resolvedIds.push(mid);
+    if (inboxIds.has(mid)) {
+      resolvedIds.push(mid);
+      continue;
+    }
+    const check = await checkInboxMessage(accessToken, mid);
+    if (check.state === 'gone') {
+      resolvedIds.push(mid);
+    } else if (check.state === 'present') {
+      if (check.conversationId && repliedConversations.has(check.conversationId)) {
+        resolvedIds.push(mid);
+      }
+    } else {
+      verifyUnknown++;
+    }
   }
 
   const counts = await syncFollowupsForUser(
@@ -203,6 +263,7 @@ async function scanUser(
     scanned: inbox.items.length,
     candidates: candidates.length,
     ...counts,
+    ...(verifyUnknown > 0 ? { verify_unknown: verifyUnknown } : {}),
   };
 }
 
