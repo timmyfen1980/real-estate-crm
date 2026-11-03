@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { properName } from "@/lib/nameCase";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -38,8 +39,8 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
 
-    const first_name = formData.get("first_name") as string;
-    const last_name = formData.get("last_name") as string;
+    let first_name = formData.get("first_name") as string;
+    let last_name = formData.get("last_name") as string;
     const email = formData.get("email") as string;
     const phone = formData.get("phone") as string;
     const property_address = formData.get("property_address") as string;
@@ -50,6 +51,9 @@ export async function POST(req: Request) {
         { status: 400, headers }
       );
     }
+
+    first_name = properName(first_name);
+    last_name = properName(last_name || "");
 
     const normalizedEmail = email.toLowerCase().trim();
 
