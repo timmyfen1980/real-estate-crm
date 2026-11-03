@@ -19,6 +19,39 @@ function isJunkEmail(email: string): boolean {
   return JUNK_PATTERNS.some(p => p.test(email));
 }
 
+// Toronto calendar date (YYYY-MM-DD) for a timestamp — stamped into the
+// "Email cleared" contact notes below.
+function torontoDate(iso?: string | null): string {
+  const parsed = iso ? new Date(iso) : new Date();
+  const d = isNaN(parsed.getTime()) ? new Date() : parsed;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+// Note an email clearing on each contact (Tim, 2026-11-03: every clear
+// gets a note saying which and when). Best-effort — a failed note must
+// never fail the webhook. Authored by the contact's assigned user: the
+// notes table only accepts real users, and the wording makes the
+// system origin plain. Idempotency: once a contact's email is cleared,
+// later events for that address no longer match the contact by email,
+// so a duplicate note cannot be written.
+async function noteEmailCleared(contacts: any[], word: string, eventDate: string) {
+  const content = `Email cleared \u2014 address ${word} (Resend, ${eventDate})`;
+  for (const c of contacts) {
+    if (!c.assigned_user_id) continue;
+    const { error } = await supabase.from('notes').insert({
+      contact_id: c.id,
+      user_id: c.assigned_user_id,
+      content,
+    });
+    if (error) console.error('Email-cleared note failed:', error.message);
+  }
+}
+
 function verifySignature(payload: string, msgId: string | null, timestamp: string | null, signature: string | null): boolean {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
   if (!secret) return true; // Skip verification if no secret configured
@@ -71,6 +104,7 @@ export async function POST(request: NextRequest) {
     
     const body = JSON.parse(rawBody);
     const { type, data } = body;
+    const eventDate = torontoDate(typeof body?.created_at === 'string' ? body.created_at : null);
     
     if (!type || !data) {
       return NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 });
@@ -83,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     const { data: contacts } = await supabase
       .from('contacts')
-      .select('id, email')
+      .select('id, email, assigned_user_id')
       .ilike('email', email);
 
     if (!contacts || contacts.length === 0) {
@@ -94,11 +128,16 @@ export async function POST(request: NextRequest) {
     let action = '';
 
     if (type === 'email.complained' || type === 'email.suppressed') {
+      // Tim (2026-11-03): a suppressed/complained address is dead — clear
+      // it from the contact (the contact itself stays) and note the clear,
+      // mirroring the suppression sweep. Flag fields unchanged.
       await supabase.from('contacts').update({ 
+        email: null,
         email_invalid: true,
         email_invalid_reason: type === 'email.complained' ? 'spam_complaint' : 'suppressed',
         email_invalid_at: new Date().toISOString(),
       }).in('id', ids);
+      await noteEmailCleared(contacts, type === 'email.complained' ? 'suppressed (spam complaint)' : 'suppressed', eventDate);
       action = type === 'email.complained' ? 'flagged_spam_complaint' : 'flagged_suppressed';
       
     } else if (type === 'email.bounced' || type === 'email.failed') {
@@ -107,10 +146,22 @@ export async function POST(request: NextRequest) {
         await supabase.from('email_logs').delete().in('contact_id', ids);
         await supabase.from('contacts').delete().in('id', ids);
         action = 'deleted_junk';
+      } else if (type === 'email.bounced') {
+        // Tim (2026-11-03): a bounced address is dead — clear it from the
+        // contact (the contact itself stays) and note the clear, same as
+        // the suppression sweep.
+        await supabase.from('contacts').update({ 
+          email: null,
+          email_invalid: true,
+          email_invalid_reason: 'bounced',
+          email_invalid_at: new Date().toISOString(),
+        }).in('id', ids);
+        await noteEmailCleared(contacts, 'bounced', eventDate);
+        action = 'flagged_bounced';
       } else {
         await supabase.from('contacts').update({ 
           email_invalid: true,
-          email_invalid_reason: type === 'email.bounced' ? 'bounced' : 'failed',
+          email_invalid_reason: 'failed',
           email_invalid_at: new Date().toISOString(),
         }).in('id', ids);
         action = 'flagged_bounced';
