@@ -7,6 +7,9 @@
 // and lets each user dismiss their own rows (status='dismissed').
 // Dismissed rows are NEVER resurrected by later syncs — the scanner
 // keeps sending them in open_items and this route skips them.
+// Items from automated senders, and mail from the mailbox owner
+// themselves, are likewise skipped inside the shared sync
+// (lib/emailFollowups.ts) — the same filter for every user.
 //
 // Per-user rows (2026-11-02): every row belongs to a mailbox owner
 // (user_id). POST items may carry user_id; items WITHOUT one default
@@ -139,7 +142,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const totals = { upserted: 0, deduped: 0, skipped_dismissed: 0, resolved: 0 };
+    const totals = {
+      upserted: 0,
+      deduped: 0,
+      skipped_dismissed: 0,
+      skipped_automated: 0,
+      skipped_self: 0,
+      resolved: 0,
+    };
     const userIds = new Set<string>(itemsByUser.keys());
     if (resolvedUserId) userIds.add(resolvedUserId);
     for (const userId of Array.from(userIds)) {
@@ -153,6 +163,8 @@ export async function POST(req: NextRequest) {
       totals.upserted += counts.upserted;
       totals.deduped += counts.deduped;
       totals.skipped_dismissed += counts.skipped_dismissed;
+      totals.skipped_automated += counts.skipped_automated;
+      totals.skipped_self += counts.skipped_self;
       totals.resolved += counts.resolved;
     }
 

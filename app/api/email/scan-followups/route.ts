@@ -13,6 +13,17 @@
 // since, are resolved. Dismissals are final (the shared sync in
 // lib/emailFollowups.ts skips dismissed matches).
 //
+// AUTOMATED-MAIL FILTER (2026-11-03): candidates from automated
+// senders (no-reply addresses, REALM/BrokerBay system mail, bank and
+// marketing notices) never become follow-ups — see isAutomatedSender
+// in lib/emailFollowups.ts, which also enforces the same filter in
+// the shared sync for both routes and every user. Mail from the
+// mailbox owner themselves is likewise never a follow-up: the scan
+// compares against ALL of the owner's addresses (connection email +
+// /me aliases), not just the connection email — a forward from the
+// owner's own alias domain (aidan@comeaugroup.com) slipped past the
+// plain comparison in the first runs.
+//
 // WINDOW + RESOLUTION (fixed 2026-11-03): like the owner's external
 // scanner, new candidates come only from the last 7 days of the inbox
 // (the first CRM run pulled ~5.5 weeks and wrote 511 rows). An open
@@ -38,7 +49,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { msRefreshTokens } from '@/lib/microsoft';
-import { syncFollowupsForUser } from '@/lib/emailFollowups';
+import {
+  syncFollowupsForUser,
+  isAutomatedSender,
+} from '@/lib/emailFollowups';
 
 const ACCOUNT_ID = 'a540905b-7cd7-4dd6-bba0-162c07978bd6';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
@@ -145,6 +159,8 @@ interface UserScanResult {
   upserted?: number;
   deduped?: number;
   skipped_dismissed?: number;
+  skipped_automated?: number;
+  skipped_self?: number;
   resolved?: number;
   verify_unknown?: number;
   error?: string;
@@ -157,6 +173,35 @@ async function scanUser(
 ): Promise<UserScanResult> {
   const email = (conn.email as string) || '';
   const accessToken = await accessTokenFor(supabase, conn);
+
+  // The owner's own addresses: the connection email plus every alias
+  // Graph knows about (mail, UPN, otherMails, proxyAddresses), and
+  // their display name. Self-mail is matched against all of them —
+  // the connection email alone missed a forward the owner sent
+  // himself from his own alias domain (aidan@comeaugroup.com,
+  // 2026-11-03). Best-effort: if /me fails, fall back to the
+  // connection email alone.
+  const ownAddresses = new Set<string>();
+  let ownDisplayName = '';
+  const addOwnAddress = (value: any) => {
+    if (typeof value === 'string' && value.includes('@')) {
+      ownAddresses.add(value.replace(/^smtp:/i, '').trim().toLowerCase());
+    }
+  };
+  addOwnAddress(email);
+  try {
+    const me = await graphGet(
+      accessToken,
+      `${GRAPH}/me?$select=mail,userPrincipalName,displayName,otherMails,proxyAddresses`
+    );
+    ownDisplayName = (me?.displayName || '').trim().toLowerCase();
+    addOwnAddress(me?.mail);
+    addOwnAddress(me?.userPrincipalName);
+    for (const value of me?.otherMails || []) addOwnAddress(value);
+    for (const value of me?.proxyAddresses || []) addOwnAddress(value);
+  } catch {
+    // Fall back to the connection email alone.
+  }
 
   // Candidate window: only the last WINDOW_DAYS of the inbox can
   // produce NEW follow-ups (parity with the owner's external scan).
@@ -179,7 +224,7 @@ async function scanUser(
   }
 
   const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-  const ownEmail = email.toLowerCase();
+  const ownLocalPart = email.toLowerCase().split('@')[0] || '';
   const inboxIds = new Set<string>();
   const candidates: any[] = [];
   const candidateIds = new Set<string>();
@@ -197,8 +242,23 @@ async function scanUser(
       msg.from?.emailAddress?.address || ''
     ).toLowerCase();
     if (!senderEmail) continue;
-    if (senderEmail === ownEmail) continue; // mail from themselves
+    if (ownAddresses.has(senderEmail)) continue; // mail from themselves
+    // Self-mail from an alias Graph does not list: same local part
+    // AND the owner's exact display name (the comeaugroup.com case).
+    const senderName = (msg.from?.emailAddress?.name || '')
+      .trim()
+      .toLowerCase();
+    if (
+      ownDisplayName &&
+      senderName === ownDisplayName &&
+      senderEmail.split('@')[0] === ownLocalPart
+    ) {
+      continue;
+    }
     if (senderEmail.endsWith('@thefcgroup.ca')) continue; // team-internal
+    if (isAutomatedSender(senderEmail, msg.from?.emailAddress?.name)) {
+      continue; // automated mail never becomes a follow-up
+    }
     candidates.push({
       message_id: msg.id,
       sender_name: msg.from?.emailAddress?.name || null,
