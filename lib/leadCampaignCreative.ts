@@ -24,6 +24,7 @@
 // "Fennessey Comeau Group" text — the logo lockup already says it.
 
 import sharp from 'sharp';
+import opentype from 'opentype.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface CampaignCreative {
@@ -180,6 +181,14 @@ export async function deriveSubject(
 // Photo sourcing.
 // ---------------------------------------------------------------------------
 
+const STREET_SUFFIXES = new Set([
+  'street', 'st', 'avenue', 'ave', 'road', 'rd', 'drive', 'dr',
+  'crescent', 'cres', 'boulevard', 'blvd', 'court', 'crt', 'ct',
+  'path', 'lane', 'ln', 'way', 'circle', 'cir', 'terrace', 'terr',
+  'place', 'pl', 'trail', 'gate', 'row', 'parkway', 'pkwy',
+  'heights', 'hts', 'square', 'sq', 'common', 'line',
+]);
+
 function streetTokens(address: string | null): {
   number: string | null;
   street: string | null;
@@ -188,16 +197,29 @@ function streetTokens(address: string | null): {
   const cleaned = address.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
   const words = cleaned.split(' ');
   const number = /^\d+$/.test(words[0]) ? words[0] : null;
-  // The street name is the first purely-alphabetic word after the number
-  // (e.g. "Calais" in "8 Calais Street", "Black Cherry" needs both —
-  // take the first two alphabetic words to be safe for the ilike probe,
-  // scoring below sorts out the best match).
+  // The street NAME is the alphabetic words after the number, minus a
+  // trailing suffix word ("Calais" in "8 Calais Street", "Black Cherry"
+  // in "928 Black Cherry Drive"). The suffix is NOT the street name —
+  // probing on it matches every "… Street" in the table.
   const alpha: string[] = [];
   for (const w of words.slice(number ? 1 : 0)) {
-    if (/^[A-Za-z'.-]+$/.test(w)) alpha.push(w);
-    if (alpha.length >= 2) break;
+    if (/^[A-Za-z'.-]+$/.test(w)) alpha.push(w.replace(/\./g, ''));
+    else break;
   }
-  return { number, street: alpha.length ? alpha[alpha.length - 1] : null };
+  while (
+    alpha.length > 1 &&
+    STREET_SUFFIXES.has(alpha[alpha.length - 1].toLowerCase())
+  ) {
+    alpha.pop();
+  }
+  return { number, street: alpha.length ? alpha.join(' ') : null };
+}
+
+function leadingNumber(address: any): string | null {
+  const m = String(address || '')
+    .trim()
+    .match(/^(\d+)\b/);
+  return m ? m[1] : null;
 }
 
 async function propertyPhoto(
@@ -213,19 +235,27 @@ async function propertyPhoto(
       .select('address, image_url')
       .eq('account_id', accountId)
       .ilike('address', `%${street}%`)
-      .limit(10);
+      .limit(25);
     const rows = (data || []).filter((r: any) => r.image_url);
     if (!rows.length) return null;
     const scored = rows
       .map((r: any) => {
         let score = 0;
         const a = String(r.address || '').toLowerCase();
-        if (number && a.includes(number)) score += 2;
         if (street && a.includes(street.toLowerCase())) score += 2;
-        return { r, score };
+        const lead = leadingNumber(r.address);
+        if (number && lead === number) score += 4;
+        if (number && lead && lead !== number) score -= 4;
+        return { r, score, lead };
       })
       .sort((x: any, y: any) => y.score - x.score);
-    return scored[0].r.image_url || null;
+    const best = scored[0];
+    // Never show the WRONG house: when the subject carries a street
+    // number, only a property with that same leading number qualifies;
+    // otherwise return nothing and let the IDX photos carry the card.
+    if (number && best.lead !== number) return null;
+    if (best.score <= 0) return null;
+    return best.r.image_url || null;
   } catch {
     return null;
   }
@@ -352,7 +382,111 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function overlaySvg(subject: CreativeSubject): Buffer {
+// ---------------------------------------------------------------------------
+// Graphic fonts. Vercel's runtime ships NO system fonts, and librsvg
+// ignores @font-face data URIs — so SVG <text> renders as empty boxes
+// in production (seen live on the first 8 Calais graphic, Nov 3, 2026).
+// Instead the overlay text is drawn as vector paths: Montserrat
+// (600/700/800) is fetched once from Google Fonts (an old User-Agent
+// gets static TTFs), parsed with opentype.js, and every string is
+// converted to glyph outlines — identical output on any runtime. If
+// the fonts can't be loaded, the overlay falls back to SVG <text>
+// (correct wherever a system font exists).
+// ---------------------------------------------------------------------------
+
+interface GraphicFonts {
+  f600: any;
+  f700: any;
+  f800: any;
+}
+
+let fontsPromise: Promise<GraphicFonts | null> | null = null;
+
+function loadGraphicFonts(): Promise<GraphicFonts | null> {
+  if (!fontsPromise) {
+    fontsPromise = (async () => {
+      try {
+        const cssRes = await fetch(
+          'https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&display=swap',
+          { headers: { 'User-Agent': 'Mozilla/4.0' } }
+        );
+        if (!cssRes.ok) return null;
+        const css = await cssRes.text();
+        const urls = new Map<string, string>();
+        for (const block of css.split('@font-face')) {
+          const w = block.match(/font-weight:\s*(\d+)/);
+          const u = block.match(/url\((https:[^)]+\.ttf)\)/);
+          if (w && u) urls.set(w[1], u[1]);
+        }
+        const load = async (weight: string) => {
+          const url = urls.get(weight);
+          if (!url) return null;
+          const buf = await fetchBuffer(url);
+          return opentype.parse(
+            buf.buffer.slice(
+              buf.byteOffset,
+              buf.byteOffset + buf.byteLength
+            ) as ArrayBuffer
+          );
+        };
+        const [f600, f700, f800] = await Promise.all([
+          load('600'),
+          load('700'),
+          load('800'),
+        ]);
+        if (!f600 || !f700 || !f800) return null;
+        return { f600, f700, f800 };
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return fontsPromise;
+}
+
+function glyphRun(font: any, str: string): any[] {
+  return Array.from(str).map((ch) => font.charToGlyph(ch));
+}
+
+function measureText(font: any, str: string, size: number, ls = 0): number {
+  const scale = size / font.unitsPerEm;
+  const gs = glyphRun(font, str);
+  let w = 0;
+  gs.forEach((g: any, i: number) => {
+    w += g.advanceWidth * scale;
+    if (i < gs.length - 1) {
+      w += font.getKerningValue(g, gs[i + 1]) * scale + ls;
+    }
+  });
+  return w;
+}
+
+function textToPath(
+  font: any,
+  str: string,
+  x: number,
+  y: number,
+  size: number,
+  ls = 0
+): string {
+  const scale = size / font.unitsPerEm;
+  const gs = glyphRun(font, str);
+  let cx = x;
+  let d = '';
+  gs.forEach((g: any, i: number) => {
+    d += g.getPath(cx, y, size).toPathData(2);
+    cx += g.advanceWidth * scale;
+    if (i < gs.length - 1) {
+      cx += font.getKerningValue(g, gs[i + 1]) * scale + ls;
+    }
+  });
+  return d;
+}
+
+function overlaySvg(
+  subject: CreativeSubject,
+  fonts: GraphicFonts | null
+): Buffer {
   const cfg = PLAY_DESIGN[subject.play] || PLAY_DESIGN.general;
   const eyebrowText = [cfg.eyebrow, subject.city ? subject.city.toUpperCase() : '']
     .filter(Boolean)
@@ -366,19 +500,42 @@ function overlaySvg(subject: CreativeSubject): Buffer {
   const lh = Math.round(cfg.size * 1.05);
   const firstBase = headLastBase - (cfg.lines.length - 1) * lh;
   const eyebrowBase = firstBase - cfg.size - 34;
+  const footerText =
+    'Tim Fennessey, Broker · 905 493-7355 · thefcgroup.ca';
+  const strokeAttrs =
+    'style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"';
 
   let texts = '';
-  if (eyebrowText) {
-    texts += `<text x="58" y="${eyebrowBase}" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="6" fill="${RED}">${esc(eyebrowText)}</text>`;
-  }
-  cfg.lines.forEach((ln, i) => {
-    texts += `<text x="54" y="${firstBase + i * lh}" font-family="Arial, Helvetica, sans-serif" font-size="${cfg.size}" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5">${esc(ln)}</text>`;
-  });
-  if (subject.price) {
-    texts += `<text x="54" y="${priceBase}" font-family="Arial, Helvetica, sans-serif" font-size="118" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5">${esc(subject.price)}</text>`;
-  }
-  if (addressText) {
-    texts += `<text x="56" y="${addressBase}" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${esc(addressText)}</text>`;
+  let footer = '';
+  if (fonts) {
+    if (eyebrowText) {
+      texts += `<path d="${textToPath(fonts.f800, eyebrowText, 58, eyebrowBase, 30, 6)}" fill="${RED}"/>`;
+    }
+    cfg.lines.forEach((ln, i) => {
+      texts += `<path d="${textToPath(fonts.f800, ln, 54, firstBase + i * lh, cfg.size)}" fill="#ffffff" ${strokeAttrs}/>`;
+    });
+    if (subject.price) {
+      texts += `<path d="${textToPath(fonts.f800, subject.price, 54, priceBase, 118)}" fill="#ffffff" ${strokeAttrs}/>`;
+    }
+    if (addressText) {
+      texts += `<path d="${textToPath(fonts.f700, addressText, 56, addressBase, 44)}" fill="#ffffff"/>`;
+    }
+    const fw = measureText(fonts.f600, footerText, 27, 0.5);
+    footer = `<path d="${textToPath(fonts.f600, footerText, (W - fw) / 2, FOOTER_TOP + 51, 27, 0.5)}" fill="#ffffff"/>`;
+  } else {
+    if (eyebrowText) {
+      texts += `<text x="58" y="${eyebrowBase}" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="6" fill="${RED}">${esc(eyebrowText)}</text>`;
+    }
+    cfg.lines.forEach((ln, i) => {
+      texts += `<text x="54" y="${firstBase + i * lh}" font-family="Arial, Helvetica, sans-serif" font-size="${cfg.size}" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5">${esc(ln)}</text>`;
+    });
+    if (subject.price) {
+      texts += `<text x="54" y="${priceBase}" font-family="Arial, Helvetica, sans-serif" font-size="118" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5">${esc(subject.price)}</text>`;
+    }
+    if (addressText) {
+      texts += `<text x="56" y="${addressBase}" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${esc(addressText)}</text>`;
+    }
+    footer = `<text x="${W / 2}" y="${FOOTER_TOP + 51}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" letter-spacing="0.5" fill="#ffffff">${esc(footerText)}</text>`;
   }
 
   return Buffer.from(
@@ -395,7 +552,7 @@ function overlaySvg(subject: CreativeSubject): Buffer {
   <rect width="${W}" height="${H}" fill="url(#fade)"/>
   <rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>
   <rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>
-  <text x="${W / 2}" y="${FOOTER_TOP + 51}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" letter-spacing="0.5" fill="#ffffff">Tim Fennessey, Broker · 905 493-7355 · thefcgroup.ca</text>
+  ${footer}
   ${texts}
 </svg>`
   );
@@ -417,8 +574,9 @@ export async function composeCampaignGraphic(
     .resize(W, H, { fit: 'cover', position: 'centre' })
     .toBuffer();
 
+  const fonts = await loadGraphicFonts();
   const composites: sharp.OverlayOptions[] = [
-    { input: overlaySvg(subject), top: 0, left: 0 },
+    { input: overlaySvg(subject, fonts), top: 0, left: 0 },
   ];
 
   // Duo cutout, bottom-right, with a soft fade at its bottom edge.
