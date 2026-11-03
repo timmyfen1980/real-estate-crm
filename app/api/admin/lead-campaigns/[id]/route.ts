@@ -2,9 +2,10 @@
 // /api/admin/lead-campaigns/[id] — Rea writes Meta results back onto a
 // lead campaign after creating/managing the Meta campaign agent-side.
 // Auth: Bearer <REDACTED_TOKEN> (same as the other admin routes).
-// PATCH { meta_campaign_id?, meta_status?, spend? } — only those three
-// fields are writable here; meta_status is validated against the known
-// set, spend must be a non-negative number.
+// PATCH { meta_campaign_id?, meta_status?, spend?, instagram? } —
+// meta_status is validated against the known set, spend must be a
+// non-negative number, and instagram is Rea's layer-4 write-back
+// ({ status: 'posted'|'failed', post_id?, post_url?, error? }).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -14,6 +15,7 @@ import {
   META_STATUSES,
   isUuid,
 } from '@/lib/leadCampaigns';
+import { parseCreative } from '@/lib/leadCampaignCreative';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -69,11 +71,50 @@ export async function PATCH(
       }
       updates.spend = n;
     }
-    if (Object.keys(updates).length === 0) {
+    // Layer 4: Instagram write-back from Rea after the real post —
+    // { instagram: { status: 'posted'|'failed', post_id?, post_url?,
+    // error? } } merged into the existing creative jsonb (photos,
+    // design and approval are preserved).
+    const wantsIg = body?.instagram !== undefined;
+    if (wantsIg) {
+      const ig = body.instagram || {};
+      if (!['posted', 'failed'].includes(ig.status)) {
+        return NextResponse.json(
+          { error: 'Unknown Instagram status.' },
+          { status: 400 }
+        );
+      }
+    }
+    if (Object.keys(updates).length === 0 && !wantsIg) {
       return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
     }
 
     const supabase = db();
+    if (wantsIg) {
+      const { data: row } = await supabase
+        .from('lead_campaigns')
+        .select('creative')
+        .eq('id', id)
+        .eq('account_id', ACCOUNT_ID)
+        .single();
+      if (!row) {
+        return NextResponse.json(
+          { error: 'Campaign not found.' },
+          { status: 404 }
+        );
+      }
+      const creative = parseCreative(row.creative);
+      const str = (v: any) =>
+        typeof v === 'string' && v ? v : null;
+      creative.instagram = {
+        status: body.instagram.status,
+        requested_at: creative.instagram.requested_at,
+        post_id: str(body.instagram.post_id),
+        post_url: str(body.instagram.post_url),
+        error: str(body.instagram.error),
+      };
+      updates.creative = creative;
+    }
     const { data, error } = await supabase
       .from('lead_campaigns')
       .update(updates)

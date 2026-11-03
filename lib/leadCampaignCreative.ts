@@ -27,16 +27,52 @@ import sharp from 'sharp';
 import opentype from 'opentype.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+// Instagram send state (layer 4). The CRM page only ever REQUESTS a
+// send; Rea (agent side) posts and writes the result back. Shape:
+//   { status: 'none'|'requested'|'posted'|'failed',
+//     requested_at, post_id, post_url, error }
+export interface CampaignInstagram {
+  status: 'none' | 'requested' | 'posted' | 'failed';
+  requested_at: string | null;
+  post_id: string | null;
+  post_url: string | null;
+  error: string | null;
+}
+
+export const EMPTY_INSTAGRAM: CampaignInstagram = {
+  status: 'none',
+  requested_at: null,
+  post_id: null,
+  post_url: null,
+  error: null,
+};
+
+export function parseInstagram(raw: any): CampaignInstagram {
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_INSTAGRAM };
+  const str = (v: any) => (typeof v === 'string' && v ? v : null);
+  return {
+    status: ['requested', 'posted', 'failed'].includes(raw.status)
+      ? raw.status
+      : 'none',
+    requested_at: str(raw.requested_at),
+    post_id: str(raw.post_id),
+    post_url: str(raw.post_url),
+    error: str(raw.error),
+  };
+}
+
 export interface CampaignCreative {
   photo_urls: string[];
   designed_url: string | null;
   approved: boolean;
+  instagram: CampaignInstagram;
 }
 
 export const EMPTY_CREATIVE: CampaignCreative = {
   photo_urls: [],
   designed_url: null,
   approved: false,
+  instagram: { ...EMPTY_INSTAGRAM },
 };
 
 const STORAGE_BASE =
@@ -63,6 +99,7 @@ export function parseCreative(raw: any): CampaignCreative {
         ? raw.designed_url
         : null,
     approved: raw.approved === true,
+    instagram: parseInstagram(raw.instagram),
   };
 }
 
@@ -316,9 +353,11 @@ export async function fetchCampaignPhotos(
     ...creative,
     photo_urls: merged,
     // If the hero changed, the old graphic no longer matches it: drop
-    // the design and the approval so the card asks for a fresh review.
+    // the design and the approval so the card asks for a fresh review
+    // (and any Instagram state belonged to the old design — reset it).
     approved: heroChanged ? false : creative.approved,
     designed_url: heroChanged ? null : creative.designed_url,
+    instagram: heroChanged ? { ...EMPTY_INSTAGRAM } : creative.instagram,
   };
   await saveCreative(supabase, campaign.account_id, campaign.id, next);
   return next;
@@ -653,6 +692,10 @@ export async function generateCampaignGraphic(
     photo_urls: photos,
     designed_url: `${pub.publicUrl}?v=${Date.now()}`,
     approved: false,
+    // A regenerated graphic is a NEW creative: any earlier send state
+    // belongs to the old image, so reset it — the new one must be
+    // reviewed and requested again.
+    instagram: { ...EMPTY_INSTAGRAM },
   };
   await saveCreative(supabase, campaign.account_id, campaign.id, next);
   return next;

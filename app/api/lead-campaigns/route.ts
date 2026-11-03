@@ -329,9 +329,14 @@ export async function PATCH(req: NextRequest) {
     // Layer 3 creative updates: approve/unapprove the designed graphic,
     // or choose a different hero photo (reorder only — regeneration is
     // an explicit action on the creative route).
+    // Layer 4: an Instagram SEND REQUEST. The page can only ever set
+    // status 'requested' — 'posted'/'failed' are written back by Rea
+    // through the agent admin route after the real post, so a user
+    // cannot forge a posted state.
     if (
       body.creative_approved !== undefined ||
-      typeof body.hero_url === 'string'
+      typeof body.hero_url === 'string' ||
+      body.instagram !== undefined
     ) {
       const { data: current, error: currentError } = await supabase
         .from('lead_campaigns')
@@ -361,6 +366,25 @@ export async function PATCH(req: NextRequest) {
           body.hero_url,
           ...creative.photo_urls.filter((u) => u !== body.hero_url),
         ];
+      }
+      if (body.instagram !== undefined) {
+        const st =
+          body.instagram && typeof body.instagram === 'object'
+            ? body.instagram.status
+            : null;
+        if (st !== 'requested') {
+          return NextResponse.json(
+            { error: 'Only a send request can be set here.' },
+            { status: 400 }
+          );
+        }
+        creative.instagram = {
+          status: 'requested',
+          requested_at: new Date().toISOString(),
+          post_id: null,
+          post_url: null,
+          error: null,
+        };
       }
       updates.creative = creative;
     }

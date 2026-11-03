@@ -10,11 +10,24 @@ interface CampaignCounts {
   deals: number;
 }
 
+interface CampaignInstagram {
+  status: 'none' | 'requested' | 'posted' | 'failed';
+  requested_at: string | null;
+  post_id: string | null;
+  post_url: string | null;
+  error: string | null;
+}
+
 interface CampaignCreative {
   photo_urls: string[];
   designed_url: string | null;
   approved: boolean;
+  instagram: CampaignInstagram;
 }
+
+const IG_USERNAME = 'timfennesseyrealestate';
+const IG_AVATAR_URL =
+  'https://zftihampsyucluajcnmo.supabase.co/storage/v1/object/public/account-assets/a540905b-7cd7-4dd6-bba0-162c07978bd6/team-logo.png';
 
 interface LeadCampaign {
   id: string;
@@ -190,6 +203,12 @@ export default function LeadCampaignsPage() {
   const [copiedKey, setCopiedKey] = useState('');
   const [savingId, setSavingId] = useState('');
   const [creativeBusyId, setCreativeBusyId] = useState('');
+  const [preview, setPreview] = useState<{
+    campaign: LeadCampaign;
+    mode: 'view' | 'send';
+    slides: string[];
+    caption: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -280,12 +299,62 @@ export default function LeadCampaignsPage() {
 
   function getCreative(c: LeadCampaign): CampaignCreative {
     const raw: any = c.creative || {};
+    const ig: any =
+      raw.instagram && typeof raw.instagram === 'object'
+        ? raw.instagram
+        : {};
+    const igStr = (v: any) => (typeof v === 'string' && v ? v : null);
     return {
       photo_urls: Array.isArray(raw.photo_urls) ? raw.photo_urls : [],
       designed_url:
         typeof raw.designed_url === 'string' ? raw.designed_url : null,
       approved: raw.approved === true,
+      instagram: {
+        status: ['requested', 'posted', 'failed'].includes(ig.status)
+          ? ig.status
+          : 'none',
+        requested_at: igStr(ig.requested_at),
+        post_id: igStr(ig.post_id),
+        post_url: igStr(ig.post_url),
+        error: igStr(ig.error),
+      },
     };
+  }
+
+  // The exact slides a send posts, in posting order: the designed
+  // graphic first, then the remaining photos (the hero photo itself is
+  // already inside the design, so it is not repeated). Cap 10 (IG).
+  // The preview modal shows THIS array — it is the contract for what
+  // Rea's sweep posts.
+  function igSlides(c: LeadCampaign): string[] {
+    const cr = getCreative(c);
+    if (!cr.designed_url) return [];
+    const rest = cr.photo_urls
+      .slice(1)
+      .filter((u) => u !== cr.designed_url);
+    return [cr.designed_url, ...rest].slice(0, 10);
+  }
+
+  function openPreview(c: LeadCampaign, mode: 'view' | 'send') {
+    setPreview({
+      campaign: c,
+      mode,
+      slides: igSlides(c),
+      caption: c.caption || '',
+    });
+  }
+
+  // The modal's confirm — the ONLY page action that requests a send:
+  // approves the creative and flags creative.instagram 'requested'
+  // for Rea's sweep. Posting never happens from the page itself.
+  async function confirmSend() {
+    if (!preview) return;
+    const c = preview.campaign;
+    setPreview(null);
+    await patchCampaign(c.id, {
+      creative_approved: true,
+      instagram: { status: 'requested' },
+    });
   }
 
   function readiness(c: LeadCampaign): {
@@ -302,6 +371,13 @@ export default function LeadCampaignsPage() {
         text: 'Needs the designed graphic',
         color: '#92400e',
         bg: '#fffbeb',
+      };
+    }
+    if (cr.instagram.status === 'posted') {
+      return {
+        text: 'Posted to Instagram ✓',
+        color: '#065f46',
+        bg: '#ecfdf5',
       };
     }
     if (!cr.approved) {
@@ -888,6 +964,124 @@ export default function LeadCampaignsPage() {
                 {savingId === c.id ? 'Working…' : 'Delete campaign'}
               </button>
             </div>
+
+            {/* Layer 4: Instagram send — the page only requests;
+                Rea posts and writes the result back. */}
+            {getCreative(c).designed_url && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  borderTop: '1px dashed #e5e7eb',
+                  paddingTop: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '8px',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                  }}
+                >
+                  <button
+                    style={plainBtn}
+                    onClick={() => openPreview(c, 'view')}
+                  >
+                    Preview on Instagram
+                  </button>
+                  {getCreative(c).instagram.status === 'none' && (
+                    <button
+                      style={{
+                        ...plainBtn,
+                        background: RED,
+                        borderColor: RED,
+                        color: '#fff',
+                        fontWeight: 700,
+                      }}
+                      disabled={savingId === c.id}
+                      onClick={() => openPreview(c, 'send')}
+                    >
+                      {getCreative(c).approved
+                        ? 'Send to Instagram'
+                        : 'Approve & Send to Instagram'}
+                    </button>
+                  )}
+                  {getCreative(c).instagram.status === 'failed' && (
+                    <button
+                      style={{
+                        ...plainBtn,
+                        background: RED,
+                        borderColor: RED,
+                        color: '#fff',
+                        fontWeight: 700,
+                      }}
+                      disabled={savingId === c.id}
+                      onClick={() =>
+                        patchCampaign(c.id, {
+                          instagram: { status: 'requested' },
+                        })
+                      }
+                    >
+                      Try again
+                    </button>
+                  )}
+                </div>
+                {getCreative(c).instagram.status === 'requested' && (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#92400e',
+                    }}
+                  >
+                    Send queued — Rea will post this
+                  </div>
+                )}
+                {getCreative(c).instagram.status === 'posted' && (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#065f46',
+                    }}
+                  >
+                    Posted to Instagram ✓
+                    {getCreative(c).instagram.post_url && (
+                      <>
+                        {' · '}
+                        <a
+                          href={
+                            getCreative(c).instagram.post_url as string
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: '#065f46', textDecoration: 'underline' }}
+                        >
+                          View post
+                        </a>
+                      </>
+                    )}
+                  </div>
+                )}
+                {getCreative(c).instagram.status === 'failed' && (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#991b1b',
+                    }}
+                  >
+                    Instagram send failed
+                    {getCreative(c).instagram.error
+                      ? `: ${getCreative(c).instagram.error}`
+                      : ''}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <label style={labelStyle}>Tracked link — paste this in the post</label>
@@ -1043,6 +1237,328 @@ export default function LeadCampaignsPage() {
           </div>
         </div>
       ))}
+        </div>
+      </div>
+      {preview && (
+        <IgPreviewModal
+          slides={preview.slides}
+          caption={preview.caption}
+          mode={preview.mode}
+          onClose={() => setPreview(null)}
+          onConfirm={confirmSend}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Instagram preview (Tim, Nov 3, 2026): shows the post exactly as it
+// will appear on Instagram before anything is sent — IG chrome,
+// carousel with arrows + dots + 1/N counter, the campaign's exact
+// caption. This modal is the contract for what Rea's sweep posts: the
+// slides and caption passed in are the same ones the send uses. No
+// fabricated engagement (no likes line, no invented comments) — just
+// the post structure.
+// ---------------------------------------------------------------------------
+
+function IgIcon({ d, size = 26 }: { d: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#111"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+function IgPreviewModal({
+  slides,
+  caption,
+  mode,
+  onClose,
+  onConfirm,
+}: {
+  slides: string[];
+  caption: string;
+  mode: 'view' | 'send';
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [idx, setIdx] = useState(0);
+  const n = slides.length;
+  const current = Math.min(idx, Math.max(0, n - 1));
+  const dateLine = new Date().toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const arrowBtn: React.CSSProperties = {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: '30px',
+    height: '30px',
+    borderRadius: '50%',
+    border: 'none',
+    background: 'rgba(255,255,255,0.92)',
+    boxShadow: '0 1px 6px rgba(0,0,0,0.35)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    padding: 0,
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.65)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        overflowY: 'auto',
+        padding: '24px 12px',
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: '14px',
+          width: '420px',
+          maxWidth: '100%',
+          overflow: 'hidden',
+          fontFamily:
+            "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+          color: '#111',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* IG header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 12px',
+          }}
+        >
+          <img
+            src={IG_AVATAR_URL}
+            alt=""
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '1px solid #e5e7eb',
+            }}
+          />
+          <span style={{ fontWeight: 700, fontSize: '14px' }}>
+            {IG_USERNAME}
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: '3px' }}>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                style={{
+                  width: '4px',
+                  height: '4px',
+                  borderRadius: '50%',
+                  background: '#111',
+                  display: 'block',
+                }}
+              />
+            ))}
+          </span>
+        </div>
+
+        {/* Media — 4:5 portrait frame, carousel */}
+        <div
+          style={{
+            position: 'relative',
+            background: '#000',
+            aspectRatio: '4 / 5',
+            userSelect: 'none',
+          }}
+        >
+          {n > 0 && (
+            <img
+              src={slides[current]}
+              alt={`Slide ${current + 1} of ${n}`}
+              draggable={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+            />
+          )}
+          {n > 1 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: 'rgba(0,0,0,0.65)',
+                color: '#fff',
+                fontSize: '12px',
+                fontWeight: 600,
+                padding: '2px 9px',
+                borderRadius: '999px',
+              }}
+            >
+              {current + 1}/{n}
+            </span>
+          )}
+          {n > 1 && current > 0 && (
+            <button
+              style={{ ...arrowBtn, left: '10px' }}
+              onClick={() => setIdx(current - 1)}
+              aria-label="Previous photo"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 5 8 12 15 19" />
+              </svg>
+            </button>
+          )}
+          {n > 1 && current < n - 1 && (
+            <button
+              style={{ ...arrowBtn, right: '10px' }}
+              onClick={() => setIdx(current + 1)}
+              aria-label="Next photo"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 5 16 12 9 19" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Position dots */}
+        {n > 1 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '5px',
+              paddingTop: '8px',
+            }}
+          >
+            {slides.map((s, i) => (
+              <span
+                key={s + i}
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: i === current ? '#0095f6' : '#c7c7c7',
+                  display: 'block',
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Action row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            padding: '10px 12px 4px',
+          }}
+        >
+          <IgIcon d="M12 20.7C6.2 17 3 13.7 3 10c0-2.7 2-4.9 4.6-4.9 1.7 0 3.3.8 4.4 2.3 1.1-1.5 2.7-2.3 4.4-2.3C19 5.1 21 7.3 21 10c0 3.7-3.2 7-9 10.7z" />
+          <IgIcon d="M12 4c5 0 9 3.6 9 8s-4 8-9 8c-1.2 0-2.3-.2-3.3-.6L3 20l.7-3.1C2.6 15.5 3 13.8 3 12c0-4.4 4-8 9-8z" />
+          <IgIcon d="M22 2L11 11M22 2l-7 20-4-9-9-4 20-7z" />
+          <span style={{ marginLeft: 'auto' }}>
+            <IgIcon d="M6 3h12v18l-6-4.2L6 21z" />
+          </span>
+        </div>
+
+        {/* Caption — the exact text that will post */}
+        <div
+          style={{
+            padding: '2px 12px 0',
+            fontSize: '14px',
+            lineHeight: 1.45,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          <span style={{ fontWeight: 700 }}>{IG_USERNAME}</span>{' '}
+          {caption}
+        </div>
+        <div
+          style={{ padding: '6px 12px 0', fontSize: '14px', color: '#737373' }}
+        >
+          View all comments
+        </div>
+        <div
+          style={{
+            padding: '4px 12px 12px',
+            fontSize: '12px',
+            color: '#737373',
+          }}
+        >
+          {dateLine}
+        </div>
+
+        {/* Confirm bar */}
+        <div
+          style={{
+            borderTop: '1px solid #e5e7eb',
+            padding: '12px',
+            background: '#f8fafc',
+          }}
+        >
+          <div
+            style={{ fontSize: '13px', color: '#374151', marginBottom: '10px' }}
+          >
+            Posting as @{IG_USERNAME} · {n}{' '}
+            {n === 1 ? 'image' : 'images'} · caption with tracked link
+          </div>
+          <div
+            style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
+          >
+            {mode === 'send' ? (
+              <>
+                <button style={plainBtn} onClick={onClose}>
+                  Cancel
+                </button>
+                <button
+                  style={{
+                    ...plainBtn,
+                    background: RED,
+                    borderColor: RED,
+                    color: '#fff',
+                    fontWeight: 700,
+                  }}
+                  onClick={onConfirm}
+                >
+                  Approve &amp; Send
+                </button>
+              </>
+            ) : (
+              <button style={plainBtn} onClick={onClose}>
+                Close
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
