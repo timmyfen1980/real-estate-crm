@@ -28,6 +28,10 @@ import {
   requireLeadCampaignAccess,
   slugify,
 } from '@/lib/leadCampaigns';
+import { parseCreative } from '@/lib/leadCampaignCreative';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET() {
   try {
@@ -228,9 +232,29 @@ export async function POST(req: NextRequest) {
       .single();
     if (error) throw error;
 
+    // Layer 3: best-effort creative bootstrap (photos + designed
+    // graphic). Fail-soft — the page's manual controls remain if the
+    // listing has no findable photos.
+    let created: any = data;
+    try {
+      const { ensureCampaignCreative } = await import(
+        '@/lib/leadCampaignCreative'
+      );
+      await ensureCampaignCreative(supabase, created);
+      const { data: fresh } = await supabase
+        .from('lead_campaigns')
+        .select(CAMPAIGN_SELECT)
+        .eq('id', created.id)
+        .eq('account_id', ctx.accountId)
+        .single();
+      if (fresh) created = fresh;
+    } catch {
+      // creative is best-effort at create time
+    }
+
     return NextResponse.json({
       campaign: {
-        ...data,
+        ...created,
         counts: { pulled: 0, contacted: 0, clients: 0, deals: 0 },
       },
     });
@@ -292,6 +316,44 @@ export async function PATCH(req: NextRequest) {
     }
     if (typeof body.audience === 'string') {
       updates.audience = body.audience.trim() ? body.audience.trim() : null;
+    }
+    // Layer 3 creative updates: approve/unapprove the designed graphic,
+    // or choose a different hero photo (reorder only — regeneration is
+    // an explicit action on the creative route).
+    if (
+      body.creative_approved !== undefined ||
+      typeof body.hero_url === 'string'
+    ) {
+      const { data: current, error: currentError } = await supabase
+        .from('lead_campaigns')
+        .select('creative')
+        .eq('id', id)
+        .eq('account_id', ctx.accountId)
+        .single();
+      if (currentError) throw currentError;
+      const creative = parseCreative(current?.creative);
+      if (body.creative_approved !== undefined) {
+        if (typeof body.creative_approved !== 'boolean') {
+          return NextResponse.json(
+            { error: 'Invalid creative_approved.' },
+            { status: 400 }
+          );
+        }
+        creative.approved = body.creative_approved;
+      }
+      if (typeof body.hero_url === 'string') {
+        if (!creative.photo_urls.includes(body.hero_url)) {
+          return NextResponse.json(
+            { error: 'That photo is not on this campaign.' },
+            { status: 400 }
+          );
+        }
+        creative.photo_urls = [
+          body.hero_url,
+          ...creative.photo_urls.filter((u) => u !== body.hero_url),
+        ];
+      }
+      updates.creative = creative;
     }
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

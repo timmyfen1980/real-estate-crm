@@ -56,9 +56,10 @@ export const META_STATUSES = [
   'ended',
 ] as const;
 
-// Shared campaign row shape for API responses (layer 1 + layer 2 fields).
+// Shared campaign row shape for API responses (layer 1 + 2 + 3 fields).
+// `creative` is the layer-3 jsonb: { photo_urls, designed_url, approved }.
 export const CAMPAIGN_SELECT =
-  'id, name, slug, goal, channel, capture_type, capture_url, tracked_url, caption, status, budget_amount, budget_days, audience, meta_campaign_id, meta_status, spend, created_by, created_at';
+  'id, name, slug, goal, channel, capture_type, capture_url, tracked_url, caption, status, budget_amount, budget_days, audience, meta_campaign_id, meta_status, spend, creative, created_by, created_at';
 
 export const IDEA_SELECT =
   'id, play, title, subject, hook, suggested_caption, capture_type, goal, suggested_budget, suggested_days, audience, source_ref, status, built_campaign_id, created_at, expires_at';

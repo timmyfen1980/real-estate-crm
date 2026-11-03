@@ -20,6 +20,9 @@ import {
   slugify,
 } from '@/lib/leadCampaigns';
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; action: string }> }
@@ -124,9 +127,29 @@ export async function POST(
       .eq('account_id', ctx.accountId);
     if (markError) throw markError;
 
+    // Layer 3: the card should arrive complete — photos + the designed
+    // graphic auto-run here. Fail-soft: a creative hiccup never blocks
+    // the build; the page keeps manual Fetch / Regenerate controls.
+    let built: any = campaign;
+    try {
+      const { ensureCampaignCreative } = await import(
+        '@/lib/leadCampaignCreative'
+      );
+      await ensureCampaignCreative(supabase, built);
+      const { data: fresh } = await supabase
+        .from('lead_campaigns')
+        .select(CAMPAIGN_SELECT)
+        .eq('id', built.id)
+        .eq('account_id', ctx.accountId)
+        .single();
+      if (fresh) built = fresh;
+    } catch {
+      // fail-soft by design
+    }
+
     return NextResponse.json({
       campaign: {
-        ...campaign,
+        ...built,
         counts: { pulled: 0, contacted: 0, clients: 0, deals: 0 },
       },
     });

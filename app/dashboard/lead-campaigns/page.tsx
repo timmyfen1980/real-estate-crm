@@ -10,6 +10,12 @@ interface CampaignCounts {
   deals: number;
 }
 
+interface CampaignCreative {
+  photo_urls: string[];
+  designed_url: string | null;
+  approved: boolean;
+}
+
 interface LeadCampaign {
   id: string;
   name: string;
@@ -27,6 +33,7 @@ interface LeadCampaign {
   meta_campaign_id: string | null;
   meta_status: string | null;
   spend: number | null;
+  creative?: CampaignCreative | null;
   created_by: string | null;
   created_at: string;
   counts: CampaignCounts;
@@ -182,6 +189,7 @@ export default function LeadCampaignsPage() {
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [copiedKey, setCopiedKey] = useState('');
   const [savingId, setSavingId] = useState('');
+  const [creativeBusyId, setCreativeBusyId] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -268,6 +276,85 @@ export default function LeadCampaignsPage() {
     }
   }
 
+  // ---- Layer 3: creative (photos + designed graphic) -----------------
+
+  function getCreative(c: LeadCampaign): CampaignCreative {
+    const raw: any = c.creative || {};
+    return {
+      photo_urls: Array.isArray(raw.photo_urls) ? raw.photo_urls : [],
+      designed_url:
+        typeof raw.designed_url === 'string' ? raw.designed_url : null,
+      approved: raw.approved === true,
+    };
+  }
+
+  function readiness(c: LeadCampaign): {
+    text: string;
+    color: string;
+    bg: string;
+  } {
+    const cr = getCreative(c);
+    if (!cr.photo_urls.length) {
+      return { text: 'Needs photos', color: '#991b1b', bg: '#fef2f2' };
+    }
+    if (!cr.designed_url) {
+      return {
+        text: 'Needs the designed graphic',
+        color: '#92400e',
+        bg: '#fffbeb',
+      };
+    }
+    if (!cr.approved) {
+      return {
+        text: 'Review the creative, then approve',
+        color: '#92400e',
+        bg: '#fffbeb',
+      };
+    }
+    return { text: '✓ Ready to post', color: '#065f46', bg: '#ecfdf5' };
+  }
+
+  async function creativeAction(
+    c: LeadCampaign,
+    action: string,
+    extra?: Record<string, any>
+  ) {
+    setCreativeBusyId(c.id);
+    try {
+      const res = await fetch(`/api/lead-campaigns/${c.id}/creative`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...(extra || {}) }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Creative action failed.');
+      await load();
+    } catch (err: any) {
+      alert(err.message || 'Creative action failed.');
+    } finally {
+      setCreativeBusyId('');
+    }
+  }
+
+  async function uploadPhoto(c: LeadCampaign, file: File) {
+    setCreativeBusyId(c.id);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/lead-campaigns/${c.id}/creative`, {
+        method: 'POST',
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Upload failed.');
+      await load();
+    } catch (err: any) {
+      alert(err.message || 'Upload failed.');
+    } finally {
+      setCreativeBusyId('');
+    }
+  }
+
   async function patchCampaign(id: string, updates: Record<string, any>) {
     setSavingId(id);
     try {
@@ -291,7 +378,7 @@ export default function LeadCampaignsPage() {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '960px' }}>
+    <div style={{ padding: '24px', maxWidth: '1280px' }}>
       <h1
         style={{
           fontSize: '24px',
@@ -323,94 +410,12 @@ export default function LeadCampaignsPage() {
         </div>
       )}
 
-      {/* Ideas from Rea */}
-      <h2
-        style={{
-          fontSize: '16px',
-          fontWeight: 700,
-          color: NAVY,
-          marginBottom: '12px',
-        }}
-      >
-        Ideas from Rea
-      </h2>
-      {ideas.length === 0 && (
-        <div style={{ ...cardStyle, color: '#6b7280', fontSize: '14px' }}>
-          No ideas right now — Rea adds new ones as listings, sales and open
-          houses happen.
-        </div>
-      )}
-      {ideas.map((idea) => (
-        <div key={idea.id} style={cardStyle}>
-          <div
-            style={{
-              display: 'inline-block',
-              background: '#eef2f7',
-              color: NAVY,
-              fontSize: '12px',
-              fontWeight: 700,
-              borderRadius: '999px',
-              padding: '3px 10px',
-              marginBottom: '8px',
-            }}
-          >
-            {playLabel(idea.play)}
-          </div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY }}>
-            {idea.title}
-          </div>
-          {idea.subject && (
-            <div
-              style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}
-            >
-              {idea.subject}
-            </div>
-          )}
-          {idea.hook && (
-            <div style={{ fontSize: '14px', color: '#374151', marginTop: '8px' }}>
-              {idea.hook}
-            </div>
-          )}
-          <div
-            style={{
-              fontSize: '13px',
-              color: '#6b7280',
-              marginTop: '8px',
-            }}
-          >
-            {[
-              idea.suggested_budget != null
-                ? `$${money(Number(idea.suggested_budget))}${
-                    idea.suggested_days ? ` over ${idea.suggested_days} days` : ''
-                  }`
-                : idea.suggested_days
-                  ? `${idea.suggested_days} days`
-                  : null,
-              idea.audience,
-              `${goalLabel(idea.goal)} · ${captureLabel(idea.capture_type)}`,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
-            <button
-              style={primaryBtn}
-              disabled={ideaBusyId === idea.id}
-              onClick={() => ideaAction(idea, 'build')}
-            >
-              {ideaBusyId === idea.id ? 'Working…' : 'Build this campaign'}
-            </button>
-            <button
-              style={plainBtn}
-              disabled={ideaBusyId === idea.id}
-              onClick={() => ideaAction(idea, 'dismiss')}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      ))}
-
+      <style>{`
+        .lc-cols { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; align-items: start; }
+        @media (max-width: 920px) { .lc-cols { grid-template-columns: minmax(0, 1fr); } }
+      `}</style>
+      <div className="lc-cols">
+        <div>
       {/* Create */}
       <div style={cardStyle}>
         <h2
@@ -426,12 +431,12 @@ export default function LeadCampaignsPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+            gridTemplateColumns: '1fr 1fr',
             gap: '14px',
             marginBottom: '14px',
           }}
         >
-          <div>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={labelStyle}>Campaign name</label>
             <input
               style={inputStyle}
@@ -472,7 +477,7 @@ export default function LeadCampaignsPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 2fr',
+            gridTemplateColumns: '1fr 1fr',
             gap: '14px',
             marginBottom: '14px',
           }}
@@ -501,7 +506,7 @@ export default function LeadCampaignsPage() {
               placeholder="e.g. 5"
             />
           </div>
-          <div>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={labelStyle}>Audience (optional)</label>
             <input
               style={inputStyle}
@@ -530,6 +535,16 @@ export default function LeadCampaignsPage() {
       </div>
 
       {/* Board */}
+      <h2
+        style={{
+          fontSize: '16px',
+          fontWeight: 700,
+          color: NAVY,
+          marginBottom: '12px',
+        }}
+      >
+        Your campaigns
+      </h2>
       {campaigns.length === 0 && !error && (
         <div style={{ ...cardStyle, color: '#6b7280', fontSize: '14px' }}>
           No campaigns yet — build one of Rea&apos;s ideas above or create
@@ -656,6 +671,182 @@ export default function LeadCampaignsPage() {
             </div>
           )}
 
+          {/* Creative — the final product, reviewed here before posting */}
+          <div
+            style={{
+              borderTop: '1px solid #e5e7eb',
+              paddingTop: '14px',
+              marginBottom: '14px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '10px',
+              }}
+            >
+              <span
+                style={{ fontSize: '13px', fontWeight: 700, color: NAVY }}
+              >
+                Creative
+              </span>
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: readiness(c).color,
+                  background: readiness(c).bg,
+                  borderRadius: '999px',
+                  padding: '3px 10px',
+                }}
+              >
+                {readiness(c).text}
+              </span>
+            </div>
+
+            {getCreative(c).designed_url && (
+              <img
+                src={getCreative(c).designed_url as string}
+                alt="Designed ad graphic for this campaign"
+                style={{
+                  width: '100%',
+                  maxWidth: '360px',
+                  borderRadius: '12px',
+                  border: '1px solid #e5e7eb',
+                  display: 'block',
+                  marginBottom: '10px',
+                }}
+              />
+            )}
+
+            {getCreative(c).photo_urls.length > 0 && (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '6px',
+                    flexWrap: 'wrap',
+                    marginBottom: '6px',
+                  }}
+                >
+                  {getCreative(c).photo_urls.map((u, i) => (
+                    <button
+                      key={u}
+                      title={
+                        i === 0
+                          ? 'Hero photo — the one in the graphic'
+                          : 'Use this photo in the graphic instead'
+                      }
+                      disabled={creativeBusyId === c.id}
+                      onClick={() => {
+                        if (i !== 0) {
+                          creativeAction(c, 'generate', { hero_url: u });
+                        }
+                      }}
+                      style={{
+                        padding: 0,
+                        border:
+                          i === 0
+                            ? `3px solid ${RED}`
+                            : '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        cursor: i === 0 ? 'default' : 'pointer',
+                        background: 'none',
+                        lineHeight: 0,
+                      }}
+                    >
+                      <img
+                        src={u}
+                        alt=""
+                        style={{
+                          width: '62px',
+                          height: '62px',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginBottom: '10px',
+                  }}
+                >
+                  The outlined photo is the hero in the graphic — tap
+                  another photo to rebuild the graphic around it.
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                style={plainBtn}
+                disabled={creativeBusyId === c.id}
+                onClick={() => creativeAction(c, 'fetch_photos')}
+              >
+                {creativeBusyId === c.id
+                  ? 'Working…'
+                  : getCreative(c).photo_urls.length
+                    ? 'Re-fetch photos'
+                    : 'Fetch photos'}
+              </button>
+              {getCreative(c).photo_urls.length > 0 && (
+                <button
+                  style={plainBtn}
+                  disabled={creativeBusyId === c.id}
+                  onClick={() => creativeAction(c, 'generate')}
+                >
+                  Regenerate graphic
+                </button>
+              )}
+              <label
+                style={{ ...plainBtn, display: 'inline-block', cursor: 'pointer' }}
+              >
+                Upload photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) uploadPhoto(c, f);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {getCreative(c).designed_url && (
+                <button
+                  style={
+                    getCreative(c).approved
+                      ? {
+                          ...plainBtn,
+                          background: '#ecfdf5',
+                          borderColor: '#6ee7b7',
+                          color: '#065f46',
+                        }
+                      : plainBtn
+                  }
+                  disabled={savingId === c.id}
+                  onClick={() =>
+                    patchCampaign(c.id, {
+                      creative_approved: !getCreative(c).approved,
+                    })
+                  }
+                >
+                  {getCreative(c).approved
+                    ? '✓ Creative approved'
+                    : 'Approve creative'}
+                </button>
+              )}
+            </div>
+          </div>
+
           <label style={labelStyle}>Tracked link — paste this in the post</label>
           <div
             style={{
@@ -720,6 +911,97 @@ export default function LeadCampaignsPage() {
           </div>
         </div>
       ))}
+        </div>
+        <div>
+      {/* Ideas from Rea */}
+      <h2
+        style={{
+          fontSize: '16px',
+          fontWeight: 700,
+          color: NAVY,
+          marginBottom: '12px',
+        }}
+      >
+        Ideas from Rea
+      </h2>
+      {ideas.length === 0 && (
+        <div style={{ ...cardStyle, color: '#6b7280', fontSize: '14px' }}>
+          No ideas right now — Rea adds new ones as listings, sales and open
+          houses happen.
+        </div>
+      )}
+      {ideas.map((idea) => (
+        <div key={idea.id} style={cardStyle}>
+          <div
+            style={{
+              display: 'inline-block',
+              background: '#eef2f7',
+              color: NAVY,
+              fontSize: '12px',
+              fontWeight: 700,
+              borderRadius: '999px',
+              padding: '3px 10px',
+              marginBottom: '8px',
+            }}
+          >
+            {playLabel(idea.play)}
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY }}>
+            {idea.title}
+          </div>
+          {idea.subject && (
+            <div
+              style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}
+            >
+              {idea.subject}
+            </div>
+          )}
+          {idea.hook && (
+            <div style={{ fontSize: '14px', color: '#374151', marginTop: '8px' }}>
+              {idea.hook}
+            </div>
+          )}
+          <div
+            style={{
+              fontSize: '13px',
+              color: '#6b7280',
+              marginTop: '8px',
+            }}
+          >
+            {[
+              idea.suggested_budget != null
+                ? `$${money(Number(idea.suggested_budget))}${
+                    idea.suggested_days ? ` over ${idea.suggested_days} days` : ''
+                  }`
+                : idea.suggested_days
+                  ? `${idea.suggested_days} days`
+                  : null,
+              idea.audience,
+              `${goalLabel(idea.goal)} · ${captureLabel(idea.capture_type)}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+            <button
+              style={primaryBtn}
+              disabled={ideaBusyId === idea.id}
+              onClick={() => ideaAction(idea, 'build')}
+            >
+              {ideaBusyId === idea.id ? 'Working…' : 'Build this campaign'}
+            </button>
+            <button
+              style={plainBtn}
+              disabled={ideaBusyId === idea.id}
+              onClick={() => ideaAction(idea, 'dismiss')}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ))}
+        </div>
+      </div>
     </div>
   );
 }
