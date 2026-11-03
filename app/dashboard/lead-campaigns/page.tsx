@@ -23,6 +23,8 @@ interface CampaignCreative {
   designed_url: string | null;
   approved: boolean;
   instagram: CampaignInstagram;
+  slides: string[];
+  error: string | null;
 }
 
 const IG_USERNAME = 'timfennesseyrealestate';
@@ -320,6 +322,12 @@ export default function LeadCampaignsPage() {
       designed_url:
         typeof raw.designed_url === 'string' ? raw.designed_url : null,
       approved: raw.approved === true,
+      slides: Array.isArray(raw.slides)
+        ? raw.slides.filter(
+            (u: any) => typeof u === 'string' && u.trim().length > 0
+          )
+        : [],
+      error: typeof raw.error === 'string' && raw.error ? raw.error : null,
       instagram: {
         status: ['requested', 'posted', 'failed'].includes(ig.status)
           ? ig.status
@@ -339,6 +347,8 @@ export default function LeadCampaignsPage() {
   // Rea's sweep posts.
   function igSlides(c: LeadCampaign): string[] {
     const cr = getCreative(c);
+    // A designed slide set posts as-is, in order (slide 1 is the lead).
+    if (cr.slides.length) return cr.slides.slice(0, 10);
     if (!cr.designed_url) return [];
     const rest = cr.photo_urls
       .slice(1)
@@ -374,8 +384,17 @@ export default function LeadCampaignsPage() {
     bg: string;
   } {
     const cr = getCreative(c);
-    if (!cr.photo_urls.length) {
-      return { text: 'Needs photos', color: '#991b1b', bg: '#fef2f2' };
+    if (cr.error) {
+      return { text: 'Creative hit a snag', color: '#991b1b', bg: '#fef2f2' };
+    }
+    if (!cr.photo_urls.length && !cr.slides.length && !cr.designed_url) {
+      // Freshly built campaigns make their creative automatically;
+      // until it lands the card says so instead of asking for photos.
+      return {
+        text: 'Making your creative…',
+        color: '#92400e',
+        bg: '#fffbeb',
+      };
     }
     if (!cr.designed_url) {
       return {
@@ -899,7 +918,63 @@ export default function LeadCampaignsPage() {
               />
             )}
 
-            {getCreative(c).photo_urls.length > 0 && (
+            {getCreative(c).slides.length > 0 && (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '6px',
+                    flexWrap: 'wrap',
+                    marginBottom: '6px',
+                  }}
+                >
+                  {getCreative(c).slides.map((u, i) => (
+                    <button
+                      key={u}
+                      title={`Slide ${i + 1} of ${getCreative(c).slides.length}`}
+                      disabled={creativeBusyId === c.id}
+                      onClick={() => openPreview(c, 'view')}
+                      style={{
+                        padding: 0,
+                        border:
+                          i === 0
+                            ? `3px solid ${RED}`
+                            : '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        background: 'none',
+                        lineHeight: 0,
+                      }}
+                    >
+                      <img
+                        src={u}
+                        alt=""
+                        style={{
+                          width: '62px',
+                          height: '78px',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginBottom: '10px',
+                  }}
+                >
+                  Your designed slide set — the outlined slide leads.
+                  Tap any slide to preview the post.
+                </div>
+              </>
+            )}
+
+            {getCreative(c).slides.length === 0 &&
+              getCreative(c).photo_urls.length > 0 && (
               <>
                 <div
                   style={{
@@ -962,27 +1037,87 @@ export default function LeadCampaignsPage() {
               </>
             )}
 
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button
-                style={plainBtn}
-                disabled={creativeBusyId === c.id}
-                onClick={() => creativeAction(c, 'fetch_photos')}
+            {getCreative(c).error && (
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  color: '#991b1b',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  fontSize: '13px',
+                  marginBottom: '10px',
+                }}
               >
-                {creativeBusyId === c.id
-                  ? 'Working…'
-                  : getCreative(c).photo_urls.length
-                    ? 'Re-fetch photos'
-                    : 'Fetch photos'}
-              </button>
+                <div style={{ marginBottom: '8px' }}>
+                  {getCreative(c).error}
+                </div>
+                <button
+                  style={plainBtn}
+                  disabled={creativeBusyId === c.id}
+                  onClick={() => creativeAction(c, 'generate')}
+                >
+                  {creativeBusyId === c.id ? 'Working…' : 'Retry'}
+                </button>
+              </div>
+            )}
+
+            {!getCreative(c).error &&
+              !getCreative(c).slides.length &&
+              !getCreative(c).photo_urls.length &&
+              !getCreative(c).designed_url && (
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginBottom: '10px',
+                  }}
+                >
+                  Your creative is made automatically when a campaign is
+                  built — give it a few seconds, then refresh. Still
+                  empty? Use “Make the creative” below.
+                </div>
+              )}
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {getCreative(c).slides.length === 0 && (
+                <button
+                  style={plainBtn}
+                  disabled={creativeBusyId === c.id}
+                  onClick={() => creativeAction(c, 'fetch_photos')}
+                >
+                  {creativeBusyId === c.id
+                    ? 'Working…'
+                    : getCreative(c).photo_urls.length
+                      ? 'Refresh photos'
+                      : 'Fetch photos'}
+                </button>
+              )}
               {getCreative(c).photo_urls.length > 0 && (
                 <button
                   style={plainBtn}
                   disabled={creativeBusyId === c.id}
                   onClick={() => creativeAction(c, 'generate')}
                 >
-                  Regenerate graphic
+                  {getCreative(c).slides.length
+                    ? 'Regenerate slides'
+                    : 'Regenerate graphic'}
                 </button>
               )}
+              {!getCreative(c).photo_urls.length &&
+                !getCreative(c).slides.length &&
+                !getCreative(c).designed_url &&
+                !getCreative(c).error && (
+                  <button
+                    style={plainBtn}
+                    disabled={creativeBusyId === c.id}
+                    onClick={() => creativeAction(c, 'generate')}
+                  >
+                    {creativeBusyId === c.id
+                      ? 'Working…'
+                      : 'Make the creative'}
+                  </button>
+                )}
               <label
                 style={{ ...plainBtn, display: 'inline-block', cursor: 'pointer' }}
               >

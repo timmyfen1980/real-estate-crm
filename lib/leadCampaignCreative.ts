@@ -4,7 +4,11 @@
 // anything is posted (Tim's order, Nov 3, 2026).
 //
 // creative jsonb on lead_campaigns:
-//   { photo_urls: string[], designed_url: string|null, approved: bool }
+//   { photo_urls: string[], designed_url: string|null, approved: bool,
+//     instagram: {...}, slides: string[], error: string|null }
+// Campaigns with no listing photos (market snapshots, valuation
+// pushes) get a designed 4-slide set instead — see the layer-5
+// section at the bottom of this file.
 //
 // Photo sourcing, best available first:
 //   (a) the matched CRM property's stored image (properties.image_url)
@@ -66,6 +70,13 @@ export interface CampaignCreative {
   designed_url: string | null;
   approved: boolean;
   instagram: CampaignInstagram;
+  // Layer 5: ordered designed slide set for non-listing campaigns
+  // (empty for photo campaigns). slides[0] is also designed_url and
+  // slides[1..] are mirrored into photo_urls.
+  slides: string[];
+  // Layer 5: plain-words reason the last slide generation failed
+  // (null when the creative is healthy).
+  error: string | null;
 }
 
 export const EMPTY_CREATIVE: CampaignCreative = {
@@ -73,6 +84,8 @@ export const EMPTY_CREATIVE: CampaignCreative = {
   designed_url: null,
   approved: false,
   instagram: { ...EMPTY_INSTAGRAM },
+  slides: [],
+  error: null,
 };
 
 const STORAGE_BASE =
@@ -92,6 +105,11 @@ export function parseCreative(raw: any): CampaignCreative {
         (u: any) => typeof u === 'string' && u.trim().length > 0
       )
     : [];
+  const slides = Array.isArray(raw.slides)
+    ? raw.slides
+        .filter((u: any) => typeof u === 'string' && u.trim().length > 0)
+        .slice(0, 10)
+    : [];
   return {
     photo_urls: urls.slice(0, MAX_PHOTOS),
     designed_url:
@@ -100,6 +118,9 @@ export function parseCreative(raw: any): CampaignCreative {
         : null,
     approved: raw.approved === true,
     instagram: parseInstagram(raw.instagram),
+    slides,
+    error:
+      typeof raw.error === 'string' && raw.error ? raw.error : null,
   };
 }
 
@@ -513,7 +534,18 @@ function textToPath(
   let cx = x;
   let d = '';
   gs.forEach((g: any, i: number) => {
-    d += g.getPath(cx, y, size).toPathData(2);
+    // Round each glyph's origin to the same 2dp grid the path data
+    // is printed on. The raw accumulation (cx += advance * scale)
+    // drifts a hair off clean values (80.60000000000001 in place of
+    // 80.6), and opentype's decimal rounding turns that dust into
+    // NaN coordinates for glyph points that land on integers — SVG
+    // renderers then drop those segments and letters lose chunks
+    // (proven locally 2026-11-03: the 'O' in NOVEMBER rendered as a
+    // sliver under librsvg, cairo and resvg alike, and the same
+    // string with a clean origin rendered whole in all three).
+    d += g
+      .getPath(Math.round(cx * 100) / 100, Math.round(y * 100) / 100, size)
+      .toPathData(2);
     cx += g.advanceWidth * scale;
     if (i < gs.length - 1) {
       cx += font.getKerningValue(g, gs[i + 1]) * scale + ls;
@@ -692,6 +724,8 @@ export async function generateCampaignGraphic(
     photo_urls: photos,
     designed_url: `${pub.publicUrl}?v=${Date.now()}`,
     approved: false,
+    slides: [],
+    error: null,
     // A regenerated graphic is a NEW creative: any earlier send state
     // belongs to the old image, so reset it — the new one must be
     // reviewed and requested again.
@@ -721,6 +755,687 @@ export async function addUploadedPhoto(
   return next;
 }
 
+// ---------------------------------------------------------------------------
+// Non-listing slide sets (layer 5). When photo sourcing finds NOTHING —
+// the campaign is not about one house (a market snapshot, a valuation
+// push, a downsizing play) — there are no photos to fetch, and the card
+// must not sit at "Needs photos" (Tim's rule, Nov 3, 2026: building a
+// campaign means it arrives finished). Instead the campaign gets a
+// designed 4-slide set, built from real brand assets only:
+//   S1 LEAD      — the campaign headline as the hook (also designed_url)
+//   S2 SUBSTANCE — real market stats for market plays (a stat prints
+//                  ONLY when based on ≥5 records — never invented), or
+//                  "3 things that move your number" for seller plays
+//   S3 EXPLAINER — what it means / how it works / first-look pitch
+//   S4 TEAM      — team photo, logo, capture pitch, RECO footer
+// The slides are stored in creative.slides (ordered); slides 2–4 also
+// sit in photo_urls so the existing carousel contract keeps working,
+// with S1 as designed_url.
+// ---------------------------------------------------------------------------
+
+export const TEAM_PHOTO_URL = `${STORAGE_BASE}/brand/email-hero.jpg`;
+
+function plainSlideError(err: any): string {
+  const m = String((err && err.message) || '');
+  if (
+    !m ||
+    /invalid input syntax|duplicate key|violates|does not exist|permission denied|PGRST|JWT|fetch failed|network|socket|ECONN|ETIMEDOUT|ENOTFOUND/i.test(
+      m
+    )
+  ) {
+    return 'The slide maker hit a snag — please try again.';
+  }
+  return m.length > 160 ? `${m.slice(0, 157)}…` : m;
+}
+
+// Which playbook a slides campaign follows. The linked idea's play is
+// the richest source (deriveSubject already resolves it); manual
+// campaigns infer from goal + capture page:
+//   buyers goal            → buyer variant of the market play
+//   valuation capture      → seller_push ("what's it worth" mechanics)
+//   sellers goal           → seller_push
+//   watch capture / other  → market_update
+function resolveSlidePlay(campaign: any, subject: CreativeSubject): string {
+  if (subject.play && subject.play !== 'general') return subject.play;
+  if (campaign.goal === 'buyers') return 'buyer_market';
+  if (campaign.capture_type === 'valuation') return 'seller_push';
+  if (campaign.goal === 'sellers') return 'seller_push';
+  return 'market_update';
+}
+
+// --- Market stats, from the CRM's own tables -----------------------------
+// Column names are detected at runtime from the returned rows (the
+// first candidate that actually carries numbers wins) and every query
+// is fail-soft: a stat that can't be computed simply doesn't print.
+
+export interface MarketStatLine {
+  label: string;
+  value: string;
+  n: number;
+}
+
+const PRICE_KEYS = ['selling_price', 'sale_price', 'sold_price', 'price', 'amount'];
+const DATE_KEYS = [
+  'close_date',
+  'closing_date',
+  'sold_date',
+  'firm_date',
+  'updated_at',
+  'created_at',
+];
+const DOM_KEYS = ['days_on_market', 'dom'];
+
+function numericField(rows: any[], keys: string[]): string | null {
+  for (const k of keys) {
+    if (
+      rows.some((r) => {
+        const v = Number(r && r[k]);
+        return Number.isFinite(v) && v > 0;
+      })
+    ) {
+      return k;
+    }
+  }
+  return null;
+}
+
+export async function loadMarketStats(
+  supabase: SupabaseClient,
+  accountId: string
+): Promise<MarketStatLine[]> {
+  const lines: MarketStatLine[] = [];
+
+  // Median sold price, last 90 days (Sold Firm + Closed deals).
+  try {
+    const { data } = await supabase
+      .from('deals')
+      .select('*')
+      .eq('account_id', accountId)
+      .in('status', ['Sold Firm', 'Closed'])
+      .limit(500);
+    const rows = data || [];
+    const priceKey = numericField(rows, PRICE_KEYS);
+    if (priceKey) {
+      const dateKey = DATE_KEYS.find((k) =>
+        rows.some((r) => r && r[k] && !Number.isNaN(Date.parse(r[k])))
+      );
+      const cutoff = Date.now() - 90 * 24 * 3600 * 1000;
+      const prices = rows
+        .filter((r: any) => {
+          if (!dateKey) return true;
+          const t = Date.parse(r[dateKey]);
+          return Number.isNaN(t) || t >= cutoff;
+        })
+        .map((r: any) => Number(r[priceKey]))
+        .filter((v: number) => Number.isFinite(v) && v > 0)
+        .sort((a: number, b: number) => a - b);
+      if (prices.length >= 5) {
+        const mid = Math.floor(prices.length / 2);
+        const median =
+          prices.length % 2
+            ? prices[mid]
+            : (prices[mid - 1] + prices[mid]) / 2;
+        lines.push({
+          label: 'MEDIAN SOLD PRICE · LAST 90 DAYS',
+          value: `$${Math.round(median).toLocaleString('en-US')}`,
+          n: prices.length,
+        });
+      }
+    }
+  } catch {
+    // stat simply doesn't print
+  }
+
+  // Average days on market (properties carrying a DOM figure).
+  try {
+    const { data } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('account_id', accountId)
+      .limit(500);
+    const rows = data || [];
+    const domKey = DOM_KEYS.find((k) =>
+      rows.some((r) => {
+        const v = Number(r && r[k]);
+        return Number.isFinite(v) && v >= 0 && r[k] !== null && r[k] !== '';
+      })
+    );
+    if (domKey) {
+      const vals = rows
+        .map((r: any) => Number(r[domKey]))
+        .filter((v: number) => Number.isFinite(v) && v >= 0);
+      if (vals.length >= 5) {
+        const avg = vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
+        lines.push({
+          label: 'AVERAGE DAYS ON MARKET',
+          value: `${Math.round(avg)} days`,
+          n: vals.length,
+        });
+      }
+    }
+  } catch {
+    // stat simply doesn't print
+  }
+
+  // Homes for sale right now (exact count of for_sale properties).
+  try {
+    const { count } = await supabase
+      .from('properties')
+      .select('id', { count: 'exact', head: true })
+      .eq('account_id', accountId)
+      .eq('status', 'for_sale');
+    if (typeof count === 'number' && count >= 5) {
+      lines.push({
+        label: 'HOMES FOR SALE RIGHT NOW',
+        value: String(count),
+        n: count,
+      });
+    }
+  } catch {
+    // stat simply doesn't print
+  }
+
+  return lines;
+}
+
+// --- Slide text helpers ---------------------------------------------------
+
+function slideText(
+  fonts: GraphicFonts | null,
+  weight: 'f600' | 'f700' | 'f800',
+  str: string,
+  x: number,
+  y: number,
+  size: number,
+  fill: string,
+  ls = 0,
+  anchor: 'start' | 'middle' = 'start',
+  stroke = false
+): string {
+  const strokeAttrs = stroke
+    ? ' style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"'
+    : '';
+  if (fonts) {
+    let sx = x;
+    if (anchor === 'middle') {
+      sx = x - measureText(fonts[weight], str, size, ls) / 2;
+    }
+    return `<path d="${textToPath(fonts[weight], str, sx, y, size, ls)}" fill="${fill}"${stroke ? ' style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"' : ''}/>`;
+  }
+  return `<text x="${x}" y="${y}"${anchor === 'middle' ? ' text-anchor="middle"' : ''} font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight === 'f600' ? 600 : weight === 'f700' ? 700 : 800}"${ls ? ` letter-spacing="${ls}"` : ''} fill="${fill}"${strokeAttrs}>${esc(str)}</text>`;
+}
+
+function wrapText(
+  fonts: GraphicFonts | null,
+  weight: 'f600' | 'f700' | 'f800',
+  str: string,
+  size: number,
+  maxW: number,
+  ls = 0
+): string[] {
+  const width = (s: string) =>
+    fonts ? measureText(fonts[weight], s, size, ls) : s.length * size * 0.56;
+  const words = str.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? `${cur} ${w}` : w;
+    if (width(t) <= maxW || !cur) {
+      cur = t;
+    } else {
+      lines.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function fitSize(
+  fonts: GraphicFonts | null,
+  weight: 'f600' | 'f700' | 'f800',
+  lines: string[],
+  sizes: number[],
+  maxW: number,
+  ls = 0
+): number {
+  for (const s of sizes) {
+    const ok = lines.every(
+      (ln) =>
+        (fonts
+          ? measureText(fonts[weight], ln, s, ls)
+          : ln.length * s * 0.56) <= maxW
+    );
+    if (ok) return s;
+  }
+  return sizes[sizes.length - 1];
+}
+
+function slideFooter(
+  fonts: GraphicFonts | null,
+  text = 'Tim Fennessey, Broker · 905 493-7355 · thefcgroup.ca'
+): string {
+  return (
+    `<rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>` +
+    `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>` +
+    slideText(fonts, 'f600', text, W / 2, FOOTER_TOP + 51, 27, '#ffffff', 0.5, 'middle')
+  );
+}
+
+// Logo (top-left) + duo (bottom-right) overlays, shared with the
+// listing graphic. Each is independently fail-soft garnish.
+async function brandOverlays(): Promise<sharp.OverlayOptions[]> {
+  const out: sharp.OverlayOptions[] = [];
+  try {
+    const duoW = 430;
+    const duoBase = await sharp(await fetchBuffer(FC_DUO_URL))
+      .resize({ width: duoW })
+      .png()
+      .toBuffer();
+    const duoMeta = await sharp(duoBase).metadata();
+    const duoH = duoMeta.height || 242;
+    const fadeSvg = Buffer.from(
+      `<svg width="${duoW}" height="${duoH}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="df" x1="0" y1="0" x2="0" y2="1"><stop offset="0.70" stop-color="#fff" stop-opacity="1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect width="${duoW}" height="${duoH}" fill="url(#df)"/></svg>`
+    );
+    const duo = await sharp(duoBase)
+      .composite([{ input: fadeSvg, blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+    out.push({
+      input: duo,
+      top: FOOTER_TOP - 4 - duoH,
+      left: W - duoW - 24,
+    });
+  } catch {
+    // duo is optional
+  }
+  try {
+    const logo = await sharp(await fetchBuffer(FC_LOGO_URL))
+      .trim()
+      .resize({ width: 290 })
+      .png()
+      .toBuffer();
+    out.push({ input: logo, top: 24, left: 34 });
+  } catch {
+    // logo is optional garnish too
+  }
+  return out;
+}
+
+async function navyBase(): Promise<Buffer> {
+  return sharp({
+    create: {
+      width: W,
+      height: H,
+      channels: 4,
+      background: { r: 15, g: 42, b: 68, alpha: 1 },
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
+// --- The four slides --------------------------------------------------------
+
+async function composeLeadSlide(
+  campaign: any,
+  subject: CreativeSubject,
+  idea: any | null,
+  play: string,
+  fonts: GraphicFonts | null
+): Promise<Buffer> {
+  const cfg = PLAY_DESIGN[play] || PLAY_DESIGN.market_update;
+  const nameParts = String(campaign.name || '')
+    .split('—')
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+  const titleRaw = (nameParts[0] || 'Market Update').toUpperCase();
+  const subline =
+    (idea && typeof idea.subject === 'string' && idea.subject.trim()) ||
+    nameParts[1] ||
+    subject.address ||
+    '';
+  const eyebrowText = [
+    cfg.eyebrow,
+    subline ? subline.toUpperCase() : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const titleLines = wrapText(fonts, 'f800', titleRaw, 96, W - 116);
+  const size = fitSize(fonts, 'f800', titleLines, [100, 92, 84, 76, 68], W - 116);
+  const wrapped = wrapText(fonts, 'f800', titleRaw, size, W - 116);
+  const lh = Math.round(size * 1.06);
+  const eyebrowBase = 430;
+  const firstBase = eyebrowBase + size + 44;
+  const subBase = firstBase + (wrapped.length - 1) * lh + 92;
+
+  let texts = '';
+  if (eyebrowText) {
+    texts += slideText(fonts, 'f800', eyebrowText, 58, eyebrowBase, 30, RED, 6);
+  }
+  wrapped.forEach((ln, i) => {
+    texts += slideText(fonts, 'f800', ln, 54, firstBase + i * lh, size, '#ffffff', 0, 'start', true);
+  });
+  if (subline) {
+    texts += slideText(fonts, 'f700', subline, 56, subBase, 44, '#ffffff');
+  }
+
+  const svg = Buffer.from(
+    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${NAVY}" stop-opacity="1"/>
+      <stop offset="1" stop-color="#0a1e33" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="url(#sbg)"/>
+  ${slideFooter(fonts)}
+  ${texts}
+</svg>`
+  );
+  const base = await navyBase();
+  return sharp(base)
+    .composite([{ input: svg, top: 0, left: 0 }, ...(await brandOverlays())])
+    .png()
+    .toBuffer();
+}
+
+const SELLER_POINTS = [
+  'What sold nearby — real prices, not guesses',
+  'Condition and updates buyers will pay for',
+  'Timing — how many homes you are up against',
+];
+
+const HONEST_POINTS = [
+  'Need a home this year? Waiting for a perfect rate rarely pays.',
+  'Able to wait? More listings mean more choice.',
+  'Either way — watch the homes, not the headlines.',
+];
+
+async function composeSubstanceSlide(
+  play: string,
+  region: string,
+  stats: MarketStatLine[],
+  fonts: GraphicFonts | null
+): Promise<Buffer> {
+  let body = '';
+  if ((play === 'market_update' || play === 'buyer_market') && stats.length >= 2) {
+    const eyebrow = `${(region || 'Your area').toUpperCase()} RIGHT NOW`;
+    body += slideText(fonts, 'f800', eyebrow, 58, 300, 32, RED, 6);
+    let y = 452;
+    stats.slice(0, 3).forEach((s, i) => {
+      if (i > 0) {
+        body += `<rect x="58" y="${y - 108}" width="${W - 116}" height="2" fill="rgba(255,255,255,0.18)"/>`;
+      }
+      body += slideText(fonts, 'f800', s.value, 56, y, 92, '#ffffff');
+      body += slideText(fonts, 'f600', s.label, 58, y + 52, 27, '#c9d6e4', 2);
+      y += 238;
+    });
+  } else if (play === 'buyer_market') {
+    body += slideText(fonts, 'f800', 'THE HONEST ANSWER', 56, 330, 62, '#ffffff', 0, 'start', true);
+    let y = 470;
+    for (const p of HONEST_POINTS) {
+      const lines = wrapText(fonts, 'f700', p, 40, W - 190);
+      body += slideText(fonts, 'f800', '—', 58, y, 40, RED);
+      lines.forEach((ln, i) => {
+        body += slideText(fonts, 'f700', ln, 108, y + i * 56, 40, '#ffffff');
+      });
+      y += lines.length * 56 + 44;
+    }
+  } else {
+    const titleLines = wrapText(fonts, 'f800', '3 THINGS THAT MOVE YOUR NUMBER', 66, W - 116);
+    titleLines.forEach((ln, i) => {
+      body += slideText(fonts, 'f800', ln, 56, 322 + i * 72, 66, '#ffffff', 0, 'start', true);
+    });
+    let y = 322 + titleLines.length * 72 + 92;
+    SELLER_POINTS.forEach((p, idx) => {
+      const lines = wrapText(fonts, 'f700', p, 40, W - 210);
+      body += slideText(fonts, 'f800', `${idx + 1}`, 58, y, 54, RED);
+      lines.forEach((ln, i) => {
+        body += slideText(fonts, 'f700', ln, 128, y + i * 56, 40, '#ffffff');
+      });
+      y += lines.length * 56 + 52;
+    });
+  }
+
+  const svg = Buffer.from(
+    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${W}" height="${H}" fill="${NAVY}"/>
+  ${slideFooter(fonts)}
+  ${body}
+</svg>`
+  );
+  const base = await navyBase();
+  return sharp(base).composite([{ input: svg, top: 0, left: 0 }]).png().toBuffer();
+}
+
+const EXPLAINERS: Record<string, { title: string; lines: string[] }> = {
+  market_update: {
+    title: 'WHAT IT MEANS',
+    lines: [
+      'For buyers: more days on market means more room to negotiate.',
+      'For sellers: price to the recent solds, not to last year.',
+      'Get the full snapshot for your street — tap the link.',
+    ],
+  },
+  buyer_market: {
+    title: 'GET FIRST LOOK',
+    lines: [
+      'New listings land in your inbox before the portals.',
+      'Watch only the streets you actually want.',
+      'No spam — just the homes. Tap the link.',
+    ],
+  },
+  seller_push: {
+    title: 'HOW IT WORKS',
+    lines: [
+      'Tell us the address.',
+      'We pull the real sold data around it.',
+      'You get your number — no obligation.',
+    ],
+  },
+};
+
+async function composeExplainerSlide(
+  play: string,
+  fonts: GraphicFonts | null
+): Promise<Buffer> {
+  const cfg = EXPLAINERS[play] || EXPLAINERS.seller_push;
+  let body = '';
+  const titleLines = wrapText(fonts, 'f800', cfg.title, 76, W - 116);
+  titleLines.forEach((ln, i) => {
+    body += slideText(fonts, 'f800', ln, 56, 340 + i * 82, 76, '#ffffff', 0, 'start', true);
+  });
+  let y = 340 + titleLines.length * 82 + 96;
+  cfg.lines.forEach((p, idx) => {
+    const lines = wrapText(fonts, 'f700', p, 42, W - 210);
+    body += slideText(fonts, 'f800', `${idx + 1}`, 58, y, 54, RED);
+    lines.forEach((ln, i) => {
+      body += slideText(fonts, 'f700', ln, 128, y + i * 58, 42, '#ffffff');
+    });
+    y += lines.length * 58 + 56;
+  });
+
+  const svg = Buffer.from(
+    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${W}" height="${H}" fill="${NAVY}"/>
+  ${slideFooter(fonts)}
+  ${body}
+</svg>`
+  );
+  const base = await navyBase();
+  return sharp(base).composite([{ input: svg, top: 0, left: 0 }]).png().toBuffer();
+}
+
+const TEAM_PITCH: Record<string, string> = {
+  valuation: 'Get your number — tap the link',
+  watch: "See what's selling near you — tap the link",
+  giveaway: 'Enter now — tap the link',
+};
+
+async function composeTeamSlide(
+  campaign: any,
+  fonts: GraphicFonts | null
+): Promise<Buffer> {
+  const pitch =
+    TEAM_PITCH[String(campaign.capture_type || '')] ||
+    'Tap the link to get started';
+  const reco1 = 'Tim Fennessey, Broker · Aidan Comeau, Sales Representative';
+  const reco2 = 'RE/MAX HALLMARK FIRST GROUP REALTY LTD.';
+
+  // The stored team asset (brand/email-hero.jpg) is the canonical
+  // 600x200 email banner — kitchen | logo | team triptych — NOT a
+  // portrait photo. It runs full-width at the top at its natural 3:1
+  // ratio; a cover-crop would zoom into the logo panel. The banner
+  // carries the logo itself, so no separate logo overlay here (and
+  // no team-name text beside it, per the brand rule).
+  const bannerH = Math.round((W * 200) / 600); // 360 at W=1080
+  let texts =
+    `<rect x="0" y="${bannerH}" width="${W}" height="4" fill="${RED}"/>` +
+    slideText(fonts, 'f800', 'MEET YOUR TEAM', W / 2, bannerH + 170, 30, RED, 4, 'middle');
+  const pitchLines = wrapText(fonts, 'f800', pitch.toUpperCase(), 58, W - 160);
+  pitchLines.forEach((ln, i) => {
+    texts += slideText(fonts, 'f800', ln, W / 2, bannerH + 268 + i * 72, 58, '#ffffff', 0, 'middle');
+  });
+  texts += slideText(
+    fonts,
+    'f600',
+    '905 493-7355 · thefcgroup.ca',
+    W / 2,
+    bannerH + 268 + pitchLines.length * 72 + 58,
+    30,
+    '#ffffff',
+    1,
+    'middle'
+  );
+  const footer =
+    `<rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>` +
+    `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>` +
+    slideText(fonts, 'f600', reco1, W / 2, FOOTER_TOP + 34, 24, '#ffffff', 0.3, 'middle') +
+    slideText(fonts, 'f600', reco2, W / 2, FOOTER_TOP + 64, 24, '#ffffff', 0.3, 'middle');
+
+  const svg = Buffer.from(
+    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+  ${footer}
+  ${texts}
+</svg>`
+  );
+
+  const base = await navyBase();
+  const composites: sharp.OverlayOptions[] = [{ input: svg, top: 0, left: 0 }];
+  try {
+    const banner = await sharp(await fetchBuffer(TEAM_PHOTO_URL))
+      .resize({ width: W })
+      .png()
+      .toBuffer();
+    composites.push({ input: banner, top: 0, left: 0 });
+  } catch {
+    // banner is garnish — the slide still reads fine on navy
+  }
+  return sharp(base).composite(composites).png().toBuffer();
+}
+
+// Compose the full 4-slide set (no storage writes — generation and the
+// local proof harness share this).
+export async function composeSlideSet(
+  campaign: any,
+  subject: CreativeSubject,
+  idea: any | null,
+  play: string,
+  stats: MarketStatLine[]
+): Promise<Buffer[]> {
+  const fonts = await loadGraphicFonts();
+  const region =
+    (idea && typeof idea.subject === 'string' && idea.subject.trim()) ||
+    subject.address ||
+    '';
+  const [s1, s2, s3, s4] = await Promise.all([
+    composeLeadSlide(campaign, subject, idea, play, fonts),
+    composeSubstanceSlide(play, region, stats, fonts),
+    composeExplainerSlide(play, fonts),
+    composeTeamSlide(campaign, fonts),
+  ]);
+  return [s1, s2, s3, s4];
+}
+
+async function uploadSlidePng(
+  supabase: SupabaseClient,
+  campaignId: string,
+  n: number,
+  png: Buffer
+): Promise<string> {
+  const path = `campaign-creatives/${campaignId}/slide-${n}.png`;
+  const { error } = await supabase.storage
+    .from(CREATIVE_BUCKET)
+    .upload(path, png, { contentType: 'image/png', upsert: true });
+  if (error) throw error;
+  const { data: pub } = supabase.storage
+    .from(CREATIVE_BUCKET)
+    .getPublicUrl(path);
+  return pub.publicUrl;
+}
+
+// Generate (or regenerate) the 4-slide designed set for a campaign
+// that has no listing photos. Never throws for content problems: a
+// failure is recorded on creative.error in plain words (slides stay
+// as they were) and the creative is returned, so the card can show
+// the snag and offer a retry.
+export async function generateCampaignSlides(
+  supabase: SupabaseClient,
+  campaign: any
+): Promise<CampaignCreative> {
+  const prev = parseCreative(campaign.creative);
+  try {
+    const subject = await deriveSubject(supabase, campaign);
+    const idea = await loadLinkedIdea(supabase, campaign.account_id, campaign.id);
+    const play = resolveSlidePlay(campaign, subject);
+    const stats =
+      play === 'market_update' || play === 'buyer_market'
+        ? await loadMarketStats(supabase, campaign.account_id)
+        : [];
+    const buffers = await composeSlideSet(campaign, subject, idea, play, stats);
+    const v = Date.now();
+    const urls: string[] = [];
+    for (let i = 0; i < buffers.length; i++) {
+      urls.push(
+        `${await uploadSlidePng(supabase, campaign.id, i + 1, buffers[i])}?v=${v}`
+      );
+    }
+    const next: CampaignCreative = {
+      photo_urls: urls.slice(1),
+      designed_url: urls[0],
+      approved: false,
+      instagram: { ...EMPTY_INSTAGRAM },
+      slides: urls,
+      error: null,
+    };
+    await saveCreative(supabase, campaign.account_id, campaign.id, next);
+    return next;
+  } catch (err) {
+    const next: CampaignCreative = { ...prev, error: plainSlideError(err) };
+    await saveCreative(supabase, campaign.account_id, campaign.id, next);
+    return next;
+  }
+}
+
+// Unified regeneration: a campaign WITH a slide set (or with no
+// photos at all) regenerates its slides; a photo campaign rebuilds
+// its designed graphic. The creative route's "generate" action and
+// the create/build bootstrap both go through here, so classification
+// lives in exactly one place.
+export async function generateCampaignCreative(
+  supabase: SupabaseClient,
+  campaign: any,
+  heroUrl?: string | null
+): Promise<CampaignCreative> {
+  const creative = parseCreative(campaign.creative);
+  if (!creative.slides.length && (heroUrl || creative.photo_urls.length)) {
+    return generateCampaignGraphic(supabase, campaign, heroUrl);
+  }
+  return generateCampaignSlides(supabase, campaign);
+}
+
 // Fail-soft bootstrap used right after a campaign is created (idea
 // build or manual create): fetch photos if none, generate the graphic
 // if photos exist but no design yet. NEVER throws — a creative hiccup
@@ -731,7 +1446,7 @@ export async function ensureCampaignCreative(
 ): Promise<void> {
   try {
     let creative = parseCreative(campaign.creative);
-    if (!creative.photo_urls.length) {
+    if (!creative.photo_urls.length && !creative.slides.length) {
       creative = await fetchCampaignPhotos(supabase, campaign);
     }
     if (creative.photo_urls.length && !creative.designed_url) {
@@ -740,6 +1455,10 @@ export async function ensureCampaignCreative(
         { ...campaign, creative },
         null
       );
+    } else if (!creative.photo_urls.length && !creative.slides.length) {
+      // No listing photos exist for this campaign — it is not about
+      // one house, so it gets the designed slide set instead.
+      await generateCampaignSlides(supabase, { ...campaign, creative });
     }
   } catch {
     // fail-soft by design

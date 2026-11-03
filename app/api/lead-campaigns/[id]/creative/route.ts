@@ -4,7 +4,8 @@
 //   JSON { action: 'fetch_photos' }              → (re)fetch photos
 //   JSON { action: 'generate', hero_url? }       → (re)build the
 //        designed graphic; hero_url (must be one of the campaign's
-//        photos) becomes the new hero first
+//        photos) becomes the new hero first. On a non-listing
+//        campaign (no photos) it (re)builds the 4-slide set instead.
 //   multipart form (field "file")                → upload a photo into
 //        account-assets/campaign-creatives/<id>/ and record it; if the
 //        campaign has no designed graphic yet, generate one fail-soft
@@ -24,6 +25,7 @@ import {
   CREATIVE_BUCKET,
   addUploadedPhoto,
   fetchCampaignPhotos,
+  generateCampaignCreative,
   generateCampaignGraphic,
   parseCreative,
 } from '@/lib/leadCampaignCreative';
@@ -142,13 +144,24 @@ export async function POST(
     if (action === 'generate') {
       const heroUrl =
         typeof body?.hero_url === 'string' ? body.hero_url : null;
-      if (heroUrl && !parseCreative(campaign.creative).photo_urls.includes(heroUrl)) {
+      const current = parseCreative(campaign.creative);
+      // The hero rule applies to photo campaigns; a slides campaign
+      // ignores hero_url (its "generate" rebuilds the slide set).
+      if (
+        heroUrl &&
+        !current.slides.length &&
+        !current.photo_urls.includes(heroUrl)
+      ) {
         return NextResponse.json(
           { error: 'That photo is not on this campaign.' },
           { status: 400 }
         );
       }
-      const creative = await generateCampaignGraphic(
+      // Unified entry: photo campaigns rebuild the designed graphic,
+      // non-listing campaigns (re)build their 4-slide set, and a
+      // slide failure comes back as creative.error on a 200 so the
+      // card can show it with a retry.
+      const creative = await generateCampaignCreative(
         supabase,
         campaign,
         heroUrl
