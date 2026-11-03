@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { properName } from '@/lib/nameCase'
 import { useRouter } from 'next/navigation'
 
 type Contact = {
@@ -162,8 +163,8 @@ const { data: newContact, error } = await supabase
       account_id: accountId,
       created_by: userData.user.id,
       assigned_user_id: assignedUserId || userData.user.id,
-      first_name: newFirstName,
-      last_name: newLastName,
+      first_name: properName(newFirstName),
+      last_name: properName(newLastName),
       email: normalizedEmail,
       lifecycle_stage: 'New',
       source: 'Deal Creation',

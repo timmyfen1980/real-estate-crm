@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
 import FollowUpModal from '@/app/components/FollowUpModal'
+import { properName } from '@/lib/nameCase'
 
 type Lead = {
   id: string
@@ -354,6 +355,9 @@ const createLead = async () => {
 
   const accountId = membership.account_id
   const normalizedEmail = newLead.email.toLowerCase().trim()
+  // Capture-time name casing (Tim, 2026-11-03)
+  const casedFirstName = properName(newLead.first_name)
+  const casedLastName = properName(newLead.last_name)
 
   // =========================
   // CHECK IF LEAD EXISTS
@@ -394,8 +398,8 @@ const createLead = async () => {
             created_by: user.id,
             assigned_user_id:
               newLead.assigned_user_id || user.id,
-            first_name: newLead.first_name,
-            last_name: newLead.last_name,
+            first_name: casedFirstName,
+            last_name: casedLastName,
             email: normalizedEmail,
             lifecycle_stage: 'New',
             source: 'Manual Entry',
@@ -425,8 +429,8 @@ const createLead = async () => {
         user_id: user.id,
         assigned_user_id:
           newLead.assigned_user_id || user.id,
-        first_name: newLead.first_name,
-        last_name: newLead.last_name,
+        first_name: casedFirstName,
+        last_name: casedLastName,
         email: normalizedEmail,
         status: 'New',
         created_at: new Date().toISOString(),

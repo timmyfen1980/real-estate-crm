@@ -1,3 +1,5 @@
+import { properName } from '@/lib/nameCase'
+
 // Content-image discipline shared by BOTH email templates
 // (Tim, 2026-10-22): Outlook's renderer ignores CSS max-width and
 // prints under-specified images at natural size — a 1400px stock
@@ -62,6 +64,10 @@ export function buildEmailTemplate({
   ctaText,
   emailHeaderImage,
 }: any) {
+  // Send-time name casing (Tim, 2026-11-03): the greeting and every
+  // {{first_name}} substitution use the properly-cased name even when
+  // the stored contact name was captured in lowercase.
+  const displayFirstName = properName(firstName || '')
   const safeContent = constrainContentImages(content || '', 544);
   return `
 <!DOCTYPE html>
@@ -83,10 +89,10 @@ export function buildEmailTemplate({
     </td></tr>` : ''}
     <tr><td height="10" style="background-color:#0f2a44; font-size:0; line-height:0;">&nbsp;</td></tr>
     <tr><td style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111111;">
-      <p style="font-size:20px; margin:0 0 20px 0; font-weight:600;">Hi ${firstName},</p>
+      <p style="font-size:20px; margin:0 0 20px 0; font-weight:600;">Hi ${displayFirstName},</p>
       <div style="font-size:16px; line-height:1.8; color:#111111;">
         ${safeContent
-          .replaceAll('{{first_name}}', firstName || '')
+          .replaceAll('{{first_name}}', displayFirstName)
           .replaceAll('{{agent_name}}', agentName || '')}
       </div>
       ${ctaLink && ctaText ? `
@@ -147,6 +153,8 @@ export function buildNewsletterEmail({
   ctaLink,
   ctaText,
 }: any) {
+  // Send-time name casing (Tim, 2026-11-03): see buildEmailTemplate.
+  const displayFirstName = properName(firstName || '')
   // Content images: the shared Outlook-proof constraining (see
   // constrainContentImages above), at this template's 544 column.
   const safeContent = constrainContentImages(content, 544);
@@ -181,7 +189,7 @@ export function buildNewsletterEmail({
     </td></tr>
     <tr><td style="padding:20px 28px 30px; font-size:16px; line-height:1.75; color:#222222;">
       ${safeContent
-        .replaceAll('{{first_name}}', firstName || '')
+        .replaceAll('{{first_name}}', displayFirstName)
         .replaceAll('{{agent_name}}', 'Fennessey Comeau Group')}
       ${ctaLink && ctaText ? `
       <center>

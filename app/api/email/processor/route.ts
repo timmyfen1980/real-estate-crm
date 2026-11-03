@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { buildEmailTemplate, buildNewsletterEmail } from '@/lib/emailTemplates'
+import { properName } from '@/lib/nameCase'
 import { sendFollowupEmail } from '@/lib/outlookSend'
 import {
   torontoYearMonth,
@@ -206,7 +207,7 @@ export async function GET(req: Request) {
 
             const rawContent = issueSequence.body_html.replace(
               '{{first_name}}',
-              contact.first_name || ''
+              properName(contact.first_name || '')
             )
 
             const body = buildNewsletterEmail({
@@ -420,7 +421,7 @@ console.log(`Contact email: ${contact.email}`)
 
       const rawContent = sequence.body_html.replace(
         '{{first_name}}',
-        contact.first_name || ''
+        properName(contact.first_name || '')
       )
 
       const isNewsletter = c.campaign_id === NEWSLETTER_CAMPAIGN_ID

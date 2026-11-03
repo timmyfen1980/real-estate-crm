@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Papa from 'papaparse'
 import { supabase } from '@/lib/supabaseClient'
+import { properName } from '@/lib/nameCase'
 
 type ParsedRow = Record<string, any>
 
@@ -362,6 +363,12 @@ if (!membership) {
 
         if (field === 'email' && value) {
           value = String(value).toLowerCase().trim()
+        }
+
+        // Capture-time name casing (Tim, 2026-11-03): imported
+        // names are stored properly cased however the CSV had them.
+        if ((field === 'first_name' || field === 'last_name') && value) {
+          value = properName(String(value))
         }
 
         if (field === 'tags' && value) {

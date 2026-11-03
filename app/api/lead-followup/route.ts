@@ -28,6 +28,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendFollowupEmail } from '@/lib/outlookSend';
+import { properName } from '@/lib/nameCase';
 
 const TEAM_PHONE = '905 493-7355';
 const BROKERAGE = 'RE/MAX HALLMARK FIRST GROUP REALTY LTD.';
@@ -213,6 +214,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
     }
 
+    // Send-time name casing (Tim, 2026-11-03): greet with the
+    // properly-cased first name even if it was stored in lowercase.
+    const displayFirstName = lead.first_name
+      ? properName(lead.first_name)
+      : 'there';
+
     const to = toOverride || lead.email || '';
     if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       return NextResponse.json(
@@ -239,7 +246,7 @@ export async function POST(req: NextRequest) {
       account?.email_header_image_url || 'https://crm.thefcgroup.ca/api/email-hero';
 
     const html = buildHtml({
-      firstName: lead.first_name || 'there',
+      firstName: displayFirstName,
       bodyText,
       heroUrl,
       agent,
@@ -259,7 +266,7 @@ export async function POST(req: NextRequest) {
         to,
         subject,
         html,
-        text: `Hi ${lead.first_name || 'there'},\n\n${bodyText}\n\n${agent.name}\n${agent.email}\n${TEAM_PHONE}\n${BROKERAGE}`,
+        text: `Hi ${displayFirstName},\n\n${bodyText}\n\n${agent.name}\n${agent.email}\n${TEAM_PHONE}\n${BROKERAGE}`,
         fallbackFrom: `${agent.name} <info@thefcgroup.ca>`,
         fallbackReplyTo: agent.email,
       });

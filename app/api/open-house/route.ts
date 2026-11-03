@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { properName } from '@/lib/nameCase'
 import { Resend } from 'resend'
 
 // Simple in-memory rate limit store
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
       )
     }
 
-   const {
+   let {
   first_name,
   last_name,
   email,
@@ -69,6 +70,14 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+
+    // Capture-time name casing (Tim, 2026-11-03): visitors type
+    // their names exactly as they like — store (and greet) them
+    // properly cased. Everything below uses these cased values:
+    // the visitor/contact/lead inserts and both emails.
+    first_name = properName(first_name)
+    last_name = properName(last_name || '')
+    if (realtor_name) realtor_name = properName(realtor_name)
 
     const normalizedEmail = email.toLowerCase().trim()
 

@@ -11,6 +11,7 @@ import {
   ChecklistType,
 } from '@/lib/checklists';
 import { getAccountId, createClientFile } from '@/lib/checklistDb';
+import { properName } from '@/lib/nameCase';
 
 export default function NewClientFilePage() {
   const router = useRouter();
@@ -259,8 +260,9 @@ export default function NewClientFilePage() {
       // If no contact linked, create one from the form data
       if (!contactId) {
         const nameParts = clientNames.trim().split(' ');
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
+        // Capture-time name casing (Tim, 2026-11-03)
+        const firstName = properName(nameParts[0] || '');
+        const lastName = properName(nameParts.slice(1).join(' ') || '');
         const { data: newContact, error: contactError } = await supabase
           .from('contacts')
           .insert({

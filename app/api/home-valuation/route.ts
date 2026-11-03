@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { properName } from "@/lib/nameCase";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -38,8 +39,10 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
 
-    const first_name = formData.get("first_name") as string;
-    const last_name = formData.get("last_name") as string;
+    // Capture-time name casing (Tim, 2026-11-03): store names
+    // properly cased however they were typed on the form.
+    const first_name = properName(formData.get("first_name") as string);
+    const last_name = properName(formData.get("last_name") as string);
     const email = formData.get("email") as string;
     const phone = formData.get("phone") as string;
     const address = formData.get("address") as string;

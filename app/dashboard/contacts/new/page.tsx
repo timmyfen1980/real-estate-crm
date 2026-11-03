@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { properName } from '@/lib/nameCase'
 
 export default function NewContactPage() {
 
@@ -67,6 +68,10 @@ export default function NewContactPage() {
   .insert([
   {
     ...contact,
+
+    // Capture-time name casing (Tim, 2026-11-03)
+    first_name: properName(contact.first_name),
+    last_name: properName(contact.last_name),
 
     number_of_children:
       contact.number_of_children !== ''

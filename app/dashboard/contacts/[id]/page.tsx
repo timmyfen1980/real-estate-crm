@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { properName } from '@/lib/nameCase'
 import { ChevronDown } from 'lucide-react'
 
 type Contact = {
@@ -773,9 +774,17 @@ const assignCampaign = async () => {
 const handleSave = async () => {
   if (!formData || !contact) return
 
+  // Capture-time name casing (Tim, 2026-11-03): names saved from
+  // the edit form are stored properly cased too.
+  const casedFormData = {
+    ...formData,
+    first_name: properName(formData.first_name || ''),
+    last_name: properName(formData.last_name || ''),
+  }
+
   const { error } = await supabase
     .from('contacts')
-    .update(formData)
+    .update(casedFormData)
     .eq('id', contact.id)
 
   if (error) {
@@ -783,7 +792,7 @@ const handleSave = async () => {
     return
   }
 
-  setContact(formData)
+  setContact(casedFormData)
   setIsEditing(false)
   alert('Saved successfully')
 }
