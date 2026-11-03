@@ -479,8 +479,15 @@ export default function LeadCampaignsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: c.id }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Could not delete.');
+      // A 404 means the campaign is already gone (deleted in another
+      // tab, or a double-click raced the first delete) — that IS the
+      // outcome the user asked for, not a failure. And a success body
+      // that fails to parse must not be reported as a failed delete
+      // either: only a real error status counts.
+      if (res.status !== 404) {
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || 'Could not delete.');
+      }
       await load();
     } catch (err: any) {
       console.error('Delete campaign failed:', err);

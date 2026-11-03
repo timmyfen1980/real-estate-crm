@@ -22,7 +22,7 @@
 // lib/leadCampaigns.ts for why — RLS on lead_campaigns has no
 // authenticated policies).
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import {
   CAMPAIGN_GOALS,
   CAMPAIGN_STATUSES,
@@ -446,21 +446,28 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Best-effort storage cleanup — a failure here must not fail the
-    // delete; the row is already gone.
-    try {
-      const prefix = `campaign-creatives/${id}`;
-      const { data: files } = await supabase.storage
-        .from(CREATIVE_BUCKET)
-        .list(prefix, { limit: 100 });
-      if (files && files.length) {
-        await supabase.storage
+    // The row is gone — that alone decides this response. Storage
+    // cleanup is scheduled with `after` so it runs once the response
+    // has been sent: no storage error, hang, or timeout can delay,
+    // change, or surface in the result. (Nov 3, 2026: a delete's row
+    // went away while the awaited cleanup still sat between the
+    // commit and the response, and the UI reported failure for a
+    // delete that had in fact succeeded.)
+    after(async () => {
+      try {
+        const prefix = `campaign-creatives/${id}`;
+        const { data: files } = await supabase.storage
           .from(CREATIVE_BUCKET)
-          .remove(files.map((f: any) => `${prefix}/${f.name}`));
+          .list(prefix, { limit: 100 });
+        if (files && files.length) {
+          await supabase.storage
+            .from(CREATIVE_BUCKET)
+            .remove(files.map((f: any) => `${prefix}/${f.name}`));
+        }
+      } catch {
+        // best-effort only — server-side cleanup, never user-facing
       }
-    } catch {
-      // best-effort only
-    }
+    });
 
     return NextResponse.json({ ok: true, deleted: id });
   } catch (err: any) {
