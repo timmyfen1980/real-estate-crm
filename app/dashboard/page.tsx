@@ -87,7 +87,6 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [isOwner, setIsOwner] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [accountId, setAccountId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState({
     attention: false, // default open (safe fallback)
   })
@@ -105,9 +104,6 @@ export default function Dashboard() {
   // closing_date column on deals, so the query is expected to error and
   // the card stays hidden until such a column exists — fail quiet.
   const [upcomingClosings, setUpcomingClosings] = useState<ClosingDeal[] | null>(null)
-
-  const [addedSources, setAddedSources] = useState<string[]>([])
-  const [addingSource, setAddingSource] = useState<string | null>(null)
 
   const loadDashboard = async () => {
     const {
@@ -131,7 +127,6 @@ export default function Dashboard() {
     const owner = membership.role === 'owner'
     setIsOwner(owner)
     setCurrentUserId(user.id)
-    setAccountId(accountIdValue)
 
     // Email follow-ups (per user): the signed-in user's own unreplied
     // inbox mail flagged by the inbox scanners. Fail-quiet — if the
@@ -262,32 +257,6 @@ export default function Dashboard() {
     })
   }
 
-  // Pipeline Health "+ Add task": creates a real task from a dashboard
-  // suggestion (same insert shape as TaskModal, source swapped).
-  const addSourceTask = async (source: string) => {
-    if (!currentUserId || !accountId) return
-    if (addedSources.indexOf(source) >= 0) return
-    setAddingSource(source)
-    const { error } = await supabase.from('tasks').insert({
-      title: 'Work ' + source + ': generate new leads',
-      due_date: torontoDateString(new Date(Date.now() + 24 * 60 * 60 * 1000)),
-      priority: 'medium',
-      status: 'pending',
-      assigned_user_id: currentUserId,
-      lead_id: null,
-      source: 'dashboard_suggestion',
-      account_id: accountId,
-      created_by: currentUserId,
-    })
-    setAddingSource(null)
-    if (!error) {
-      setAddedSources(function (prev) {
-        return prev.concat([source])
-      })
-      loadDashboard()
-    }
-  }
-
   useEffect(() => {
     loadDashboard()
   }, [])
@@ -321,55 +290,6 @@ export default function Dashboard() {
       return false
     })
     .slice(0, 5)
-
-  const pipelineCounts: Record<string, number> = {}
-  leads.forEach(l => {
-    pipelineCounts[l.status] =
-      (pipelineCounts[l.status] || 0) + 1
-  })
-
-  const predefinedSources = [
-    'Open House',
-    'Social Media',
-    'Referral',
-    'Website',
-    'Event / Raffle',
-    'Other',
-  ]
-
-  // Pipeline Health: "active" means still being worked.
-  const ACTIVE_STATUSES = ['New', 'Contacted', 'Hot']
-
-  const sourceActive: Record<string, number> = {}
-  const sourceTotals: Record<string, number> = {}
-  leads.forEach(function (l) {
-    const src = l.source || 'Other'
-    sourceTotals[src] = (sourceTotals[src] || 0) + 1
-    if (ACTIVE_STATUSES.indexOf(l.status) >= 0) {
-      sourceActive[src] = (sourceActive[src] || 0) + 1
-    }
-  })
-
-  const extraSources = Object.keys(sourceTotals).filter(function (src) {
-    return predefinedSources.indexOf(src) < 0
-  })
-  const allSources = predefinedSources.concat(extraSources)
-
-  // Stale: active lead with an overdue follow-up, or no follow-up date
-  // and untouched since creation more than 14 days ago.
-  const staleCutoff = today.getTime() - 14 * 24 * 60 * 60 * 1000
-  const staleLeadsCount = leads.filter(function (l) {
-    // Per-person (Tim, 2026-10-21): this flag prompts the signed-in
-    // user, so it counts only THEIR stale leads — and never hands-off
-    // working-with-realtor leads.
-    if (l.assigned_user_id !== currentUserId) return false
-    if ((l as any).working_with_realtor) return false
-    if (ACTIVE_STATUSES.indexOf(l.status) < 0) return false
-    if (l.next_followup_date) {
-      return new Date(l.next_followup_date).getTime() < today.getTime()
-    }
-    return new Date(l.created_at).getTime() < staleCutoff
-  }).length
 
   const pendingTasksCount = tasks.filter(t => t.status === 'pending').length
   const newLeadsCount = leads.filter(
@@ -440,74 +360,6 @@ export default function Dashboard() {
         >
           Dismiss
         </button>
-      </div>
-    )
-  })
-
-  // Pipeline Health stage strip (precomputed).
-  const stageRows = ['New', 'Contacted', 'Hot', 'Cold', 'Client', 'Closed', 'Lost'].map(
-    function (status) {
-      const count = pipelineCounts[status] || 0
-      const performanceColor =
-        status === 'Hot'
-          ? 'text-red-600'
-          : status === 'Closed'
-          ? 'text-green-600'
-          : status === 'Cold'
-          ? 'text-gray-400'
-          : 'text-gray-800'
-
-      return (
-        <div
-          key={status}
-          className="rounded-lg border border-gray-200 py-3 bg-white"
-        >
-          <div className={`text-xl font-semibold ${performanceColor}`}>
-            {count}
-          </div>
-          <div className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">
-            {status}
-          </div>
-        </div>
-      )
-    }
-  )
-
-  // Pipeline Health source rows (precomputed). A source with zero active
-  // leads becomes a flag with a one-tap suggested task.
-  const sourceRows = allSources.map(function (src) {
-    const activeCount = sourceActive[src] || 0
-    if (activeCount > 0) {
-      return (
-        <div key={src} className="py-2 flex justify-between items-center">
-          <span className="text-sm text-gray-700">{src}</span>
-          <span className="text-sm text-gray-500">{activeCount} active</span>
-        </div>
-      )
-    }
-    const alreadyAdded = addedSources.indexOf(src) >= 0
-    const isAdding = addingSource === src
-    const handleAdd = function () {
-      addSourceTask(src)
-    }
-    return (
-      <div key={src} className="py-2 flex justify-between items-center gap-3">
-        <span className="text-sm font-medium text-amber-700">
-          No active {src} pipeline
-        </span>
-        {alreadyAdded ? (
-          <span className="text-sm text-green-600 whitespace-nowrap">
-            Added ✓
-          </span>
-        ) : (
-          <button
-            onClick={handleAdd}
-            disabled={isAdding}
-            className="text-sm px-3 py-1 rounded-lg border border-gray-300 hover:bg-gray-100 transition whitespace-nowrap disabled:opacity-50"
-          >
-            {isAdding ? 'Adding...' : '+ Add task'}
-          </button>
-        )}
       </div>
     )
   })
@@ -734,35 +586,8 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* RIGHT COLUMN — pipeline health + closings */}
+          {/* RIGHT COLUMN — closings */}
           <div className="space-y-4">
-
-            {/* PIPELINE HEALTH — diagnostic: stage strip, per-source
-                activity, empty-source flags with suggested tasks, stale
-                lead flag. */}
-            <SectionCard title="Pipeline Health">
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 text-center">
-                {stageRows}
-              </div>
-
-              <div className="mt-3 border-t border-gray-100 pt-1 divide-y divide-gray-100">
-                {sourceRows}
-              </div>
-
-              {staleLeadsCount > 0 && (
-                <Link
-                  href="/dashboard/leads"
-                  className="mt-3 flex justify-between items-center p-3 border rounded-lg bg-amber-50 hover:bg-amber-100 transition"
-                >
-                  <span className="text-sm font-medium text-amber-800">
-                    {staleLeadsCount} stale leads need attention
-                  </span>
-                  <span className="text-sm font-medium text-[#0f2a44] whitespace-nowrap">
-                    View {'→'}
-                  </span>
-                </Link>
-              )}
-            </SectionCard>
 
             {/* CLOSINGS AHEAD — hidden unless the deals table carries a
                 closing_date column (fail-quiet query in loadDashboard). */}
