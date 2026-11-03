@@ -142,6 +142,15 @@ const cardStyle: React.CSSProperties = {
   marginBottom: '20px',
 };
 
+// Ideas are the column Tim acts on (Tim, Nov 3): idea cards carry a
+// stronger presence than campaign cards — navy frame, soft shadow.
+const ideaCardStyle: React.CSSProperties = {
+  ...cardStyle,
+  border: '2px solid #0f2a44',
+  boxShadow: '0 6px 18px rgba(15, 42, 68, 0.10)',
+  padding: '22px',
+};
+
 const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: '13px',
@@ -196,6 +205,7 @@ export default function LeadCampaignsPage() {
   const [newDays, setNewDays] = useState('');
   const [newAudience, setNewAudience] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [ideaBusyId, setIdeaBusyId] = useState('');
 
   // Per-campaign caption drafts + copy feedback
@@ -270,6 +280,7 @@ export default function LeadCampaignsPage() {
       setNewBudget('');
       setNewDays('');
       setNewAudience('');
+      setCreateOpen(false);
       await load();
     } catch (err: any) {
       alert(err.message || 'Could not create campaign.');
@@ -517,23 +528,76 @@ export default function LeadCampaignsPage() {
       )}
 
       <style>{`
-        .lc-cols { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; align-items: start; }
-        @media (max-width: 920px) { .lc-cols { grid-template-columns: minmax(0, 1fr); } }
+        .lc-cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; }
+        .lc-col-campaigns { order: 1; min-width: 0; }
+        .lc-col-ideas { order: 2; min-width: 0; }
+        @media (max-width: 920px) {
+          .lc-cols { grid-template-columns: minmax(0, 1fr); }
+          .lc-col-ideas { order: 1; }
+          .lc-col-campaigns { order: 2; }
+        }
       `}</style>
       <div className="lc-cols">
-        <div>
-      {/* Create */}
+        <div className="lc-col-campaigns">
+      {/* Create — slim collapsed bar by default (Tim, Nov 3: the manual
+          form shrinks away so Rea's ideas stay prominent). Expands in
+          place to the full form; collapses back via the bar, the
+          Collapse control, or automatically after a successful create. */}
+      <button
+        type="button"
+        onClick={() => setCreateOpen((v) => !v)}
+        aria-expanded={createOpen}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          boxSizing: 'border-box',
+          background: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: '12px',
+          padding: '14px 20px',
+          marginBottom: '20px',
+          fontSize: '15px',
+          fontWeight: 700,
+          color: NAVY,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span>+ Create your own campaign</span>
+        <span aria-hidden="true" style={{ fontSize: '13px', color: '#6b7280' }}>
+          {createOpen ? '▾' : '▸'}
+        </span>
+      </button>
+      {createOpen && (
       <div style={cardStyle}>
-        <h2
+        <div
           style={{
-            fontSize: '16px',
-            fontWeight: 700,
-            color: NAVY,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             marginBottom: '14px',
           }}
         >
-          New campaign
-        </h2>
+          <h2
+            style={{
+              fontSize: '16px',
+              fontWeight: 700,
+              color: NAVY,
+              margin: 0,
+            }}
+          >
+            New campaign
+          </h2>
+          <button
+            type="button"
+            style={plainBtn}
+            onClick={() => setCreateOpen(false)}
+          >
+            Collapse
+          </button>
+        </div>
         <div
           style={{
             display: 'grid',
@@ -639,6 +703,7 @@ export default function LeadCampaignsPage() {
           {creating ? 'Creating…' : 'Create campaign'}
         </button>
       </div>
+      )}
 
       {/* Board */}
       <h2
@@ -1149,12 +1214,12 @@ export default function LeadCampaignsPage() {
         </div>
       ))}
         </div>
-        <div>
+        <div className="lc-col-ideas">
       {/* Ideas from Rea */}
       <h2
         style={{
-          fontSize: '16px',
-          fontWeight: 700,
+          fontSize: '19px',
+          fontWeight: 800,
           color: NAVY,
           marginBottom: '12px',
         }}
@@ -1162,13 +1227,13 @@ export default function LeadCampaignsPage() {
         Ideas from Rea
       </h2>
       {ideas.length === 0 && (
-        <div style={{ ...cardStyle, color: '#6b7280', fontSize: '14px' }}>
+        <div style={{ ...ideaCardStyle, color: '#6b7280', fontSize: '14px' }}>
           No ideas right now — Rea adds new ones as listings, sales and open
           houses happen.
         </div>
       )}
       {ideas.map((idea) => (
-        <div key={idea.id} style={cardStyle}>
+        <div key={idea.id} style={ideaCardStyle}>
           <div
             style={{
               display: 'inline-block',
@@ -1183,7 +1248,7 @@ export default function LeadCampaignsPage() {
           >
             {playLabel(idea.play)}
           </div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY }}>
+          <div style={{ fontSize: '17px', fontWeight: 800, color: NAVY }}>
             {idea.title}
           </div>
           {idea.subject && (
