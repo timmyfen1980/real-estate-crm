@@ -21,9 +21,67 @@ interface LeadCampaign {
   tracked_url: string;
   caption: string | null;
   status: string;
+  budget_amount: number | null;
+  budget_days: number | null;
+  audience: string | null;
+  meta_campaign_id: string | null;
+  meta_status: string | null;
+  spend: number | null;
   created_by: string | null;
   created_at: string;
   counts: CampaignCounts;
+}
+
+interface CampaignIdea {
+  id: string;
+  play: string;
+  title: string;
+  subject: string | null;
+  hook: string | null;
+  suggested_caption: string | null;
+  capture_type: string;
+  goal: string;
+  suggested_budget: number | null;
+  suggested_days: number | null;
+  audience: string | null;
+  source_ref: string | null;
+  status: string;
+  built_campaign_id: string | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+const PLAY_LABELS: Record<string, string> = {
+  seller_push: 'Seller push',
+  new_listing: 'New listing',
+  sold: 'Sold',
+  improved_price: 'Improved price',
+  open_house: 'Open house',
+  market_update: 'Market update',
+  giveaway: 'Giveaway',
+  expired_area: 'Expired area',
+  winner_clone: 'Run it again',
+};
+
+const META_LABELS: Record<string, string> = {
+  not_sent: 'Not sent to Meta',
+  creating: 'Sending to Meta…',
+  paused: 'Paused in Meta',
+  live: 'Live',
+  ended: 'Ended',
+};
+
+function playLabel(v: string): string {
+  return PLAY_LABELS[v] || v;
+}
+
+function metaLabel(v: string | null): string {
+  if (!v) return META_LABELS.not_sent;
+  return META_LABELS[v] || v;
+}
+
+function money(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
 const NAVY = '#0f2a44';
@@ -105,6 +163,7 @@ const plainBtn: React.CSSProperties = {
 
 export default function LeadCampaignsPage() {
   const [campaigns, setCampaigns] = useState<LeadCampaign[]>([]);
+  const [ideas, setIdeas] = useState<CampaignIdea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -113,7 +172,11 @@ export default function LeadCampaignsPage() {
   const [goal, setGoal] = useState('sellers');
   const [captureType, setCaptureType] = useState('valuation');
   const [newCaption, setNewCaption] = useState('');
+  const [newBudget, setNewBudget] = useState('');
+  const [newDays, setNewDays] = useState('');
+  const [newAudience, setNewAudience] = useState('');
   const [creating, setCreating] = useState(false);
+  const [ideaBusyId, setIdeaBusyId] = useState('');
 
   // Per-campaign caption drafts + copy feedback
   const [captions, setCaptions] = useState<Record<string, string>>({});
@@ -126,6 +189,7 @@ export default function LeadCampaignsPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Could not load campaigns.');
       setCampaigns(json.campaigns || []);
+      setIdeas(json.ideas || []);
       const drafts: Record<string, string> = {};
       for (const c of json.campaigns || []) {
         drafts[c.id] = c.caption || '';
@@ -167,17 +231,40 @@ export default function LeadCampaignsPage() {
           goal,
           capture_type: captureType,
           caption: newCaption,
+          budget_amount: newBudget.trim() === '' ? null : Number(newBudget),
+          budget_days: newDays.trim() === '' ? null : Number(newDays),
+          audience: newAudience,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Could not create campaign.');
       setName('');
       setNewCaption('');
+      setNewBudget('');
+      setNewDays('');
+      setNewAudience('');
       await load();
     } catch (err: any) {
       alert(err.message || 'Could not create campaign.');
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function ideaAction(idea: CampaignIdea, action: 'build' | 'dismiss') {
+    setIdeaBusyId(idea.id);
+    try {
+      const res = await fetch(
+        `/api/lead-campaigns/ideas/${idea.id}/${action}`,
+        { method: 'POST' }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not do that.');
+      await load();
+    } catch (err: any) {
+      alert(err.message || 'Could not do that.');
+    } finally {
+      setIdeaBusyId('');
     }
   }
 
@@ -235,6 +322,94 @@ export default function LeadCampaignsPage() {
           {error}
         </div>
       )}
+
+      {/* Ideas from Rea */}
+      <h2
+        style={{
+          fontSize: '16px',
+          fontWeight: 700,
+          color: NAVY,
+          marginBottom: '12px',
+        }}
+      >
+        Ideas from Rea
+      </h2>
+      {ideas.length === 0 && (
+        <div style={{ ...cardStyle, color: '#6b7280', fontSize: '14px' }}>
+          No ideas right now — Rea adds new ones as listings, sales and open
+          houses happen.
+        </div>
+      )}
+      {ideas.map((idea) => (
+        <div key={idea.id} style={cardStyle}>
+          <div
+            style={{
+              display: 'inline-block',
+              background: '#eef2f7',
+              color: NAVY,
+              fontSize: '12px',
+              fontWeight: 700,
+              borderRadius: '999px',
+              padding: '3px 10px',
+              marginBottom: '8px',
+            }}
+          >
+            {playLabel(idea.play)}
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY }}>
+            {idea.title}
+          </div>
+          {idea.subject && (
+            <div
+              style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}
+            >
+              {idea.subject}
+            </div>
+          )}
+          {idea.hook && (
+            <div style={{ fontSize: '14px', color: '#374151', marginTop: '8px' }}>
+              {idea.hook}
+            </div>
+          )}
+          <div
+            style={{
+              fontSize: '13px',
+              color: '#6b7280',
+              marginTop: '8px',
+            }}
+          >
+            {[
+              idea.suggested_budget != null
+                ? `$${money(Number(idea.suggested_budget))}${
+                    idea.suggested_days ? ` over ${idea.suggested_days} days` : ''
+                  }`
+                : idea.suggested_days
+                  ? `${idea.suggested_days} days`
+                  : null,
+              idea.audience,
+              `${goalLabel(idea.goal)} · ${captureLabel(idea.capture_type)}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+            <button
+              style={primaryBtn}
+              disabled={ideaBusyId === idea.id}
+              onClick={() => ideaAction(idea, 'build')}
+            >
+              {ideaBusyId === idea.id ? 'Working…' : 'Build this campaign'}
+            </button>
+            <button
+              style={plainBtn}
+              disabled={ideaBusyId === idea.id}
+              onClick={() => ideaAction(idea, 'dismiss')}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ))}
 
       {/* Create */}
       <div style={cardStyle}>
@@ -294,6 +469,48 @@ export default function LeadCampaignsPage() {
             </select>
           </div>
         </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 2fr',
+            gap: '14px',
+            marginBottom: '14px',
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Budget $ (optional)</label>
+            <input
+              style={inputStyle}
+              type="number"
+              min="0"
+              step="any"
+              value={newBudget}
+              onChange={(e) => setNewBudget(e.target.value)}
+              placeholder="e.g. 75"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Days (optional)</label>
+            <input
+              style={inputStyle}
+              type="number"
+              min="1"
+              step="1"
+              value={newDays}
+              onChange={(e) => setNewDays(e.target.value)}
+              placeholder="e.g. 5"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Audience (optional)</label>
+            <input
+              style={inputStyle}
+              value={newAudience}
+              onChange={(e) => setNewAudience(e.target.value)}
+              placeholder="e.g. Homeowners in Whitby, 35+"
+            />
+          </div>
+        </div>
         <div style={{ marginBottom: '14px' }}>
           <label style={labelStyle}>Post caption (optional)</label>
           <textarea
@@ -315,8 +532,9 @@ export default function LeadCampaignsPage() {
       {/* Board */}
       {campaigns.length === 0 && !error && (
         <div style={{ ...cardStyle, color: '#6b7280', fontSize: '14px' }}>
-          No campaigns yet — create one above, drop its tracked link into a
-          post, and the leads it pulls will show up here.
+          No campaigns yet — build one of Rea&apos;s ideas above or create
+          one of your own, drop its tracked link into a post, and the leads
+          it pulls will show up here.
         </div>
       )}
 
@@ -398,6 +616,45 @@ export default function LeadCampaignsPage() {
               </div>
             ))}
           </div>
+
+          {(c.budget_amount != null || c.audience) && (
+            <div
+              style={{ fontSize: '13px', color: '#374151', marginBottom: '6px' }}
+            >
+              {[
+                c.budget_amount != null
+                  ? `$${money(Number(c.budget_amount))}${
+                      c.budget_days ? ` over ${c.budget_days} days` : ''
+                    }`
+                  : null,
+                c.audience,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+          )}
+          <div
+            style={{ fontSize: '13px', color: '#374151', marginBottom: '6px' }}
+          >
+            Meta: {metaLabel(c.meta_status)}
+            {c.meta_campaign_id ? ` · Campaign ID ${c.meta_campaign_id}` : ''}
+          </div>
+          {Number(c.spend || 0) > 0 && (
+            <div
+              style={{
+                fontSize: '13px',
+                fontWeight: 600,
+                color: NAVY,
+                marginBottom: '6px',
+              }}
+            >
+              {c.counts.pulled > 0
+                ? `Spent $${money(Number(c.spend))} · $${(
+                    Number(c.spend) / c.counts.pulled
+                  ).toFixed(2)} per lead`
+                : `Spent $${money(Number(c.spend))} · no leads yet`}
+            </div>
+          )}
 
           <label style={labelStyle}>Tracked link — paste this in the post</label>
           <div

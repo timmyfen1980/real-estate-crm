@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Lead Campaigns — dashboard API (session auth; any account member).
-// GET   /api/lead-campaigns — campaigns for the account + live counts.
-// POST  /api/lead-campaigns — create a campaign (slug + tracked URL).
-// PATCH /api/lead-campaigns — update status / caption.
+// GET   /api/lead-campaigns — campaigns for the account + live counts,
+//        plus the "Ideas from Rea" feed (new, unexpired ideas).
+// POST  /api/lead-campaigns — create a campaign (slug + tracked URL,
+//        optional budget/days/audience).
+// PATCH /api/lead-campaigns — update status / caption / budget fields.
 //
 // Counts (per campaign, contacts stamped via contacts.campaign = slug):
 //   pulled    = stamped contacts
@@ -20,7 +22,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   CAMPAIGN_GOALS,
   CAMPAIGN_STATUSES,
+  CAMPAIGN_SELECT,
   CAPTURE_URLS,
+  IDEA_SELECT,
   requireLeadCampaignAccess,
   slugify,
 } from '@/lib/leadCampaigns';
@@ -32,11 +36,26 @@ export async function GET() {
     const { ctx } = auth;
     const supabase = ctx.supabase;
 
+    // Ideas from Rea (layer 2). Fail-soft: before the layer-2 SQL runs,
+    // the table doesn't exist — the page then just shows no ideas.
+    let ideas: any[] = [];
+    try {
+      const nowIso = new Date().toISOString();
+      const { data: ideaRows, error: ideasError } = await supabase
+        .from('lead_campaign_ideas')
+        .select(IDEA_SELECT)
+        .eq('account_id', ctx.accountId)
+        .eq('status', 'new')
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+        .order('created_at', { ascending: false });
+      if (!ideasError) ideas = ideaRows || [];
+    } catch {
+      ideas = [];
+    }
+
     const { data: campaigns, error } = await supabase
       .from('lead_campaigns')
-      .select(
-        'id, name, slug, goal, channel, capture_type, capture_url, tracked_url, caption, status, created_by, created_at'
-      )
+      .select(CAMPAIGN_SELECT)
       .eq('account_id', ctx.accountId)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -110,6 +129,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
+      ideas,
       campaigns: rows.map((c: any) => ({ ...c, counts: counts[c.slug] })),
     });
   } catch (err: any) {
@@ -132,6 +152,26 @@ export async function POST(req: NextRequest) {
     const caption =
       typeof body.caption === 'string' && body.caption.trim()
         ? body.caption.trim()
+        : null;
+    const budgetAmount =
+      body.budget_amount !== undefined &&
+      body.budget_amount !== null &&
+      body.budget_amount !== ''
+        ? Number(body.budget_amount)
+        : null;
+    if (budgetAmount !== null && (!Number.isFinite(budgetAmount) || budgetAmount < 0)) {
+      return NextResponse.json({ error: 'Invalid budget.' }, { status: 400 });
+    }
+    const budgetDays =
+      body.budget_days !== undefined && body.budget_days !== null && body.budget_days !== ''
+        ? Number(body.budget_days)
+        : null;
+    if (budgetDays !== null && (!Number.isInteger(budgetDays) || budgetDays < 1)) {
+      return NextResponse.json({ error: 'Invalid days.' }, { status: 400 });
+    }
+    const audience =
+      typeof body.audience === 'string' && body.audience.trim()
+        ? body.audience.trim()
         : null;
 
     if (!name) {
@@ -178,12 +218,13 @@ export async function POST(req: NextRequest) {
         capture_url: captureUrl,
         tracked_url: `${captureUrl}?c=${slug}`,
         caption,
+        budget_amount: budgetAmount,
+        budget_days: budgetDays,
+        audience,
         status: 'active',
         created_by: ctx.userId,
       })
-      .select(
-        'id, name, slug, goal, channel, capture_type, capture_url, tracked_url, caption, status, created_by, created_at'
-      )
+      .select(CAMPAIGN_SELECT)
       .single();
     if (error) throw error;
 
@@ -227,6 +268,31 @@ export async function PATCH(req: NextRequest) {
     if (typeof body.caption === 'string') {
       updates.caption = body.caption.trim() ? body.caption.trim() : null;
     }
+    if (body.budget_amount !== undefined) {
+      if (body.budget_amount === null || body.budget_amount === '') {
+        updates.budget_amount = null;
+      } else {
+        const n = Number(body.budget_amount);
+        if (!Number.isFinite(n) || n < 0) {
+          return NextResponse.json({ error: 'Invalid budget.' }, { status: 400 });
+        }
+        updates.budget_amount = n;
+      }
+    }
+    if (body.budget_days !== undefined) {
+      if (body.budget_days === null || body.budget_days === '') {
+        updates.budget_days = null;
+      } else {
+        const n = Number(body.budget_days);
+        if (!Number.isInteger(n) || n < 1) {
+          return NextResponse.json({ error: 'Invalid days.' }, { status: 400 });
+        }
+        updates.budget_days = n;
+      }
+    }
+    if (typeof body.audience === 'string') {
+      updates.audience = body.audience.trim() ? body.audience.trim() : null;
+    }
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
         { error: 'Nothing to update.' },
@@ -239,9 +305,7 @@ export async function PATCH(req: NextRequest) {
       .update(updates)
       .eq('id', id)
       .eq('account_id', ctx.accountId)
-      .select(
-        'id, name, slug, goal, channel, capture_type, capture_url, tracked_url, caption, status, created_by, created_at'
-      )
+      .select(CAMPAIGN_SELECT)
       .single();
     if (error) throw error;
 

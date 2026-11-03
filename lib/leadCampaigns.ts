@@ -33,6 +33,36 @@ export const CAPTURE_URLS: Record<string, string> = {
 export const CAMPAIGN_GOALS = ['sellers', 'buyers', 'area', 'general'] as const;
 export const CAMPAIGN_STATUSES = ['active', 'paused', 'ended'] as const;
 
+// Layer 2 — campaign ideas ("Ideas from Rea"). Play keys mirror the
+// lead_campaign_ideas.play comments in the schema; the page maps them to
+// human labels.
+export const IDEA_PLAYS = [
+  'seller_push',
+  'new_listing',
+  'sold',
+  'improved_price',
+  'open_house',
+  'market_update',
+  'giveaway',
+  'expired_area',
+  'winner_clone',
+] as const;
+
+export const META_STATUSES = [
+  'not_sent',
+  'creating',
+  'paused',
+  'live',
+  'ended',
+] as const;
+
+// Shared campaign row shape for API responses (layer 1 + layer 2 fields).
+export const CAMPAIGN_SELECT =
+  'id, name, slug, goal, channel, capture_type, capture_url, tracked_url, caption, status, budget_amount, budget_days, audience, meta_campaign_id, meta_status, spend, created_by, created_at';
+
+export const IDEA_SELECT =
+  'id, play, title, subject, hook, suggested_caption, capture_type, goal, suggested_budget, suggested_days, audience, source_ref, status, built_campaign_id, created_at, expires_at';
+
 export function slugify(name: string): string {
   const s = (name || '')
     .toLowerCase()
