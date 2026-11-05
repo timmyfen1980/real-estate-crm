@@ -415,6 +415,11 @@ const PLAY_DESIGN: Record<
     lines: ["WHAT'S YOUR", 'HOME WORTH?'],
     size: 80,
   },
+  buyer_qualify: {
+    eyebrow: 'FIRST-TIME BUYERS',
+    lines: ['WHAT CAN YOU', 'QUALIFY FOR?'],
+    size: 76,
+  },
   expired_area: {
     eyebrow: 'HOMEOWNERS',
     lines: ['HOMES ARE', 'STILL MOVING'],
@@ -1153,6 +1158,12 @@ const HONEST_POINTS = [
   'Either way — watch the homes, not the headlines.',
 ];
 
+const BUYER_QUALIFY_POINTS = [
+  'Your income sets the mortgage — the stress test decides how much',
+  'Your down payment sits on top — see 5%, 10% and 20% side by side',
+  'Debts shrink the number — a car payment counts against you',
+];
+
 async function composeSubstanceSlide(
   play: string,
   region: string,
@@ -1160,7 +1171,10 @@ async function composeSubstanceSlide(
   fonts: GraphicFonts | null
 ): Promise<Buffer> {
   let body = '';
-  if ((play === 'market_update' || play === 'buyer_market') && stats.length >= 2) {
+  if (
+    (play === 'market_update' || play === 'buyer_market' || play === 'buyer_qualify') &&
+    stats.length >= 2
+  ) {
     const eyebrow = `${(region || 'Your area').toUpperCase()} RIGHT NOW`;
     body += slideText(fonts, 'f800', eyebrow, 58, 300, 32, RED, 6);
     let y = 452;
@@ -1176,6 +1190,17 @@ async function composeSubstanceSlide(
     body += slideText(fonts, 'f800', 'THE HONEST ANSWER', 56, 330, 62, '#ffffff', 0, 'start', true);
     let y = 470;
     for (const p of HONEST_POINTS) {
+      const lines = wrapText(fonts, 'f700', p, 40, W - 190);
+      body += slideText(fonts, 'f800', '—', 58, y, 40, RED);
+      lines.forEach((ln, i) => {
+        body += slideText(fonts, 'f700', ln, 108, y + i * 56, 40, '#ffffff');
+      });
+      y += lines.length * 56 + 44;
+    }
+  } else if (play === 'buyer_qualify') {
+    body += slideText(fonts, 'f800', 'HOW THE NUMBER WORKS', 56, 330, 62, '#ffffff', 0, 'start', true);
+    let y = 470;
+    for (const p of BUYER_QUALIFY_POINTS) {
       const lines = wrapText(fonts, 'f700', p, 40, W - 190);
       body += slideText(fonts, 'f800', '—', 58, y, 40, RED);
       lines.forEach((ln, i) => {
@@ -1225,6 +1250,14 @@ const EXPLAINERS: Record<string, { title: string; lines: string[] }> = {
       'New listings land in your inbox before the portals.',
       'Watch only the streets you actually want.',
       'No spam — just the homes. Tap the link.',
+    ],
+  },
+  buyer_qualify: {
+    title: 'HOW IT WORKS',
+    lines: [
+      'Answer 4 quick questions — about a minute, no forms to wrestle.',
+      'See your number at three down-payment levels, instantly.',
+      'Want it exact? We run it properly — free, no obligation.',
     ],
   },
   seller_push: {
@@ -1391,7 +1424,7 @@ export async function generateCampaignSlides(
     const idea = await loadLinkedIdea(supabase, campaign.account_id, campaign.id);
     const play = resolveSlidePlay(campaign, subject);
     const stats =
-      play === 'market_update' || play === 'buyer_market'
+      play === 'market_update' || play === 'buyer_market' || play === 'buyer_qualify'
         ? await loadMarketStats(supabase, campaign.account_id)
         : [];
     const buffers = await composeSlideSet(campaign, subject, idea, play, stats);

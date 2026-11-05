@@ -28,6 +28,7 @@ export const CAPTURE_URLS: Record<string, string> = {
   valuation: 'https://www.thefcgroup.ca/valuation',
   watch: 'https://www.thefcgroup.ca/watch-my-area',
   giveaway: 'https://www.thefcgroup.ca/giveaway',
+  qualify: 'https://www.thefcgroup.ca/qualify',
 };
 
 export const CAMPAIGN_GOALS = ['sellers', 'buyers', 'area', 'general'] as const;
