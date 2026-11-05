@@ -222,6 +222,11 @@ export default function LeadCampaignsPage() {
     caption: string;
   } | null>(null);
 
+  // Campaign cards are collapsed by default — click a card header to expand it
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const toggleCampaign = (id: string) =>
+    setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/lead-campaigns');
@@ -761,14 +766,30 @@ export default function LeadCampaignsPage() {
               marginBottom: '10px',
             }}
           >
-            <div>
+            <div
+              onClick={() => toggleCampaign(c.id)}
+              style={{ cursor: 'pointer', flex: 1 }}
+              title={expandedIds[c.id] ? 'Collapse' : 'Expand'}
+            >
               <div
                 style={{ fontSize: '17px', fontWeight: 700, color: NAVY }}
               >
+                {expandedIds[c.id] ? '▾ ' : '▸ '}
                 {c.name}
               </div>
               <div style={{ fontSize: '13px', color: '#6b7280' }}>
                 {goalLabel(c.goal)} · {captureLabel(c.capture_type)} · Social
+              </div>
+              <div
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginTop: '4px',
+                }}
+              >
+                {c.counts.pulled} pulled · {c.counts.contacted} contacted ·{' '}
+                {c.counts.clients} clients · {c.counts.deals} deals
               </div>
             </div>
             <select
@@ -791,6 +812,8 @@ export default function LeadCampaignsPage() {
             </select>
           </div>
 
+          {expandedIds[c.id] && (
+            <>
           <div
             style={{
               display: 'grid',
@@ -1353,6 +1376,8 @@ export default function LeadCampaignsPage() {
               {copiedKey === `caption-${c.id}` ? 'Copied ✓' : 'Copy caption'}
             </button>
           </div>
+            </>
+          )}
         </div>
       ))}
         </div>
