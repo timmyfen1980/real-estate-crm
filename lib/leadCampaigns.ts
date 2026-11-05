@@ -39,6 +39,7 @@ export const CAMPAIGN_STATUSES = ['active', 'paused', 'ended'] as const;
 // human labels.
 export const IDEA_PLAYS = [
   'seller_push',
+  'buyer_qualify',
   'new_listing',
   'sold',
   'improved_price',
