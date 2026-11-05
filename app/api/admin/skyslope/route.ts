@@ -6,7 +6,7 @@ import { createHmac } from 'crypto';
 // in this project's Vercel environment variables (Tim pastes them there;
 // they never pass through chat or Rea):
 //   SKYSLOPE_CLIENT_ID, SKYSLOPE_CLIENT_SECRET,
-//   SKYSLOPE_ACCESS_KEY, SKYSLOPE_ACCESS_SECRET
+//   SKYSLOPE_ACCESS_KEY, SKYSLOPE_SECRET_KEY (alias SKYSLOPE_ACCESS_SECRET)
 //
 // SkySlope auth (from SkySlope's own sample code):
 //   timestamp = current UTC time, ISO, no milliseconds
@@ -48,7 +48,7 @@ function configuredCredSets(): { sets: CredSet[]; missing: string[] } {
   const clientId = process.env.SKYSLOPE_CLIENT_ID || '';
   const clientSecret = process.env.SKYSLOPE_CLIENT_SECRET || '';
   const accessKey = process.env.SKYSLOPE_ACCESS_KEY || '';
-  const accessSecret = process.env.SKYSLOPE_ACCESS_SECRET || '';
+  const accessSecret = process.env.SKYSLOPE_SECRET_KEY || process.env.SKYSLOPE_ACCESS_SECRET || '';
   const sets: CredSet[] = [];
   const missing: string[] = [];
   if (clientId && clientSecret && accessKey && accessSecret) {
@@ -57,7 +57,7 @@ function configuredCredSets(): { sets: CredSet[]; missing: string[] } {
     if (!clientId) missing.push('SKYSLOPE_CLIENT_ID');
     if (!clientSecret) missing.push('SKYSLOPE_CLIENT_SECRET');
     if (!accessKey) missing.push('SKYSLOPE_ACCESS_KEY');
-    if (!accessSecret) missing.push('SKYSLOPE_ACCESS_SECRET');
+    if (!accessSecret) missing.push('SKYSLOPE_SECRET_KEY');
   }
   if (accessKey && accessSecret && !(clientId && clientSecret)) {
     // Fallback worth one honest try: some first-party setups use the
