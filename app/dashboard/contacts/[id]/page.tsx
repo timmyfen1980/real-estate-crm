@@ -648,6 +648,14 @@ const handleDelete = async () => {
     return
   }
 
+  // Deleting a contact ends all of its active campaign enrollments,
+  // so no drip or newsletter email is ever sent to it again.
+  await supabase
+    .from('contact_campaigns')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('contact_id', contactId)
+    .eq('status', 'active')
+
   router.push('/dashboard/contacts')
 }
 const assignCampaign = async () => {

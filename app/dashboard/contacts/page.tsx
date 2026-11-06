@@ -201,6 +201,14 @@ const bulkDelete = async () => {
     return
   }
 
+  // Deleting contacts ends all of their active campaign enrollments,
+  // so no drip or newsletter email is ever sent to them again.
+  await supabase
+    .from('contact_campaigns')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .in('contact_id', selectedIds)
+    .eq('status', 'active')
+
   loadData()
   setSelectedIds([])
 }

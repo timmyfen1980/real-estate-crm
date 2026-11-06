@@ -175,11 +175,11 @@ export async function GET(req: Request) {
             // do-not-contact or opted-out contacts.
             const { data: flags } = await supabase
               .from('contacts')
-              .select('do_not_contact, email_opt_in')
+              .select('do_not_contact, email_opt_in, is_deleted')
               .eq('id', enr.contact_id)
               .single()
 
-            if (flags?.do_not_contact || flags?.email_opt_in === false) {
+            if (flags?.do_not_contact || flags?.email_opt_in === false || flags?.is_deleted) {
               console.log(
                 `Newsletter: skipping ${contact.email} (do not contact / opted out)`
               )
@@ -316,16 +316,14 @@ export async function GET(req: Request) {
   .eq('step_number', c.current_step)
   .single()
 
-if (sequenceError) {
-  throw new Error(
-    `SEQUENCE LOOKUP FAILED: ${sequenceError.message} | Campaign: ${c.campaign_id} | Step: ${c.current_step}`
+if (sequenceError || !sequence) {
+  // Never let one enrollment's missing step crash the whole run
+  // (2026-11-06: a single bad record must not stop everyone's email).
+  // Skip it and leave it due so a fixed sequence can pick it up later.
+  console.log(
+    `Skipping enrollment ${c.id}: no sequence for campaign ${c.campaign_id} step ${c.current_step}`
   )
-}
-
-if (!sequence) {
-  throw new Error(
-    `SEQUENCE IS NULL | Campaign: ${c.campaign_id} | Step: ${c.current_step}`
-  )
+  continue
 }
 
 console.log(`Sequence found: ${sequence.subject}`)
@@ -336,21 +334,26 @@ console.log(`Sequence found: ${sequence.subject}`)
 } = await supabase
   .from('contacts')
   .select(
-    'email, first_name, assigned_user_id, account_id'
+    'email, first_name, assigned_user_id, account_id, is_deleted'
   )
   .eq('id', c.contact_id)
   .single()
 
-if (contactError) {
-  throw new Error(
-    `CONTACT LOOKUP FAILED: ${contactError.message} | Contact ID: ${c.contact_id}`
+if (contactError || !contact || contact.is_deleted) {
+  // The contact is gone (hard-deleted) or deleted in the CRM: retire
+  // this enrollment and move on. Throwing here is what let one
+  // orphaned enrollment crash every processor run on 2026-11-05/06.
+  console.log(
+    `Retiring enrollment ${c.id}: contact ${c.contact_id} missing or deleted`
   )
-}
-
-if (!contact) {
-  throw new Error(
-    `CONTACT IS NULL | Contact ID: ${c.contact_id}`
-  )
+  await supabase
+    .from('contact_campaigns')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', c.id)
+  continue
 }
 
 if (!contact.email) {
