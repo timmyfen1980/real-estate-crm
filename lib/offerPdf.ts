@@ -2007,6 +2007,103 @@ function fillRuledLines(
   fields.forEach((name, i) => setText(name, lines[i]));
 }
 
+// Schedule A continuation pages for the representation / listing
+// agreements (Tim, 2026-11-10 — the same treatment Form 100's Schedule
+// A already had): when the wrapped text needs more ruled lines than
+// the form's Schedule A page holds, copy that page, strip its widgets,
+// recreate the header repeats and the ruled lines as fresh fields
+// carrying the overflow, and renumber every footer to the new total.
+// The line/header geometry is read from the template's own widgets, so
+// it follows each form's layout. Returns the new page count.
+async function appendScheduleContinuation(
+  doc: PDFDocument,
+  form: PDFForm,
+  templateBytes: Uint8Array,
+  helvetica: PDFFont,
+  opts: {
+    lineFields: string[];
+    headerFields: { name: string; value?: string }[];
+    overflow: string[];
+  }
+): Promise<number> {
+  const perPage = opts.lineFields.length;
+  const widgetOf = (name: string): any => {
+    try {
+      return (form.getTextField(name) as any).acroField.getWidgets()[0];
+    } catch {
+      return null;
+    }
+  };
+  const rectOf = (name: string): { x: number; y: number; width: number; height: number } | null => {
+    const w = widgetOf(name);
+    if (!w) return null;
+    try {
+      return w.getRectangle();
+    } catch {
+      return null;
+    }
+  };
+
+  let srcPageIndex = doc.getPageCount() - 1;
+  const firstWidget = widgetOf(opts.lineFields[0]);
+  if (firstWidget) {
+    try {
+      const pref = firstWidget.P();
+      for (let i = 0; i < doc.getPageCount(); i++) {
+        if ((doc.getPage(i) as any).ref === pref) {
+          srcPageIndex = i;
+          break;
+        }
+      }
+    } catch {
+      // keep the last page as the copy source
+    }
+  }
+
+  const lineRects = opts.lineFields.map(rectOf);
+  const headerRects = opts.headerFields.map((h) => ({
+    rect: rectOf(h.name),
+    value: h.value,
+  }));
+  const toTL = (
+    r: { x: number; y: number; width: number; height: number },
+    pageHeight: number
+  ): number[] => [r.x, pageHeight - (r.y + r.height), r.x + r.width, pageHeight - r.y];
+
+  const baseTotal = doc.getPageCount();
+  let idx = 0;
+  while (idx < opts.overflow.length) {
+    const src = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+    const [copied] = await doc.copyPages(src, [srcPageIndex]);
+    const np = doc.addPage(copied);
+    try {
+      (np.node as any).delete(PDFName.of("Annots"));
+    } catch {
+      // no annotations to strip
+    }
+    const H = np.getHeight();
+    for (const h of headerRects) {
+      if (h.rect && h.value) {
+        createField(doc, form, np, "rea_schedhdr", toTL(h.rect, H), h.value, { size: 10 });
+      }
+    }
+    for (let j = 0; j < perPage && idx < opts.overflow.length; j++, idx++) {
+      const r = lineRects[j];
+      if (r) {
+        createField(doc, form, np, "rea_schedline", toTL(r, H), opts.overflow[idx], { size: 10 });
+      }
+    }
+  }
+
+  const total = doc.getPageCount();
+  if (total !== baseTotal) {
+    for (let i = 0; i < total; i++) {
+      fixFooter(doc.getPage(i), helvetica, i + 1, total, i >= baseTotal);
+    }
+  }
+  return total;
+}
+
 async function buildRepForm(
   deal: any,
   templateBytes: Uint8Array,
@@ -2083,7 +2180,8 @@ async function buildRepForm(
   fillRuledLines(setText, leaseFields, leaseFields.map(() => 512), rep.commission_lease, helvetica, "lease commission");
   setText(F.holdover_days, rep.holdover_days);
 
-  // Schedule A (page 4) — free text across the ruled lines.
+  // Schedule A (page 4) — free text across the ruled lines, flowing
+  // onto continuation pages that replicate page 4 when it overflows.
   if (rep.schedule_a_text && String(rep.schedule_a_text).trim()) {
     const paragraphs = String(rep.schedule_a_text).split(/\n+/).map((s: string) => s.trim()).filter(Boolean);
     const wrapped: string[] = [];
@@ -2091,12 +2189,24 @@ async function buildRepForm(
       if (i > 0) wrapped.push("");
       wrapped.push(...wrapText(para, helvetica, 10, 512));
     });
-    if (wrapped.length > F.schedule_a_lines.length) {
-      throw new Error(
-        `The Schedule A text needs ${wrapped.length} lines but the form has ${F.schedule_a_lines.length} — shorten it and try again.`
-      );
-    }
     F.schedule_a_lines.forEach((name, i) => setText(name, wrapped[i]));
+    if (wrapped.length > F.schedule_a_lines.length) {
+      const headerFields: { name: string; value?: string }[] = [];
+      if (F.buyer_name[1]) {
+        headerFields.push({ name: F.buyer_name[1], value: join(rep.clients) });
+      }
+      if (F.brokerage_name[1]) {
+        headerFields.push({
+          name: F.brokerage_name[1],
+          value: rep.brokerage_name || "RE/MAX HALLMARK FIRST GROUP REALTY LTD.",
+        });
+      }
+      await appendScheduleContinuation(doc, form, templateBytes, helvetica, {
+        lineFields: F.schedule_a_lines,
+        headerFields,
+        overflow: wrapped.slice(F.schedule_a_lines.length),
+      });
+    }
   }
 
   form.updateFieldAppearances(helvetica);
@@ -2467,7 +2577,8 @@ async function buildListingForm(
   }
   setText(F.holdover_days, L.holdover_days);
 
-  // Schedule A (page 4) — free text across the ruled lines.
+  // Schedule A (page 4) — free text across the ruled lines, flowing
+  // onto continuation pages that replicate page 4 when it overflows.
   if (L.schedule_a_text && String(L.schedule_a_text).trim()) {
     const paragraphs = String(L.schedule_a_text).split(/\n+/).map((s: string) => s.trim()).filter(Boolean);
     const wrapped: string[] = [];
@@ -2475,12 +2586,24 @@ async function buildListingForm(
       if (i > 0) wrapped.push("");
       wrapped.push(...wrapText(para, helvetica, 10, 512));
     });
-    if (wrapped.length > F.schedule_a_lines.length) {
-      throw new Error(
-        `The Schedule A text needs ${wrapped.length} lines but the form has ${F.schedule_a_lines.length} — shorten it and try again.`
-      );
-    }
     F.schedule_a_lines.forEach((name, i) => setText(name, wrapped[i]));
+    if (wrapped.length > F.schedule_a_lines.length) {
+      const headerFields: { name: string; value?: string }[] = [];
+      if (F.client_name[1]) {
+        headerFields.push({ name: F.client_name[1], value: join(L.clients) });
+      }
+      if (F.brokerage_name[1]) {
+        headerFields.push({
+          name: F.brokerage_name[1],
+          value: L.brokerage_name || "RE/MAX HALLMARK FIRST GROUP REALTY LTD.",
+        });
+      }
+      await appendScheduleContinuation(doc, form, templateBytes, helvetica, {
+        lineFields: F.schedule_a_lines,
+        headerFields,
+        overflow: wrapped.slice(F.schedule_a_lines.length),
+      });
+    }
   }
 
   form.updateFieldAppearances(helvetica);
