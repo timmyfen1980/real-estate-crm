@@ -5,7 +5,8 @@ import { createHmac } from 'crypto';
 // Bearer-gated with the agent secret. The SkySlope keys themselves live ONLY
 // in this project's Vercel environment variables (Tim pastes them there;
 // they never pass through chat or Rea):
-//   SKYSLOPE_CLIENT_ID, SKYSLOPE_CLIENT_SECRET,
+//   SKYSLOPE_CLIENT_ID (alias HALLMARK_SKYSLOPE_CLIENT),
+//   SKYSLOPE_CLIENT_SECRET (alias SKYSLOPE_HALLMARK_SECRET),
 //   SKYSLOPE_ACCESS_KEY, SKYSLOPE_SECRET_KEY (alias SKYSLOPE_ACCESS_SECRET)
 //
 // SkySlope auth (from SkySlope's own sample code):
@@ -45,8 +46,8 @@ interface CredSet {
 }
 
 function configuredCredSets(): { sets: CredSet[]; missing: string[] } {
-  const clientId = process.env.SKYSLOPE_CLIENT_ID || '';
-  const clientSecret = process.env.SKYSLOPE_CLIENT_SECRET || '';
+  const clientId = process.env.SKYSLOPE_CLIENT_ID || process.env.HALLMARK_SKYSLOPE_CLIENT || '';
+  const clientSecret = process.env.SKYSLOPE_CLIENT_SECRET || process.env.SKYSLOPE_HALLMARK_SECRET || '';
   const accessKey = process.env.SKYSLOPE_ACCESS_KEY || '';
   const accessSecret = process.env.SKYSLOPE_SECRET_KEY || process.env.SKYSLOPE_ACCESS_SECRET || '';
   const sets: CredSet[] = [];
