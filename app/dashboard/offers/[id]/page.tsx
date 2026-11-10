@@ -376,6 +376,12 @@ export default function PrepareOfferPage() {
   const [lawyerEmail, setLawyerEmail] = useState('')
   const [lawyerPhone, setLawyerPhone] = useState('')
   const [lawyerFax, setLawyerFax] = useState('')
+  const [sellerLawyerName, setSellerLawyerName] = useState('')
+  const [sellerLawyerFirm, setSellerLawyerFirm] = useState('')
+  const [sellerLawyerAddress, setSellerLawyerAddress] = useState('')
+  const [sellerLawyerEmail, setSellerLawyerEmail] = useState('')
+  const [sellerLawyerPhone, setSellerLawyerPhone] = useState('')
+  const [sellerLawyerFax, setSellerLawyerFax] = useState('')
   const [showAddLawyer, setShowAddLawyer] = useState(false)
   const [nlName, setNlName] = useState('')
   const [nlFirm, setNlFirm] = useState('')
@@ -641,10 +647,35 @@ export default function PrepareOfferPage() {
     const bl = deal.buyer_lawyer || {}
     if (bl.name) setLawyerName(bl.name)
     if (bl.firm) setLawyerFirm(bl.firm)
-    if (bl.address) setLawyerAddress(bl.address)
+    if (bl.address) {
+      // buildDeal folds the firm into the address; unfold it here so
+      // re-saving does not duplicate the firm on every cycle.
+      let addr = String(bl.address)
+      if (bl.firm && addr === bl.firm) {
+        addr = ''
+      } else if (bl.firm && addr.startsWith(bl.firm + ', ')) {
+        addr = addr.slice(bl.firm.length + 2)
+      }
+      setLawyerAddress(addr)
+    }
     if (bl.email) setLawyerEmail(bl.email)
     if (bl.phone) setLawyerPhone(bl.phone)
     if (bl.fax) setLawyerFax(bl.fax)
+    const sl = deal.seller_lawyer || {}
+    if (sl.name) setSellerLawyerName(sl.name)
+    if (sl.firm) setSellerLawyerFirm(sl.firm)
+    if (sl.address) {
+      let addr = String(sl.address)
+      if (sl.firm && addr === sl.firm) {
+        addr = ''
+      } else if (sl.firm && addr.startsWith(sl.firm + ', ')) {
+        addr = addr.slice(sl.firm.length + 2)
+      }
+      setSellerLawyerAddress(addr)
+    }
+    if (sl.email) setSellerLawyerEmail(sl.email)
+    if (sl.phone) setSellerLawyerPhone(sl.phone)
+    if (sl.fax) setSellerLawyerFax(sl.fax)
     if (deal.coop) {
       if (deal.coop.share) setCoopShare(deal.coop.share)
       if (deal.coop.basis) setCoopBasis(deal.coop.basis)
@@ -1303,6 +1334,16 @@ export default function PrepareOfferPage() {
               fax: lawyerFax || undefined,
             }
           : undefined,
+        seller_lawyer: sellerLawyerName
+          ? {
+              name: sellerLawyerName,
+              firm: sellerLawyerFirm || undefined,
+              address: [sellerLawyerFirm, sellerLawyerAddress].filter(Boolean).join(', ') || undefined,
+              email: sellerLawyerEmail || undefined,
+              phone: sellerLawyerPhone || undefined,
+              fax: sellerLawyerFax || undefined,
+            }
+          : undefined,
       },
       forms: ['100', '801'],
       clauseCodes: selectedClauses,
@@ -1423,6 +1464,14 @@ export default function PrepareOfferPage() {
       }
       if (opts.save) {
         await refreshPkg()
+        // This form was just generated from the current answers — mark
+        // it current, then refresh every other form in the package so
+        // no filed PDF is older than the answers (Tim, 2026-11-10).
+        if (form) {
+          pdfSig.current[form] = sigRef.current
+          pdfLastAt.current[form] = Date.now()
+        }
+        await silentSaveAllPdfs(sigRef.current, true)
         setActionNote(
           data.package_error
             ? `The PDF is ready below, but saving to the package failed: ${data.package_error}`
@@ -1502,8 +1551,7 @@ export default function PrepareOfferPage() {
         setSaveState(
           `Autosaved ${new Date().toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })}`
         )
-        const f = formForTab()
-        if (f) void silentSavePdf(f, dealSignature)
+        await silentSaveAllPdfs(dealSignature)
       } catch {
         setSaveState(
           "Autosave couldn't reach the server — your work is still on this screen, and Save to package will store it."
@@ -1542,6 +1590,26 @@ export default function PrepareOfferPage() {
       /* retried on the next change, tab switch, or page hide */
     }
     pdfBusy.current = false
+  }
+
+  // Regenerate EVERY form already in the package from the current
+  // answers (Tim, 2026-11-10) — not just the open tab's form. The old
+  // behaviour left the other forms' PDFs stale whenever an answer was
+  // edited while a different tab was open (e.g. a Form 371 holdover
+  // typed on the Offer tab never reached the 371 already filed in the
+  // package). Each form still self-skips when its PDF already matches
+  // the current signature.
+  const silentSaveAllPdfs = async (sig: string, force = false) => {
+    const forms = new Set<string>()
+    for (const d of pkgDocs) {
+      const f = String((d as any).form || '')
+      if (f) forms.add(f)
+    }
+    const cur = formForTab()
+    if (cur) forms.add(cur)
+    for (const f of Array.from(forms)) {
+      await silentSavePdf(f, sig, force)
+    }
   }
 
   sigRef.current = dealSignature
@@ -2347,6 +2415,37 @@ export default function PrepareOfferPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* SELLER'S LAWYER */}
+        <div className={tab === 'offer' ? sectionCls : 'hidden'}>
+          <h2 className={h2Cls}>Seller's Lawyer</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Lawyer name</label>
+              <input className={inputCls} value={sellerLawyerName} onChange={(e) => setSellerLawyerName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Firm</label>
+              <input className={inputCls} value={sellerLawyerFirm} onChange={(e) => setSellerLawyerFirm(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Address</label>
+              <input className={inputCls} value={sellerLawyerAddress} onChange={(e) => setSellerLawyerAddress(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Email</label>
+              <input className={inputCls} value={sellerLawyerEmail} onChange={(e) => setSellerLawyerEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Phone</label>
+              <input className={inputCls} value={sellerLawyerPhone} onChange={(e) => setSellerLawyerPhone(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Fax</label>
+              <input className={inputCls} value={sellerLawyerFax} onChange={(e) => setSellerLawyerFax(e.target.value)} />
+            </div>
+          </div>
         </div>
 
         {/* INCLUSIONS */}

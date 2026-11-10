@@ -759,6 +759,66 @@
    452
   ]
  },
+ "_lines": {
+  "includes": [
+   {
+    "name": "d",
+    "w": 420
+   },
+   {
+    "name": "dddddddd",
+    "w": 505
+   },
+   {
+    "name": "ddddddddd",
+    "w": 505
+   },
+   {
+    "name": "dddddddddd",
+    "w": 505
+   },
+   {
+    "name": "f",
+    "w": 505
+   }
+  ],
+  "excludes": [
+   {
+    "name": "dd",
+    "w": 420
+   },
+   {
+    "name": "ff",
+    "w": 505
+   },
+   {
+    "name": "fff",
+    "w": 505
+   },
+   {
+    "name": "fffff",
+    "w": 505
+   },
+   {
+    "name": "ffffff",
+    "w": 505
+   }
+  ],
+  "rentals": [
+   {
+    "name": "ddd",
+    "w": 505
+   },
+   {
+    "name": "fffffff",
+    "w": 505
+   },
+   {
+    "name": "ffffffff",
+    "w": 505
+   }
+  ]
+ },
  "calibration": {
   "default_dy": 0,
   "fields": {

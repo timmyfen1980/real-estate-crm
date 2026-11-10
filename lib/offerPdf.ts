@@ -768,6 +768,22 @@ async function buildApsCore(
   return { bytes, pages: total };
 }
 
+// Form 100 extras — page 2's chattels / fixtures / rental paragraphs
+// print on ruled lines just like 101/102 (Tim, 2026-11-10): the old
+// single-field fill squeezed the whole paragraph into one one-line
+// widget (the third ruled line), so everything past ~135 characters —
+// e.g. a stair lift, gas BBQ and shed typed after the standard items —
+// was clipped off the printed form. Wrap across every ruled line of
+// each block instead; any remainder lands on the last line.
+function fill100Extras(doc: PDFDocument, form: PDFForm, deal: any, helvetica: PDFFont): void {
+  void doc;
+  const M: any = mapping100;
+  const t = apsLineTexts(deal);
+  fillApsLines(form, helvetica, M._lines.includes, t.includes);
+  fillApsLines(form, helvetica, M._lines.excludes, t.excludes);
+  fillApsLines(form, helvetica, M._lines.rentals, t.rentals);
+}
+
 export async function buildForm100(
   deal: any,
   paragraphs: string[],
@@ -776,6 +792,8 @@ export async function buildForm100(
   return buildApsCore(deal, paragraphs, templateBytes, {
     mapping: mapping100,
     topDate: TOP_DATE_WIDGETS,
+    multiLine: true,
+    extras: fill100Extras,
   });
 }
 
