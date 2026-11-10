@@ -187,7 +187,8 @@ const { count } = await query
       setOverdueCount(count || 0)
 // 🔴 LEADS NEEDING ATTENTION COUNT (mirrors the Leads page category:
 // New, or follow-up due/overdue, or no follow-up date and older than
-// 14 days — excluding Client / Closed / Lost)
+// 14 days — excluding Client / Closed / Lost, realtor-flagged leads,
+// and leads whose contact has follow-ups stopped / do_not_contact)
 const _parts = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Toronto',
   year: 'numeric',
@@ -198,9 +199,9 @@ const _get = (t: string) => _parts.find(p => p.type === t)?.value || ''
 const _todayStr = `${_get('year')}-${_get('month')}-${_get('day')}`
 const _staleCutoff = new Date(Date.now() - 14 * 86400000).toISOString()
 
-const { count: newLeads } = await supabase
+const { data: attentionLeads } = await supabase
   .from('leads')
-  .select('id', { count: 'exact', head: true })
+  .select('id, contact_id')
   .eq('account_id', membership.account_id)
   .eq('assigned_user_id', user.id)
   .not('status', 'in', '("Client","Closed","Lost")')
@@ -209,7 +210,31 @@ const { count: newLeads } = await supabase
   )
   .or('working_with_realtor.is.null,working_with_realtor.eq.false')
 
-setNewLeadsCount(newLeads || 0)
+let leadBadgeCount = (attentionLeads || []).length
+
+// Follow-ups stopped (Tim, 2026-11-10): the do_not_contact flag lives on
+// the contact, so subtract any counted lead whose contact is stopped.
+const attentionContactIds = [
+  ...new Set(
+    (attentionLeads || []).map(l => l.contact_id).filter(Boolean)
+  ),
+] as string[]
+if (attentionContactIds.length > 0) {
+  const { data: stoppedContacts } = await supabase
+    .from('contacts')
+    .select('id')
+    .in('id', attentionContactIds)
+    .eq('do_not_contact', true)
+
+  if (stoppedContacts && stoppedContacts.length > 0) {
+    const stoppedIds = new Set(stoppedContacts.map(c => c.id))
+    leadBadgeCount = (attentionLeads || []).filter(
+      l => !l.contact_id || !stoppedIds.has(l.contact_id)
+    ).length
+  }
+}
+
+setNewLeadsCount(leadBadgeCount)
 
       // 🔹 Due Tasks Count (sidebar badge — Tim's rule, 2026-10-21: only
       // tasks due within the next 3 days or overdue are counted, so the
