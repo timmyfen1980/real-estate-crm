@@ -103,6 +103,10 @@ const [followupError, setFollowupError] = useState<string | null>(null)
 const [followupDoneSaving, setFollowupDoneSaving] = useState(false)
 const [followupDoneSaved, setFollowupDoneSaved] = useState(false)
 const [followupDoneError, setFollowupDoneError] = useState<string | null>(null)
+const [contactDnc, setContactDnc] = useState(false)
+const [stopSaving, setStopSaving] = useState(false)
+const [stopSaved, setStopSaved] = useState(false)
+const [stopError, setStopError] = useState<string | null>(null)
 const [enrollments, setEnrollments] = useState<any[]>([])
 const [leadTasks, setLeadTasks] = useState<Task[]>([])
 const [clientFileId, setClientFileId] = useState<string | null>(null)
@@ -133,6 +137,18 @@ const [selectedTask, setSelectedTask] = useState<Task | null>(null)
     }
 
     setLead(leadData)
+
+    // LOAD DO-NOT-CONTACT FLAG FOR THIS LEAD'S CONTACT
+    if (leadData.contact_id) {
+      const { data: contactFlags } = await supabase
+        .from('contacts')
+        .select('do_not_contact')
+        .eq('id', leadData.contact_id)
+        .maybeSingle()
+      setContactDnc(!!contactFlags?.do_not_contact)
+    } else {
+      setContactDnc(false)
+    }
 
 // LOAD DRIP ENROLLMENTS FOR THIS CONTACT
 const { data: enrollData } = await supabase
@@ -633,6 +649,73 @@ const markFollowupDone = async () => {
   }
 }
 
+// STOP / RESUME FOLLOW-UPS (Tim, 2026-11-10): one tap sets the contact's
+// do_not_contact flag. Stopping completes this lead's open follow-up and
+// check-in tasks and pauses the contact's active drip enrollments; the
+// daily task engine then never creates another one. Resuming clears the
+// flag (paused drips stay paused until resumed in Email Drips below).
+const toggleStopFollowups = async () => {
+  if (!lead || stopSaving) return
+  if (!lead.contact_id) {
+    setStopError(
+      'This lead is not linked to a contact, so the stop cannot be saved.'
+    )
+    return
+  }
+  const stop = !contactDnc
+  setStopSaving(true)
+  setStopError(null)
+  try {
+    const { data: userData } = await supabase.auth.getUser()
+
+    const { error: flagError } = await supabase
+      .from('contacts')
+      .update({ do_not_contact: stop })
+      .eq('id', lead.contact_id)
+    if (flagError) throw flagError
+
+    if (stop) {
+      await supabase
+        .from('tasks')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('lead_id', lead.id)
+        .in('source', ['lead_followup', 'drip_checkin'])
+        .eq('status', 'pending')
+
+      await supabase
+        .from('contact_campaigns')
+        .update({ status: 'paused' })
+        .eq('contact_id', lead.contact_id)
+        .eq('status', 'active')
+    }
+
+    if (userData.user) {
+      await supabase.from('lead_activity').insert([
+        {
+          lead_id: lead.id,
+          account_id: lead.account_id,
+          user_id: userData.user.id,
+          type: stop ? 'followups_stopped' : 'followups_resumed',
+          metadata: { via: 'lead_page' },
+        },
+      ])
+    }
+
+    setContactDnc(stop)
+    setStopSaved(true)
+    window.dispatchEvent(new Event('rea:counts-refresh'))
+    await loadData()
+    setTimeout(() => setStopSaved(false), 3000)
+  } catch {
+    setStopError('Could not save — please try again.')
+  } finally {
+    setStopSaving(false)
+  }
+}
+
 const completeLeadTask = async (task: Task) => {
   const { error } = await supabase
     .from('tasks')
@@ -683,6 +766,7 @@ const toggleEnrollment = async (enrollment: any) => {
     : null
   const needsFollowup =
     !lead.working_with_realtor &&
+    !contactDnc &&
     !['Client', 'Closed', 'Lost'].includes(lead.status) &&
     (lead.status === 'New' || (daysSinceContact !== null && daysSinceContact > 7))
 
@@ -718,9 +802,30 @@ const toggleEnrollment = async (enrollment: any) => {
         {followupDoneSaved && (
           <span className="text-sm text-green-600">Marked done ✓</span>
         )}
+        <button
+          onClick={toggleStopFollowups}
+          disabled={stopSaving}
+          className={
+            contactDnc
+              ? 'border border-green-700 text-green-700 px-5 py-2 rounded-lg hover:bg-green-50 transition disabled:opacity-60'
+              : 'border border-red-600 text-red-600 px-5 py-2 rounded-lg hover:bg-red-50 transition disabled:opacity-60'
+          }
+        >
+          {stopSaving
+            ? 'Saving...'
+            : contactDnc
+              ? '▶ Resume follow-ups'
+              : '🛑 Stop follow-ups'}
+        </button>
+        {stopSaved && (
+          <span className="text-sm text-green-600">Saved ✓</span>
+        )}
       </div>
       {followupDoneError && (
         <p className="text-sm text-red-600 mt-2">{followupDoneError}</p>
+      )}
+      {stopError && (
+        <p className="text-sm text-red-600 mt-2">{stopError}</p>
       )}
     </div>
 
@@ -911,6 +1016,21 @@ const toggleEnrollment = async (enrollment: any) => {
             </div>
           )}
 
+        {contactDnc &&
+          !['Client', 'Closed', 'Lost'].includes(lead.status) && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+              <div className="font-semibold text-red-900">
+                Follow-ups are OFF for this contact
+              </div>
+              <div className="text-sm text-red-700">
+                You stopped outreach — no follow-up tasks, check-ins or
+                drip emails, and newsletters and broadcasts skip them
+                too. Paused drips stay paused; resume them in Email
+                Drips below if you ever want them back.
+              </div>
+            </div>
+          )}
+
         {needsFollowup && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-wrap justify-between items-center gap-4">
             <div>
@@ -942,6 +1062,7 @@ const toggleEnrollment = async (enrollment: any) => {
             <p><strong>Source:</strong> {lead.source}</p>
             <p><strong>Buyer Stage:</strong> {lead.buyer_stage || '-'}</p>
             <p><strong>Working With Realtor:</strong> {lead.working_with_realtor ? 'Yes' : 'No'}</p>
+            <p><strong>Follow-Ups:</strong> {contactDnc ? 'Off — stopped' : 'On'}</p>
             <p><strong>Realtor Name:</strong> {lead.realtor_name || '-'}</p>
             <p><strong>Wants Feature Sheet:</strong> {lead.wants_feature_sheet ? 'Yes' : 'No'}</p>
             {enrollments.length > 0 && (

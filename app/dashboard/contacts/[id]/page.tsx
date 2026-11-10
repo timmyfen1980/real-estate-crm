@@ -148,6 +148,7 @@ export default function ContactDetailPage() {
 const [newTask, setNewTask] = useState('')
   const [newNote, setNewNote] = useState('')
 const [noteError, setNoteError] = useState<string | null>(null)
+const [dncSaving, setDncSaving] = useState(false)
 const [taskError, setTaskError] = useState<string | null>(null)
 
   const [isOwner, setIsOwner] = useState(false)
@@ -497,6 +498,92 @@ const removeCampaign = async (
     [field]: value
   })
 }
+
+  // STOP / RESUME FOLLOW-UPS (Tim, 2026-11-10): sets this contact's
+  // do_not_contact flag. Stopping completes open follow-up / check-in
+  // tasks for every lead on this contact and pauses active drips; the
+  // daily task engine then never creates another one.
+  const toggleStopFollowups = async () => {
+    if (!contact || dncSaving) return
+    const stop = !formData?.do_not_contact
+    setDncSaving(true)
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({ do_not_contact: stop })
+        .eq('id', contact.id)
+      if (error) {
+        alert('Could not save — please try again.')
+        return
+      }
+
+      if (stop) {
+        const { data: contactLeads } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('contact_id', contact.id)
+        const leadIds = (contactLeads || []).map(l => l.id)
+        if (leadIds.length > 0) {
+          await supabase
+            .from('tasks')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+            })
+            .in('lead_id', leadIds)
+            .in('source', ['lead_followup', 'drip_checkin'])
+            .eq('status', 'pending')
+        }
+        await supabase
+          .from('tasks')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('contact_id', contact.id)
+          .in('source', ['lead_followup', 'drip_checkin'])
+          .eq('status', 'pending')
+        await supabase
+          .from('contact_campaigns')
+          .update({ status: 'paused' })
+          .eq('contact_id', contact.id)
+          .eq('status', 'active')
+      }
+
+      // Leave a note on the file so the change is visible later.
+      const { data: userData } = await supabase.auth.getUser()
+      if (userData.user) {
+        const { data: membership } = await supabase
+          .from('account_users')
+          .select('account_id')
+          .eq('user_id', userData.user.id)
+          .single()
+        if (membership) {
+          const { data: noteRow } = await supabase
+            .from('notes')
+            .insert([
+              {
+                contact_id: contactId,
+                account_id: membership.account_id,
+                user_id: userData.user.id,
+                content: stop
+                  ? 'Follow-ups stopped — no more outreach tasks, check-ins or drip emails for this contact.'
+                  : 'Follow-ups resumed — outreach tasks and check-ins can be created again. Paused drips stay paused until resumed.',
+              },
+            ])
+            .select()
+            .single()
+          if (noteRow) setNotes(prev => [noteRow, ...prev])
+        }
+      }
+
+      setFormData({ ...formData, do_not_contact: stop })
+      setContact({ ...contact, do_not_contact: stop } as any)
+      window.dispatchEvent(new Event('rea:counts-refresh'))
+    } finally {
+      setDncSaving(false)
+    }
+  }
 
   const addNote = async () => {
     if (!newNote.trim()) return
@@ -888,6 +975,22 @@ const handleSave = async () => {
 
     <div className="flex gap-2">
   <button
+    onClick={toggleStopFollowups}
+    disabled={dncSaving}
+    className={
+      formData?.do_not_contact
+        ? 'bg-green-700 text-white px-4 py-2 rounded hover:bg-green-800 disabled:opacity-60'
+        : 'bg-white text-red-600 border border-red-600 px-4 py-2 rounded hover:bg-red-50 disabled:opacity-60'
+    }
+  >
+    {dncSaving
+      ? 'Saving...'
+      : formData?.do_not_contact
+        ? 'Resume follow-ups'
+        : '🛑 Stop follow-ups'}
+  </button>
+
+  <button
     onClick={() => setIsEditing(true)}
     className="bg-black text-white px-4 py-2 rounded"
   >
@@ -905,6 +1008,14 @@ const handleSave = async () => {
   </div>
 
 </div>
+{formData?.do_not_contact && (
+  <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800">
+    <strong>Follow-ups are OFF for this contact.</strong> No outreach
+    tasks, check-ins or drip emails; newsletters and broadcasts skip
+    them too.
+  </div>
+)}
+
 {/* CONTACT + ADDRESS */}
 
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

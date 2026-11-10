@@ -155,6 +155,64 @@ export default function TasksPage() {
     loadTasks()
   }
 
+  // STOP FOLLOW-UPS (Tim, 2026-11-10): from a follow-up task, stop all
+  // future outreach to that lead's contact in one tap — sets the
+  // contact's do_not_contact flag, clears the lead's other open
+  // follow-up tasks, and pauses their drips.
+  const stopFollowupsForTask = async (task: Task) => {
+    if (!task.lead_id) return
+
+    const { data: leadRow } = await supabase
+      .from('leads')
+      .select('contact_id, account_id')
+      .eq('id', task.lead_id)
+      .maybeSingle()
+
+    if (!leadRow?.contact_id) {
+      alert(
+        'This lead has no linked contact, so the stop could not be saved. Open the lead page instead.'
+      )
+      return
+    }
+
+    const { error } = await supabase
+      .from('contacts')
+      .update({ do_not_contact: true })
+      .eq('id', leadRow.contact_id)
+
+    if (error) {
+      alert('Could not save — please try again.')
+      return
+    }
+
+    await supabase
+      .from('tasks')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('lead_id', task.lead_id)
+      .in('source', ['lead_followup', 'drip_checkin'])
+      .eq('status', 'pending')
+
+    await supabase
+      .from('contact_campaigns')
+      .update({ status: 'paused' })
+      .eq('contact_id', leadRow.contact_id)
+      .eq('status', 'active')
+
+    await supabase.from('lead_activity').insert({
+      lead_id: task.lead_id,
+      account_id: leadRow.account_id,
+      user_id: currentUserId,
+      type: 'followups_stopped',
+      metadata: { via: 'tasks_page', title: task.title },
+    })
+
+    window.dispatchEvent(new Event('rea:counts-refresh'))
+    loadTasks()
+  }
+
   const reopenTask = async (task: Task) => {
     const { error } = await supabase
       .from('tasks')
@@ -331,6 +389,20 @@ export default function TasksPage() {
               ✉ Follow up
             </button>
           )}
+
+          {task.lead_id &&
+            (task.source === 'lead_followup' ||
+              task.source === 'drip_checkin') && (
+              <button
+                onClick={function () {
+                  stopFollowupsForTask(task)
+                }}
+                title="Stop all future follow-ups for this person"
+                className="text-sm px-3 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 transition whitespace-nowrap"
+              >
+                🛑 Stop
+              </button>
+            )}
 
           <button
             onClick={onEdit}

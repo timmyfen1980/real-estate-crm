@@ -83,6 +83,7 @@ export default function Dashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [leads, setLeads] = useState<Lead[]>([])
+  const [dncContactIds, setDncContactIds] = useState<Set<string>>(new Set())
   const [properties, setProperties] = useState<Record<string, string>>({})
   const [tasks, setTasks] = useState<Task[]>([])
   const [isOwner, setIsOwner] = useState(false)
@@ -176,6 +177,22 @@ export default function Dashboard() {
     })
 
     setLeads(leadData || [])
+
+    // Do-not-contact contacts (Tim, 2026-11-10): their leads never
+    // appear in Needs Attention.
+    const leadContactIds = Array.from(
+      new Set(
+        (leadData || []).map((l: any) => l.contact_id).filter(Boolean)
+      )
+    )
+    if (leadContactIds.length > 0) {
+      const { data: dncRows } = await supabase
+        .from('contacts')
+        .select('id')
+        .in('id', leadContactIds)
+        .eq('do_not_contact', true)
+      setDncContactIds(new Set((dncRows || []).map((r: any) => r.id)))
+    }
 
     const { data: propertyData } = await supabase
       .from('properties')
@@ -278,6 +295,11 @@ export default function Dashboard() {
       // working-with-realtor leads.
       if (l.assigned_user_id !== currentUserId) return false
       if ((l as any).working_with_realtor) return false
+      if (
+        (l as any).contact_id &&
+        dncContactIds.has((l as any).contact_id)
+      )
+        return false
 
       // Always show new leads
       if (l.status === 'New') return true

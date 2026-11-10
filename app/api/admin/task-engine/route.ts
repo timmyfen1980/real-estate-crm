@@ -210,6 +210,21 @@ export async function POST(req: NextRequest) {
     const todayStr = torontoDateString(new Date());
     const cutoffStr = addDays(todayStr, -1);
 
+    // Do-not-contact set (Tim, 2026-11-10): contacts flagged
+    // do_not_contact never get follow-up tasks or drip check-ins, and
+    // the cleanup below clears/pauses anything already outstanding.
+    const dncContactIds = new Set<string>();
+    try {
+      const { data: dncRows } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('account_id', ACCOUNT_ID)
+        .eq('do_not_contact', true);
+      for (const r of dncRows || []) dncContactIds.add(r.id);
+    } catch {
+      // Best-effort only.
+    }
+
     // --- Drip personal check-ins --------------------------------------
     // A lead on an active email drip who has not been contacted in 60+
     // days gets a 'Personal check-in' task (source 'drip_checkin'), so
@@ -276,6 +291,7 @@ export async function POST(req: NextRequest) {
         const checkins: any[] = [];
         for (const l of leadList) {
           if ((l as any).working_with_realtor) continue; // hands-off rule
+          if (l.contact_id && dncContactIds.has(l.contact_id)) continue; // do-not-contact
           const campId = campByContact.get(l.contact_id);
           if (!campId) continue;
           if (recentSet.has(l.id)) continue;
@@ -364,6 +380,48 @@ export async function POST(req: NextRequest) {
       // Best-effort only.
     }
 
+    // --- Do-not-contact cleanup (Tim, 2026-11-10) ---------------------
+    // Same treatment as the realtor rule above: complete any open auto
+    // follow-up / check-in tasks for leads whose contact is flagged
+    // do_not_contact, and pause their active drip enrollments. This
+    // makes the stop stick even if the flag was set somewhere other
+    // than the Stop follow-ups buttons.
+    let dncTasksCleared = 0;
+    let dncDripsPaused = 0;
+    try {
+      if (dncContactIds.size > 0) {
+        const dncIds = Array.from(dncContactIds);
+        const { data: dncLeads } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('account_id', ACCOUNT_ID)
+          .in('contact_id', dncIds);
+        const dLeadIds = (dncLeads || []).map((r: any) => r.id);
+        if (dLeadIds.length > 0) {
+          const { data: cleared, error: clearErr } = await supabase
+            .from('tasks')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+            })
+            .in('lead_id', dLeadIds)
+            .in('source', ['lead_followup', 'drip_checkin'])
+            .eq('status', 'pending')
+            .select('id');
+          if (!clearErr) dncTasksCleared = (cleared || []).length;
+        }
+        const { data: pausedRows, error: pauseErr } = await supabase
+          .from('contact_campaigns')
+          .update({ status: 'paused' })
+          .in('contact_id', dncIds)
+          .eq('status', 'active')
+          .select('id');
+        if (!pauseErr) dncDripsPaused = (pausedRows || []).length;
+      }
+    } catch {
+      // Best-effort only.
+    }
+
     // --- Lead follow-ups (Tim's 7-day rule, 2026-10-21) ----------------
     // Any open lead whose last contact (or creation, if never contacted)
     // is more than 7 days ago gets a 'Follow up — {name}' task due
@@ -385,7 +443,7 @@ export async function POST(req: NextRequest) {
 
       const { data: openLeads2 } = await supabase
         .from('leads')
-        .select('id, first_name, last_name, assigned_user_id, last_contacted_at, created_at, working_with_realtor')
+        .select('id, first_name, last_name, contact_id, assigned_user_id, last_contacted_at, created_at, working_with_realtor')
         .eq('account_id', ACCOUNT_ID)
         .not('status', 'in', '("Client","Closed","Lost")');
 
@@ -404,6 +462,7 @@ export async function POST(req: NextRequest) {
       const followups: any[] = [];
       for (const l of openLeads2 || []) {
         if ((l as any).working_with_realtor) continue; // hands-off rule
+        if ((l as any).contact_id && dncContactIds.has((l as any).contact_id)) continue; // do-not-contact
         if (busyLeads.has(l.id)) continue;
         const lastTouch = String(l.last_contacted_at || l.created_at || '').slice(0, 10);
         if (!lastTouch) continue;
@@ -474,6 +533,8 @@ export async function POST(req: NextRequest) {
         lead_followups_created: leadFollowupsCreated,
         realtor_tasks_cleared: realtorTasksCleared,
         realtor_drips_paused: realtorDripsPaused,
+        dnc_tasks_cleared: dncTasksCleared,
+        dnc_drips_paused: dncDripsPaused,
       });
     }
 
@@ -602,6 +663,8 @@ export async function POST(req: NextRequest) {
       lead_followups_created: leadFollowupsCreated,
       realtor_tasks_cleared: realtorTasksCleared,
       realtor_drips_paused: realtorDripsPaused,
+      dnc_tasks_cleared: dncTasksCleared,
+      dnc_drips_paused: dncDripsPaused,
     });
   } catch (err: any) {
     return NextResponse.json(
