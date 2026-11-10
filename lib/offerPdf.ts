@@ -1968,9 +1968,9 @@ export function validateRep(deal: any, kind: "371" | "372"): string[] {
   if (!Array.isArray(rep.clients) || rep.clients.filter(Boolean).length === 0) {
     missing.push(kind === "371" ? "rep.clients (buyer name(s))" : "rep.clients (tenant name(s))");
   }
-  if (!Array.isArray(rep.designated_reps) || rep.designated_reps.filter(Boolean).length === 0) {
-    missing.push("rep.designated_reps (designated representative(s))");
-  }
+  // Designated reps are NOT a required check (Tim, 2026-11-10): they
+  // print on the form when entered, but an empty list must not flag the
+  // agreement as incomplete.
   reqDate(rep, "term_start", missing);
   reqDate(rep, "term_end", missing);
   if (!rep.geographic_location) missing.push("rep.geographic_location");
@@ -2362,9 +2362,8 @@ export function validateListing(deal: any, kind: "271" | "272"): string[] {
     missing.push(kind === "271" ? "listing.clients (seller name(s))" : "listing.clients (landlord name(s))");
   }
   if (!L.property_address) missing.push("listing.property_address");
-  if (!Array.isArray(L.designated_reps) || L.designated_reps.filter(Boolean).length === 0) {
-    missing.push("listing.designated_reps (designated representative(s))");
-  }
+  // Designated reps: not a required check (Tim, 2026-11-10) — same
+  // ruling as the representation agreements above.
   reqDate(L, "term_start", missing);
   reqDate(L, "term_end", missing);
   if (!L.price) missing.push(kind === "271" ? "listing.price (list price)" : "listing.price (rent)");
