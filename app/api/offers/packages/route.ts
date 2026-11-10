@@ -466,14 +466,16 @@ export async function POST(req: NextRequest) {
         if (types.includes("seller")) typeGuess = "seller";
         else if (types.includes("tenant") || types.includes("landlord")) typeGuess = "lease";
       }
-      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : ["B", "C"]; // unset = all standards on (the generator default), so the financing + inspection conditions count
       return NextResponse.json({
         ok: true,
         linked,
         suggestions,
         prefill: {
           deal_type: typeGuess,
-          status: codes.includes("B") || codes.includes("C") ? "Sold Conditional" : "Sold Firm",
+          // A package being prepped has no sold status (Tim,
+          // 2026-11-10): the new deal starts as Active — Sold
+          // Conditional / Sold Firm are picked explicitly when real.
+          status: "Active",
           closing_date: isoFromParts(snap?.completion_date),
         },
       });
@@ -628,12 +630,13 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const codes: string[] = Array.isArray(snap?.standard_codes) ? snap.standard_codes : ["B", "C"]; // unset = all standards on (the generator default), so the financing + inspection conditions count
+      // No explicit status from the caller = a package still being
+      // prepped: the deal starts as Active, never auto-stamped Sold
+      // Conditional just because the standard condition clauses are
+      // in the paperwork (Tim, 2026-11-10).
       const status = ["Active", "Sold Conditional", "Sold Firm", "Closed"].includes(body.status)
         ? body.status
-        : codes.includes("B") || codes.includes("C")
-          ? "Sold Conditional"
-          : "Sold Firm";
+        : "Active";
       const closingIso = isoFromParts(snap?.completion_date);
       const assigned = pkg.created_by || (await resolveUserId(req));
       const { data: newDeal, error: dealErr } = await supabase
