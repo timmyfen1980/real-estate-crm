@@ -17,6 +17,7 @@ type Lead = {
   property_id: string
   assigned_user_id: string
   contact_id?: string | null
+  account_id?: string
   next_followup_date?: string | null
   last_contacted_at?: string | null
   working_with_realtor?: boolean | null
@@ -39,6 +40,8 @@ export default function LeadsPage() {
   const [profiles, setProfiles] = useState<Record<string, string>>({})
   const [attendanceCounts, setAttendanceCounts] = useState<Record<string, number>>({})
   const [dripByContact, setDripByContact] = useState<Record<string, DripInfo>>({})
+  const [dncByContact, setDncByContact] = useState<Record<string, boolean>>({})
+  const [stopBusyId, setStopBusyId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'attention' | 'working' | 'nurturing' | 'clients' | 'archived' | 'all'>('attention')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -151,6 +154,19 @@ const { data: leadData } = await query.order('created_at', {
       ...new Set(leadsList.map(l => l.contact_id).filter(Boolean)),
     ] as string[]
     if (contactIds.length > 0) {
+      // Do-not-contact flags, so the list can show the Stop/Resume state
+      // per row and keep stopped leads out of Needs Attention.
+      const { data: contactFlags } = await supabase
+        .from('contacts')
+        .select('id, do_not_contact')
+        .in('id', contactIds)
+
+      const dncMap: Record<string, boolean> = {}
+      contactFlags?.forEach(c => {
+        if (c.do_not_contact) dncMap[c.id] = true
+      })
+      setDncByContact(dncMap)
+
       const { data: enrollData } = await supabase
         .from('contact_campaigns')
         .select('contact_id, campaign_id, current_step, next_send_at')
@@ -209,6 +225,63 @@ useEffect(() => {
   if (status) setStatusFilter(status)
   if (deal) setDealTypeFilter(deal)
 }, [searchParams])
+  // STOP / RESUME FOLLOW-UPS (Tim, 2026-11-10): the same one-tap stop as
+  // the lead page, right on the list row. Sets the contact's
+  // do_not_contact flag, completes the lead's open follow-up / check-in
+  // tasks and pauses its active drip enrollments. Resuming clears the
+  // flag (paused drips stay paused until resumed in Email Drips).
+  const toggleStop = async (lead: Lead) => {
+    if (!lead.contact_id || stopBusyId) return
+    const stop = !dncByContact[lead.contact_id]
+    setStopBusyId(lead.id)
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+
+      const { error: flagError } = await supabase
+        .from('contacts')
+        .update({ do_not_contact: stop })
+        .eq('id', lead.contact_id)
+      if (flagError) throw flagError
+
+      if (stop) {
+        await supabase
+          .from('tasks')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('lead_id', lead.id)
+          .in('source', ['lead_followup', 'drip_checkin'])
+          .eq('status', 'pending')
+
+        await supabase
+          .from('contact_campaigns')
+          .update({ status: 'paused' })
+          .eq('contact_id', lead.contact_id)
+          .eq('status', 'active')
+      }
+
+      if (userData.user) {
+        await supabase.from('lead_activity').insert([
+          {
+            lead_id: lead.id,
+            account_id: lead.account_id,
+            user_id: userData.user.id,
+            type: stop ? 'followups_stopped' : 'followups_resumed',
+            metadata: { via: 'leads_list' },
+          },
+        ])
+      }
+
+      setDncByContact(prev => ({ ...prev, [lead.contact_id as string]: stop }))
+      window.dispatchEvent(new Event('rea:counts-refresh'))
+    } catch {
+      alert('Could not save — please try again.')
+    } finally {
+      setStopBusyId(null)
+    }
+  }
+
   // ---- Categories + next-step recommendations ----
   const torontoToday = () => {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -231,6 +304,7 @@ useEffect(() => {
 
   const needsAttention = (lead: Lead) => {
     if (lead.working_with_realtor) return false // hands-off rule
+    if (lead.contact_id && dncByContact[lead.contact_id]) return false // follow-ups stopped (Tim, 2026-11-10)
     if (['Client', 'Closed', 'Lost'].includes(lead.status)) return false
     if (lead.status === 'New') return true
     if (lead.next_followup_date) {
@@ -256,6 +330,9 @@ useEffect(() => {
 
   const nextStepFor = (lead: Lead): string => {
     const drip = lead.contact_id ? dripByContact[lead.contact_id] : null
+    if (lead.contact_id && dncByContact[lead.contact_id]) {
+      return 'Follow-ups stopped'
+    }
     if (lead.status === 'Client' || lead.status === 'Closed') {
       return 'Client — managed in Deals'
     }
@@ -648,15 +725,41 @@ const createLead = async () => {
                     </td>
 
                     <td className="pr-4">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setFollowUpLeadId(lead.id)
-                        }}
-                        className="px-3 py-1.5 bg-[#0f2a44] text-white text-xs rounded-lg hover:opacity-90 whitespace-nowrap"
-                      >
-                        ✉ Follow up
-                      </button>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setFollowUpLeadId(lead.id)
+                          }}
+                          className="px-3 py-1.5 bg-[#0f2a44] text-white text-xs rounded-lg hover:opacity-90 whitespace-nowrap"
+                        >
+                          ✉ Follow up
+                        </button>
+                        {lead.contact_id &&
+                          (dncByContact[lead.contact_id] ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleStop(lead)
+                              }}
+                              disabled={stopBusyId === lead.id}
+                              className="px-3 py-1.5 border border-green-600 text-green-700 text-xs rounded-lg hover:bg-green-50 whitespace-nowrap disabled:opacity-50"
+                            >
+                              ▶ Resume
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleStop(lead)
+                              }}
+                              disabled={stopBusyId === lead.id}
+                              className="px-3 py-1.5 border border-red-300 text-red-600 text-xs rounded-lg hover:bg-red-50 whitespace-nowrap disabled:opacity-50"
+                            >
+                              🛑 Stop
+                            </button>
+                          ))}
+                      </div>
                     </td>
                   </tr>
                 ))}
