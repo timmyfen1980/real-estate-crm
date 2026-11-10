@@ -3,8 +3,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Offers — every offer package, sorted by address. A package holds all
 // the forms for one property (generated or uploaded), each tracked as
-// signed or unsigned, so the whole set can go out together when the
-// iinked Sign hookup lands.
+// signed or unsigned, so the whole set can go out together through
+// iinked Sign — each package's button opens its signing panel.
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -431,13 +431,12 @@ export default function OffersPage() {
                     Download all (.zip)
                   </button>
                 )}
-                <button
-                  disabled
-                  title="Connects when the iinked Sign account is linked"
-                  className="text-sm border px-3 py-1.5 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
+                <Link
+                  href={`/dashboard/offers/${pkg.id}#sign`}
+                  className="text-sm border px-3 py-1.5 rounded-md bg-blue-900 text-white hover:bg-blue-800 transition"
                 >
-                  Send for signature — iinked Sign (coming)
-                </button>
+                  Send for signature — iinked Sign
+                </Link>
               </div>
 
               {formsFor === pkg.id && (

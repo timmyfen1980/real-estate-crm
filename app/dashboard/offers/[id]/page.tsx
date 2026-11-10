@@ -246,6 +246,28 @@ export default function PrepareOfferPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  // Deep link from the Offers page: /dashboard/offers/<id>#sign opens the
+  // iinked Sign panel (same signer/document prefill as the button) and
+  // scrolls to it, once the package has loaded.
+  const signLinkHandled = useRef(false)
+  useEffect(() => {
+    if (signLinkHandled.current) return
+    if (window.location.hash.replace('#', '') !== 'sign') return
+    if (pkgDocs.length === 0 && !synInfo) return
+    signLinkHandled.current = true
+    const names = [...buyers, ...sellers].map((s) => String(s || '').trim()).filter(Boolean)
+    setSynSigners(names.map((name) => ({ name, email: '' })))
+    setSynPaths(
+      pkgDocs
+        .filter((d) => !d.signed && String(d.filename || '').toLowerCase().endsWith('.pdf'))
+        .map((d) => d.path)
+    )
+    setSynOpen(true)
+    setTimeout(() => {
+      document.getElementById('sign')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 150)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pkgDocs, synInfo])
   useEffect(() => {
     ;(async () => {
       try {
@@ -3663,7 +3685,7 @@ export default function PrepareOfferPage() {
               )
             })}
           </div>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div id="sign" className="flex flex-wrap items-center gap-2 pt-1 scroll-mt-20">
             <button
               onClick={() => pkgFileRef.current?.click()}
               className="text-sm border px-3 py-1.5 rounded-md hover:bg-gray-100 transition"
