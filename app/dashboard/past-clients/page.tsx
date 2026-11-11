@@ -2,10 +2,10 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Past Client Review — walk the past-client archive one item at a time
-// against the live contacts and record a decision per item:
-//   merge = update the matched contact (fills blanks only, + history note)
-//   add   = create a new contact
-//   skip  = don't import this one
+// against the live contacts. Decisions are PER PERSON: each named client
+// on an item gets their own match, their own choice (update that contact
+// / add as new / skip this person), their own file-detail assignments
+// (which email/phone belongs to whom) and their own address choice.
 // Decisions are recorded via /api/past-clients-review; nothing is
 // applied to contacts from this page.
 
@@ -18,7 +18,9 @@ type Candidate = {
   contact_id: string;
   name: string;
   email: string;
+  secondary_email: string;
   phone: string;
+  secondary_phone: string;
   address: string;
   lifecycle_stage: string;
   client_category: string;
@@ -26,6 +28,46 @@ type Candidate = {
   strong_signal: boolean;
   diff_adds: string[];
 };
+
+type TimelineEvent = {
+  item_key: string;
+  address: string;
+  city: string;
+  role: string;
+  price: string;
+  date_label: string;
+  date_iso: string | null;
+};
+
+type AddressCandidate = {
+  value: string;
+  kind: 'purchase' | 'mail' | 'moved-to';
+  date_label: string;
+  date_iso: string | null;
+  source: string;
+  sold_later?: boolean;
+};
+
+type Person = {
+  person_key: string;
+  name: string;
+  first_name: string;
+  status: 'strong' | 'possible' | 'none';
+  candidates: Candidate[];
+  timeline: TimelineEvent[];
+  address_candidates: AddressCandidate[];
+  newest_address: {
+    address: string;
+    kind: string;
+    date_label: string;
+    source: string;
+  } | null;
+  mail_address: { address: string; date_label: string } | null;
+  repeats: string[];
+};
+
+type FileDetailEmail = { value: string; default_person: string | null };
+type FileDetailPhone = { value: string; digits: string; default_person: string | null };
 
 type Payload = {
   address: string;
@@ -43,6 +85,17 @@ type Payload = {
   flag: string;
   evidence_short: string;
   has_unverified: boolean;
+  file_details?: { emails: FileDetailEmail[]; phones: FileDetailPhone[] };
+  persons?: Person[];
+};
+
+type AddressChoice = { choice: 'candidate' | 'blank' | 'keep'; value: string };
+
+type PersonDecision = {
+  decision?: 'merge' | 'add' | 'skip';
+  contact_id?: string | null;
+  assign?: { emails: string[]; phones: string[] };
+  address?: AddressChoice;
 };
 
 type Item = {
@@ -51,14 +104,23 @@ type Item = {
   payload: Payload;
   match_status: 'strong' | 'possible' | 'none' | 'na';
   match_candidates: Candidate[];
-  decision: 'add' | 'merge' | 'skip' | null;
+  decision: 'add' | 'merge' | 'skip' | 'persons' | null;
   chosen_contact_id: string | null;
+  person_decisions: Record<string, PersonDecision>;
   decided_at: string | null;
   applied_at: string | null;
   apply_result: string | null;
 };
 
-type Progress = { total: number; decided: number; add: number; merge: number; skip: number };
+type Progress = {
+  total: number;
+  decided: number;
+  add: number;
+  merge: number;
+  skip: number;
+  persons_total: number;
+  persons_decided: number;
+};
 
 type Filter = 'all' | 'undecided' | 'strong' | 'possible' | 'none' | 'decided';
 
@@ -78,6 +140,20 @@ const STATUS_BADGE: Record<Item['match_status'], { label: string; cls: string }>
   na: { label: 'Not your client', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
 };
 
+const ITEM_DECISIONS = ['add', 'merge', 'skip'];
+
+function personsOf(it: Item): Person[] {
+  return Array.isArray(it.payload?.persons) ? it.payload.persons : [];
+}
+
+function isFullyDecided(it: Item): boolean {
+  if (it.decision && ITEM_DECISIONS.includes(it.decision)) return true;
+  const persons = personsOf(it);
+  if (!persons.length) return false;
+  const pd = it.person_decisions || {};
+  return persons.every((p) => pd[p.person_key]?.decision);
+}
+
 function decisionLabel(it: Item): string {
   if (it.decision === 'add') return 'Add as new contact';
   if (it.decision === 'skip') return 'Skipped';
@@ -87,7 +163,35 @@ function decisionLabel(it: Item): string {
     );
     return c ? `Update ${c.name}` : 'Update contact';
   }
+  if (it.decision === 'persons' || personsOf(it).length) {
+    const pd = it.person_decisions || {};
+    let u = 0,
+      a = 0,
+      s = 0;
+    for (const p of personsOf(it)) {
+      const d = pd[p.person_key]?.decision;
+      if (d === 'merge') u++;
+      else if (d === 'add') a++;
+      else if (d === 'skip') s++;
+    }
+    const bits: string[] = [];
+    if (u) bits.push(`${u} to update`);
+    if (a) bits.push(`${a} to add`);
+    if (s) bits.push(`${s} skipped`);
+    return bits.length ? bits.join(' · ') : 'Decided';
+  }
   return '';
+}
+
+function prettyPhone(raw: string): string {
+  const d = (raw || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return raw || '';
+}
+
+function digitsOf(raw: string): string {
+  const d = (raw || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+  return d.length === 10 ? d : '';
 }
 
 export default function PastClientsPage() {
@@ -101,9 +205,11 @@ export default function PastClientsPage() {
     add: 0,
     merge: 0,
     skip: 0,
+    persons_total: 0,
+    persons_decided: 0,
   });
   const [filter, setFilter] = useState<Filter>('undecided');
-  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [legacySelected, setLegacySelected] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [expandedDecided, setExpandedDecided] = useState<string | null>(null);
 
@@ -117,17 +223,20 @@ export default function PastClientsPage() {
         setItems([]);
         return;
       }
-      const list: Item[] = data.items || [];
+      const list: Item[] = (data.items || []).map((it: Item) => ({
+        ...it,
+        person_decisions: it.person_decisions || {},
+      }));
       setItems(list);
       setProgress(data.progress);
       const sel: Record<string, string> = {};
       for (const it of list) {
-        if (it.match_candidates?.length) {
+        if (!personsOf(it).length && it.match_candidates?.length) {
           sel[it.item_key] =
             it.chosen_contact_id || it.match_candidates[0].contact_id;
         }
       }
-      setSelected(sel);
+      setLegacySelected(sel);
     } catch (e: any) {
       setError(e.message || 'Could not load the review list.');
     } finally {
@@ -140,7 +249,24 @@ export default function PastClientsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function decide(
+  function applySaved(data: any, fallbackKey: string) {
+    if (data.needsSetup) {
+      setNeedsSetup(true);
+      return;
+    }
+    if (data.item) {
+      setItems((prev) =>
+        prev.map((x) =>
+          x.item_key === (data.item.item_key || fallbackKey)
+            ? { ...data.item, person_decisions: data.item.person_decisions || {} }
+            : x
+        )
+      );
+    }
+    if (data.progress) setProgress(data.progress);
+  }
+
+  async function decideItem(
     it: Item,
     decision: 'add' | 'merge' | 'skip' | null,
     chosenContactId?: string | null
@@ -155,23 +281,34 @@ export default function PastClientsPage() {
           decision,
           chosen_contact_id:
             decision === 'merge'
-              ? chosenContactId ?? selected[it.item_key] ?? null
+              ? chosenContactId ?? legacySelected[it.item_key] ?? null
               : null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save that decision.');
-      if (data.needsSetup) {
-        setNeedsSetup(true);
-        return;
-      }
-      setItems((prev) =>
-        prev.map((x) => (x.item_key === it.item_key ? (data.item as Item) : x))
-      );
-      if (data.progress) setProgress(data.progress);
+      applySaved(data, it.item_key);
       setExpandedDecided(null);
     } catch (e: any) {
       setError(e.message || 'Could not save that decision.');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function savePersons(it: Item, pd: Record<string, PersonDecision>) {
+    setSavingKey(it.item_key);
+    try {
+      const res = await fetch('/api/past-clients-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_key: it.item_key, person_decisions: pd }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save those choices.');
+      applySaved(data, it.item_key);
+    } catch (e: any) {
+      setError(e.message || 'Could not save those choices.');
     } finally {
       setSavingKey(null);
     }
@@ -181,9 +318,9 @@ export default function PastClientsPage() {
     return items.filter((it) => {
       switch (filter) {
         case 'undecided':
-          return !it.decision;
+          return !isFullyDecided(it);
         case 'decided':
-          return !!it.decision;
+          return isFullyDecided(it);
         case 'strong':
           return it.match_status === 'strong';
         case 'possible':
@@ -220,9 +357,9 @@ export default function PastClientsPage() {
           <p className="text-sm text-gray-600 leading-relaxed">
             The review list isn&apos;t in the database yet. Once the one-time
             setup is finished, this page fills with your past clients one by
-            one — each with its match in your contacts and a choice: update
-            that contact, add as new, or skip. Tell Rea if this panel is
-            still here and she&apos;ll finish the setup.
+            one — each person with their match in your contacts and their own
+            choice: update that contact, add as new, or skip. Tell Rea if
+            this panel is still here and she&apos;ll finish the setup.
           </p>
         </div>
       </div>
@@ -239,10 +376,12 @@ export default function PastClientsPage() {
         Past Client Review
       </h1>
       <p className="text-sm text-gray-500 mb-4">
-        Your past clients from the old files, checked against your contacts
-        one by one. For each: update the contact you already have, add them
-        as new, or skip. Nothing changes in your contacts until you say go —
-        this page just records your choices.
+        Your past clients from the old files, checked against your contacts.
+        Every person gets their own decision — update their contact, add
+        them as new, or skip them — and you choose which of the file&apos;s
+        emails and phones belong to whom, and what happens with their
+        address. Nothing changes in your contacts until you say go — this
+        page just records your choices.
       </p>
 
       {/* Progress */}
@@ -252,7 +391,8 @@ export default function PastClientsPage() {
             {progress.decided} of {progress.total} decided
           </p>
           <p className="text-sm text-gray-500">
-            {progress.merge} to update · {progress.add} to add ·{' '}
+            {progress.persons_decided} of {progress.persons_total} people
+            decided · {progress.merge} to update · {progress.add} to add ·{' '}
             {progress.skip} skipped
           </p>
         </div>
@@ -297,12 +437,12 @@ export default function PastClientsPage() {
 
       <div className="space-y-4">
         {visible.map((it) =>
-          it.decision && expandedDecided !== it.item_key ? (
+          isFullyDecided(it) && expandedDecided !== it.item_key ? (
             <DecidedRow
               key={it.item_key}
               it={it}
               saving={savingKey === it.item_key}
-              onUndo={() => decide(it, null)}
+              onUndo={() => decideItem(it, null)}
               onReview={() => setExpandedDecided(it.item_key)}
             />
           ) : (
@@ -310,12 +450,13 @@ export default function PastClientsPage() {
               key={it.item_key}
               it={it}
               saving={savingKey === it.item_key}
-              selectedContact={selected[it.item_key] || ''}
-              onSelect={(cid) =>
-                setSelected((s) => ({ ...s, [it.item_key]: cid }))
+              legacySelected={legacySelected[it.item_key] || ''}
+              onLegacySelect={(cid) =>
+                setLegacySelected((s) => ({ ...s, [it.item_key]: cid }))
               }
-              onDecide={(d, cid) => decide(it, d, cid)}
-              decidedOpen={!!it.decision}
+              onItemDecide={(d, cid) => decideItem(it, d, cid)}
+              onSavePersons={(pd) => savePersons(it, pd)}
+              decidedOpen={isFullyDecided(it)}
               onCollapse={() => setExpandedDecided(null)}
             />
           )
@@ -382,31 +523,321 @@ function DecidedRow({
   );
 }
 
+
+const btnBase =
+  'text-sm rounded-full px-4 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed';
+const btnPrimary = `${btnBase} text-white hover:opacity-90`;
+const btnGhost = `${btnBase} border bg-white text-gray-600 hover:bg-gray-50`;
+
+function DiffList({ c }: { c: Candidate }) {
+  if (!c.diff_adds?.length) return null;
+  return (
+    <span className="block mt-2">
+      <span className="block text-xs font-semibold text-gray-500 mb-1">
+        An update would add:
+      </span>
+      <ul className="list-disc pl-4 space-y-0.5">
+        {c.diff_adds.map((d, i) => (
+          <li key={i} className="text-[13px] text-gray-600">
+            {d}
+          </li>
+        ))}
+      </ul>
+    </span>
+  );
+}
+
+function ContactBox({ c }: { c: Candidate }) {
+  return (
+    <div className="bg-white border rounded-lg px-3.5 py-3">
+      <p className="font-semibold text-sm" style={{ color: NAVY }}>
+        {c.name}
+      </p>
+      <p className="text-xs text-gray-500 mb-1">
+        Matched on: {c.matched_on.join(' · ')}
+      </p>
+      <p className="text-sm text-gray-600">
+        {c.email || 'No email on file'}
+        {c.phone ? ` · ${prettyPhone(c.phone)}` : ''}
+        {c.address ? ` · ${c.address}` : ''}
+      </p>
+      <DiffList c={c} />
+    </div>
+  );
+}
+
+function timelineText(person: Person): { text: string; tail: string } {
+  const evs = [
+    ...person.timeline.map((e) => ({
+      label: `${e.role} ${e.address}`,
+      date: e.date_label,
+      iso: e.date_iso || '',
+      sold: e.role === 'Sold',
+    })),
+    ...person.address_candidates
+      .filter((c) => c.kind === 'mail')
+      .map((c) => ({
+        label: `Mail address ${c.value}`,
+        date: c.date_label,
+        iso: c.date_iso || '',
+        sold: false,
+      })),
+  ].sort((a, b) => (a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0));
+  const text = evs
+    .map((e) => `${e.label} — ${e.date || 'date unknown'}`)
+    .join(' · ');
+  const lastDated = [...evs].reverse().find((e) => e.iso);
+  const tail =
+    lastDated?.sold
+      ? `Nothing after ${lastDated.date} — may have moved again.`
+      : '';
+  return { text, tail };
+}
+
+function addrSourceText(c: AddressCandidate): string {
+  if (c.kind === 'purchase') return `bought ${c.date_label}`;
+  if (c.kind === 'mail') return `from old mail, ${c.date_label} — unverified`;
+  return 'moved to, per the file';
+}
+
+function buildNote(
+  person: Person,
+  addr: AddressChoice,
+  base: Candidate | null
+): string {
+  const lines: string[] = [
+    'Past client of the Fennessey Comeau Group. Deal history:',
+  ];
+  for (const e of person.timeline) {
+    const verb =
+      e.role === 'Bought & sold' ? 'Bought and sold' : e.role;
+    lines.push(
+      `• ${verb} ${e.address}${e.city ? `, ${e.city}` : ''}${
+        e.price ? ` for ${e.price}` : ''
+      } (${e.date_label || 'date unknown'}).`
+    );
+  }
+  if (addr.choice === 'candidate' && addr.value) {
+    const cand = person.address_candidates.find((c) => c.value === addr.value);
+    lines.push(
+      `Current address: ${addr.value}${cand ? ` (${addrSourceText(cand)})` : ''}.`
+    );
+  } else if (addr.choice === 'keep' && base?.address) {
+    lines.push(`Current address on file: ${base.address}.`);
+  } else {
+    lines.push('Current address unknown.');
+  }
+  return lines.join('\n');
+}
+
+type AfterState = {
+  name: string;
+  email: string;
+  email2: string;
+  phone: string;
+  phone2: string;
+  address: string;
+  changed: Record<string, boolean>;
+};
+
+function computeAfter(
+  it: Item,
+  person: Person,
+  base: Candidate | null,
+  assignMap: Record<string, string>,
+  addr: AddressChoice
+): AfterState {
+  const fd = it.payload.file_details || { emails: [], phones: [] };
+  const aEmails = fd.emails
+    .filter((e) => assignMap[`e:${e.value}`] === person.person_key)
+    .map((e) => e.value);
+  const aPhones = fd.phones.filter(
+    (ph) => assignMap[`p:${ph.digits}`] === person.person_key
+  );
+  let email = base?.email || '';
+  let email2 = base?.secondary_email || '';
+  for (const e of aEmails) {
+    if (e.toLowerCase() === email.toLowerCase() || e.toLowerCase() === email2.toLowerCase())
+      continue;
+    if (!email) email = e;
+    else if (!email2) email2 = e;
+  }
+  let phone = base?.phone || '';
+  let phone2 = base?.secondary_phone || '';
+  const have = new Set([digitsOf(phone), digitsOf(phone2)].filter(Boolean));
+  for (const ph of aPhones) {
+    if (have.has(ph.digits)) continue;
+    if (!phone) phone = ph.value;
+    else if (!phone2) phone2 = ph.value;
+    have.add(ph.digits);
+  }
+  let address = '';
+  if (addr.choice === 'keep') address = base?.address || '';
+  else if (addr.choice === 'candidate') address = addr.value;
+  return {
+    name: base?.name || person.name,
+    email,
+    email2,
+    phone: prettyPhone(phone),
+    phone2: prettyPhone(phone2),
+    address,
+    changed: {
+      email: email !== (base?.email || ''),
+      email2: email2 !== (base?.secondary_email || ''),
+      phone: digitsOf(phone) !== digitsOf(base?.phone || ''),
+      phone2: digitsOf(phone2) !== digitsOf(base?.secondary_phone || ''),
+      address: address !== (base?.address || ''),
+    },
+  };
+}
+
 function ItemCard({
   it,
   saving,
-  selectedContact,
-  onSelect,
-  onDecide,
+  legacySelected,
+  onLegacySelect,
+  onItemDecide,
+  onSavePersons,
   decidedOpen,
   onCollapse,
 }: {
   it: Item;
   saving: boolean;
-  selectedContact: string;
-  onSelect: (cid: string) => void;
-  onDecide: (d: 'add' | 'merge' | 'skip', cid?: string | null) => void;
+  legacySelected: string;
+  onLegacySelect: (cid: string) => void;
+  onItemDecide: (d: 'add' | 'merge' | 'skip' | null, cid?: string | null) => void;
+  onSavePersons: (pd: Record<string, PersonDecision>) => void;
   decidedOpen: boolean;
   onCollapse: () => void;
 }) {
   const p = it.payload;
   const badge = STATUS_BADGE[it.match_status];
+  const persons = personsOf(it);
+  const hasPersons = persons.length > 0;
   const greyed = it.match_status === 'na';
+  const fd = p.file_details || { emails: [], phones: [] };
 
-  const btnBase =
-    'text-sm rounded-full px-4 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed';
-  const btnPrimary = `${btnBase} text-white hover:opacity-90`;
-  const btnGhost = `${btnBase} border bg-white text-gray-600 hover:bg-gray-50`;
+  // ---- per-person working state (initialised from the saved record) ----
+  const [selContact, setSelContact] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const person of persons) {
+      const saved = it.person_decisions?.[person.person_key]?.contact_id;
+      const strong = person.candidates.find((c) => c.strong_signal);
+      out[person.person_key] =
+        saved || strong?.contact_id || person.candidates[0]?.contact_id || '';
+    }
+    return out;
+  });
+  const [assignMap, setAssignMap] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const e of fd.emails)
+      out[`e:${e.value}`] = e.default_person || 'none';
+    for (const ph of fd.phones)
+      out[`p:${ph.digits}`] = ph.default_person || 'none';
+    const pd = it.person_decisions || {};
+    for (const person of persons) {
+      const a = pd[person.person_key]?.assign;
+      if (a) {
+        for (const em of a.emails) out[`e:${em}`] = person.person_key;
+        for (const phv of a.phones) {
+          const match = fd.phones.find((x) => x.value === phv);
+          if (match) out[`p:${match.digits}`] = person.person_key;
+        }
+      }
+    }
+    return out;
+  });
+  const [addrSel, setAddrSel] = useState<Record<string, AddressChoice>>(() => {
+    const out: Record<string, AddressChoice> = {};
+    const pd = it.person_decisions || {};
+    for (const person of persons) {
+      const saved = pd[person.person_key]?.address;
+      if (saved) {
+        out[person.person_key] = saved;
+        continue;
+      }
+      const savedCid = pd[person.person_key]?.contact_id;
+      const strong = person.candidates.find((c) => c.strong_signal);
+      const base =
+        person.candidates.find((c) => c.contact_id === savedCid) ||
+        strong ||
+        person.candidates[0];
+      if (base?.address) out[person.person_key] = { choice: 'keep', value: '' };
+      else if (person.address_candidates.length)
+        out[person.person_key] = {
+          choice: 'candidate',
+          value: person.address_candidates[0].value,
+        };
+      else out[person.person_key] = { choice: 'blank', value: '' };
+    }
+    return out;
+  });
+  const [localDec, setLocalDec] = useState<Record<string, PersonDecision>>(
+    () => {
+      const out: Record<string, PersonDecision> = {};
+      const pd = it.person_decisions || {};
+      for (const person of persons) {
+        const d = pd[person.person_key];
+        if (d?.decision)
+          out[person.person_key] = {
+            decision: d.decision,
+            contact_id: d.contact_id ?? null,
+          };
+      }
+      return out;
+    }
+  );
+  const [previewOpen, setPreviewOpen] = useState<Record<string, boolean>>({});
+
+  function buildPD(decisions: Record<string, PersonDecision>): Record<string, PersonDecision> {
+    const out: Record<string, PersonDecision> = {};
+    for (const person of persons) {
+      const entry: PersonDecision = {
+        assign: {
+          emails: fd.emails
+            .filter((e) => assignMap[`e:${e.value}`] === person.person_key)
+            .map((e) => e.value),
+          phones: fd.phones
+            .filter((ph) => assignMap[`p:${ph.digits}`] === person.person_key)
+            .map((ph) => ph.value),
+        },
+        address: addrSel[person.person_key] || { choice: 'blank', value: '' },
+      };
+      const dec = decisions[person.person_key];
+      if (dec?.decision) {
+        entry.decision = dec.decision;
+        entry.contact_id =
+          dec.decision === 'merge'
+            ? selContact[person.person_key] || null
+            : null;
+      }
+      out[person.person_key] = entry;
+    }
+    return out;
+  }
+
+  function decidePerson(person: Person, decision: 'merge' | 'add' | 'skip') {
+    const next = {
+      ...localDec,
+      [person.person_key]: {
+        decision,
+        contact_id:
+          decision === 'merge' ? selContact[person.person_key] || null : null,
+      },
+    };
+    setLocalDec(next);
+    onSavePersons(buildPD(next));
+  }
+
+  function changePerson(person: Person) {
+    const next = { ...localDec };
+    delete next[person.person_key];
+    setLocalDec(next);
+    onSavePersons(buildPD(next));
+  }
+
+  const itemLevelDecision =
+    it.decision && ITEM_DECISIONS.includes(it.decision) ? it.decision : null;
 
   return (
     <div
@@ -492,179 +923,145 @@ function ItemCard({
           )}
         </div>
 
-        {/* RIGHT — the database side + the decision */}
-        <div className="p-5 bg-gray-50/60 flex flex-col">
-          {it.match_status === 'na' && (
+        {/* RIGHT — per-person decisions, or the legacy panel */}
+        <div className="p-5 bg-gray-50/60">
+          {!hasPersons ? (
+            <LegacyPanel
+              it={it}
+              saving={saving}
+              selectedContact={legacySelected}
+              onSelect={onLegacySelect}
+              onDecide={onItemDecide}
+              decidedOpen={decidedOpen}
+              onCollapse={onCollapse}
+            />
+          ) : (
             <>
-              <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                You weren&apos;t their agent on this one — nothing to import.
-              </p>
-              <div className="mt-auto flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => onDecide('skip')}
-                  className={btnPrimary}
-                  style={{ background: NAVY }}
-                >
-                  {saving ? 'Saving…' : 'Confirm skip'}
-                </button>
-                {decidedOpen && (
-                  <button type="button" onClick={onCollapse} className={btnGhost}>
-                    Close
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          {it.match_status === 'none' && (
-            <>
-              <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                Not in your database. Add them as a new contact — with the
-                details from the file and a note on this deal — or skip.
-              </p>
-              <div className="mt-auto flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => onDecide('add')}
-                  className={btnPrimary}
-                  style={{ background: RED }}
-                >
-                  {saving ? 'Saving…' : 'Add as new contact'}
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => onDecide('skip')}
-                  className={btnGhost}
-                >
-                  Skip
-                </button>
-                {decidedOpen && (
-                  <button type="button" onClick={onCollapse} className={btnGhost}>
-                    Close
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          {it.match_status === 'strong' && it.match_candidates[0] && (
-            <>
-              <ContactCard c={it.match_candidates[0]} heading="Already in your database" />
-              <div className="mt-auto flex flex-wrap gap-2 pt-4">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() =>
-                    onDecide('merge', it.match_candidates[0].contact_id)
-                  }
-                  className={btnPrimary}
-                  style={{ background: RED }}
-                >
-                  {saving ? 'Saving…' : 'Update this contact'}
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => onDecide('skip')}
-                  className={btnGhost}
-                >
-                  Skip
-                </button>
-                {decidedOpen && (
-                  <button type="button" onClick={onCollapse} className={btnGhost}>
-                    Close
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          {it.match_status === 'possible' && (
-            <>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-                Could be one of these — pick the right one
-              </p>
-              <div className="space-y-2.5 mb-4">
-                {it.match_candidates.map((c) => (
-                  <label
-                    key={c.contact_id}
-                    className={`block bg-white border rounded-lg px-3.5 py-3 cursor-pointer transition ${
-                      selectedContact === c.contact_id
-                        ? 'border-[#0f2a44] ring-1 ring-[#0f2a44]'
-                        : 'hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="flex items-start gap-2.5">
-                      <input
-                        type="radio"
-                        name={`cand-${it.item_key}`}
-                        className="mt-1"
-                        checked={selectedContact === c.contact_id}
-                        onChange={() => onSelect(c.contact_id)}
-                      />
-                      <span className="flex-1">
-                        <span className="block font-semibold text-sm" style={{ color: NAVY }}>
-                          {c.name}
-                        </span>
-                        <span className="block text-xs text-gray-500">
-                          Matched on: {c.matched_on.join(' · ')}
-                        </span>
-                        <DiffList c={c} />
-                      </span>
-                    </span>
-                  </label>
-                ))}
-                <label
-                  className={`block bg-white border rounded-lg px-3.5 py-3 cursor-pointer transition ${
-                    selectedContact === 'none'
-                      ? 'border-[#0f2a44] ring-1 ring-[#0f2a44]'
-                      : 'hover:border-gray-300'
-                  }`}
-                >
-                  <span className="flex items-start gap-2.5">
-                    <input
-                      type="radio"
-                      name={`cand-${it.item_key}`}
-                      className="mt-1"
-                      checked={selectedContact === 'none'}
-                      onChange={() => onSelect('none')}
-                    />
-                    <span className="text-sm text-gray-600">
-                      None of these is the right person
-                    </span>
+              {itemLevelDecision && (
+                <div className="mb-4 rounded-lg bg-gray-100 border px-3.5 py-2.5 text-[13px] text-gray-700 flex flex-wrap items-center gap-2">
+                  <span>
+                    Whole item marked <strong>{decisionLabel(it)}</strong> —
+                    that wins over the person choices below until you undo
+                    it.
                   </span>
-                </label>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => onItemDecide(null)}
+                    className="ml-auto text-sm border rounded-full px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    style={{ color: RED }}
+                  >
+                    Undo
+                  </button>
+                </div>
+              )}
+
+              {/* File detail assignment */}
+              {(fd.emails.length > 0 || fd.phones.length > 0) && (
+                <div className="mb-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">
+                    File contact details — whose are they?
+                  </p>
+                  <p className="text-xs text-gray-400 mb-2.5">
+                    Each email and phone from the file goes to one person, or
+                    to nobody. Change any of them, then use Save choices (or
+                    decide a person) to keep the changes.
+                  </p>
+                  <div className="space-y-2">
+                    {fd.emails.map((e) => (
+                      <AssignRow
+                        key={`e:${e.value}`}
+                        label={e.value}
+                        kindLabel="email"
+                        persons={persons}
+                        value={assignMap[`e:${e.value}`] || 'none'}
+                        onChange={(pk) =>
+                          setAssignMap((m) => ({ ...m, [`e:${e.value}`]: pk }))
+                        }
+                      />
+                    ))}
+                    {fd.phones.map((ph) => (
+                      <AssignRow
+                        key={`p:${ph.digits}`}
+                        label={ph.value}
+                        kindLabel="phone"
+                        persons={persons}
+                        value={assignMap[`p:${ph.digits}`] || 'none'}
+                        onChange={(pk) =>
+                          setAssignMap((m) => ({
+                            ...m,
+                            [`p:${ph.digits}`]: pk,
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-2.5 text-right">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => onSavePersons(buildPD(localDec))}
+                      className="text-xs border rounded-full px-3 py-1.5 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {saving ? 'Saving…' : 'Save choices'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* People */}
+              <div className="space-y-4">
+                {persons.map((person) => (
+                  <PersonSection
+                    key={person.person_key}
+                    it={it}
+                    person={person}
+                    saving={saving}
+                    selectedContact={selContact[person.person_key] || ''}
+                    onSelectContact={(cid) =>
+                      setSelContact((s) => ({ ...s, [person.person_key]: cid }))
+                    }
+                    addrChoice={
+                      addrSel[person.person_key] || { choice: 'blank', value: '' }
+                    }
+                    onAddrChoice={(ac) => {
+                      setAddrSel((s) => ({ ...s, [person.person_key]: ac }));
+                      if (localDec[person.person_key]?.decision) {
+                        onSavePersons(
+                          buildPDWith(it, persons, assignMap, {
+                            ...addrSel,
+                            [person.person_key]: ac,
+                          }, selContact, localDec, fd)
+                        );
+                      }
+                    }}
+                    savedDecision={localDec[person.person_key] || null}
+                    onDecide={(d) => decidePerson(person, d)}
+                    onChange={() => changePerson(person)}
+                    assignMap={assignMap}
+                    previewOpen={!!previewOpen[person.person_key]}
+                    onTogglePreview={() =>
+                      setPreviewOpen((s) => ({
+                        ...s,
+                        [person.person_key]: !s[person.person_key],
+                      }))
+                    }
+                  />
+                ))}
               </div>
-              <div className="mt-auto flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={saving || !selectedContact || selectedContact === 'none'}
-                  onClick={() => onDecide('merge', selectedContact)}
-                  className={btnPrimary}
-                  style={{ background: RED }}
-                >
-                  {saving ? 'Saving…' : 'Update selected contact'}
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => onDecide('add')}
-                  className={btnGhost}
-                >
-                  Add as new instead
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => onDecide('skip')}
-                  className={btnGhost}
-                >
-                  Skip
-                </button>
+
+              {/* Item-level shortcut */}
+              <div className="mt-5 pt-4 border-t flex flex-wrap gap-2">
+                {!itemLevelDecision && (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => onItemDecide('skip')}
+                    className={btnGhost}
+                  >
+                    Skip whole item
+                  </button>
+                )}
                 {decidedOpen && (
                   <button type="button" onClick={onCollapse} className={btnGhost}>
                     Close
@@ -679,48 +1076,740 @@ function ItemCard({
   );
 }
 
-function ContactCard({ c, heading }: { c: Candidate; heading: string }) {
+// buildPD variant that takes explicit state (used when saving straight
+// after an address-choice change, before setAddrSel has flushed).
+function buildPDWith(
+  it: Item,
+  persons: Person[],
+  assignMap: Record<string, string>,
+  addrSelMap: Record<string, AddressChoice>,
+  selContact: Record<string, string>,
+  decisions: Record<string, PersonDecision>,
+  fd: { emails: FileDetailEmail[]; phones: FileDetailPhone[] }
+): Record<string, PersonDecision> {
+  const out: Record<string, PersonDecision> = {};
+  for (const person of persons) {
+    const entry: PersonDecision = {
+      assign: {
+        emails: fd.emails
+          .filter((e) => assignMap[`e:${e.value}`] === person.person_key)
+          .map((e) => e.value),
+        phones: fd.phones
+          .filter((ph) => assignMap[`p:${ph.digits}`] === person.person_key)
+          .map((ph) => ph.value),
+      },
+      address: addrSelMap[person.person_key] || { choice: 'blank', value: '' },
+    };
+    const dec = decisions[person.person_key];
+    if (dec?.decision) {
+      entry.decision = dec.decision;
+      entry.contact_id =
+        dec.decision === 'merge' ? selContact[person.person_key] || null : null;
+    }
+    out[person.person_key] = entry;
+  }
+  return out;
+}
+
+function AssignRow({
+  label,
+  kindLabel,
+  persons,
+  value,
+  onChange,
+}: {
+  label: string;
+  kindLabel: string;
+  persons: Person[];
+  value: string;
+  onChange: (personKey: string) => void;
+}) {
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-        {heading}
-      </p>
-      <div className="bg-white border rounded-lg px-3.5 py-3 mb-3">
-        <p className="font-semibold text-sm" style={{ color: NAVY }}>
-          {c.name}
-        </p>
-        <p className="text-xs text-gray-500 mb-1">
-          Matched on: {c.matched_on.join(' · ')}
-        </p>
-        <p className="text-sm text-gray-600">
-          {c.email || 'No email on file'}
-          {c.phone ? ` · ${c.phone}` : ''}
-          {c.address ? ` · ${c.address}` : ''}
-        </p>
-        <DiffList c={c} />
-      </div>
-      <p className="text-xs text-gray-400 leading-relaxed">
-        Updating fills in blanks only — anything already on the contact stays
-        exactly as it is.
-      </p>
+    <div className="bg-white border rounded-lg px-3.5 py-2.5 flex flex-wrap items-center gap-2">
+      <span className="text-sm text-gray-700 break-all">
+        <span className="text-gray-400 text-xs uppercase tracking-wide mr-1.5">
+          {kindLabel}
+        </span>
+        {label}
+      </span>
+      <span className="ml-auto flex flex-wrap gap-1.5">
+        {persons.length <= 3 ? (
+          <>
+            {persons.map((person) => (
+              <button
+                key={person.person_key}
+                type="button"
+                onClick={() => onChange(person.person_key)}
+                className={`text-xs rounded-full px-2.5 py-1 border transition ${
+                  value === person.person_key
+                    ? 'text-white border-transparent'
+                    : 'bg-white text-gray-500 hover:border-[#0f2a44]'
+                }`}
+                style={
+                  value === person.person_key ? { background: NAVY } : undefined
+                }
+              >
+                {person.first_name}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => onChange('none')}
+              className={`text-xs rounded-full px-2.5 py-1 border transition ${
+                value === 'none'
+                  ? 'bg-gray-500 text-white border-transparent'
+                  : 'bg-white text-gray-500 hover:border-gray-400'
+              }`}
+            >
+              Don&apos;t add
+            </button>
+          </>
+        ) : (
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="text-sm border rounded-lg px-2 py-1 bg-white"
+          >
+            {persons.map((person) => (
+              <option key={person.person_key} value={person.person_key}>
+                {person.name}
+              </option>
+            ))}
+            <option value="none">Don&apos;t add</option>
+          </select>
+        )}
+      </span>
     </div>
   );
 }
 
-function DiffList({ c }: { c: Candidate }) {
-  if (!c.diff_adds?.length) return null;
+
+function PersonSection({
+  it,
+  person,
+  saving,
+  selectedContact,
+  onSelectContact,
+  addrChoice,
+  onAddrChoice,
+  savedDecision,
+  onDecide,
+  onChange,
+  assignMap,
+  previewOpen,
+  onTogglePreview,
+}: {
+  it: Item;
+  person: Person;
+  saving: boolean;
+  selectedContact: string;
+  onSelectContact: (cid: string) => void;
+  addrChoice: AddressChoice;
+  onAddrChoice: (ac: AddressChoice) => void;
+  savedDecision: PersonDecision | null;
+  onDecide: (d: 'merge' | 'add' | 'skip') => void;
+  onChange: () => void;
+  assignMap: Record<string, string>;
+  previewOpen: boolean;
+  onTogglePreview: () => void;
+}) {
+  const base =
+    person.candidates.find((c) => c.contact_id === selectedContact) || null;
+  const tl = timelineText(person);
+  const decided = savedDecision?.decision;
+  const decidedContact =
+    decided === 'merge'
+      ? person.candidates.find(
+          (c) => c.contact_id === savedDecision?.contact_id
+        ) || base
+      : base;
+
+  const statusChip =
+    person.candidates.length === 0
+      ? { label: 'Not in database', cls: 'bg-gray-100 text-gray-600 border-gray-200' }
+      : person.status === 'strong'
+        ? { label: 'In your database', cls: 'bg-green-100 text-green-800 border-green-200' }
+        : { label: 'Possible match', cls: 'bg-amber-100 text-amber-800 border-amber-200' };
+
   return (
-    <span className="block mt-2">
-      <span className="block text-xs font-semibold text-gray-500 mb-1">
-        An update would add:
-      </span>
-      <ul className="list-disc pl-4 space-y-0.5">
-        {c.diff_adds.map((d, i) => (
-          <li key={i} className="text-[13px] text-gray-600">
-            {d}
-          </li>
+    <div className="bg-white border rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b bg-gray-50/70 flex flex-wrap items-center gap-2">
+        <p className="font-bold" style={{ color: NAVY }}>
+          {person.name}
+        </p>
+        <span
+          className={`text-[11px] font-semibold uppercase tracking-wide border rounded-full px-2 py-0.5 ${statusChip.cls}`}
+        >
+          {statusChip.label}
+        </span>
+        {decided && (
+          <span className="ml-auto text-xs font-semibold rounded-full px-2.5 py-1 border bg-green-50 text-green-800 border-green-200">
+            {decided === 'merge'
+              ? `✓ Update ${decidedContact?.name || 'contact'}`
+              : decided === 'add'
+                ? '✓ Add as new'
+                : '✓ Skip'}
+          </span>
+        )}
+      </div>
+
+      <div className="px-4 py-3">
+        {person.repeats.length > 0 && (
+          <p className="text-xs text-gray-500 mb-1.5">
+            Also appears in: {person.repeats.join(' · ')}
+          </p>
+        )}
+        {tl.text && (
+          <p className="text-xs text-gray-500 leading-relaxed mb-1.5">
+            <span className="font-semibold text-gray-400 uppercase tracking-wide mr-1">
+              Timeline
+            </span>
+            {tl.text}
+            {tl.tail && (
+              <span className="block text-amber-700 mt-0.5">{tl.tail}</span>
+            )}
+          </p>
+        )}
+        {person.newest_address?.kind === 'sale-last-known' && (
+          <p className="text-xs text-gray-500 mb-1.5">
+            Last known: {person.newest_address.address} (sold{' '}
+            {person.newest_address.date_label}) — they&apos;ve moved; current
+            address unknown.
+          </p>
+        )}
+        {person.newest_address &&
+          person.newest_address.kind !== 'sale-last-known' && (
+            <p className="text-xs text-gray-500 mb-1.5">
+              Newest address: {person.newest_address.address} (
+              {person.newest_address.source}
+              {person.newest_address.date_label
+                ? `, ${person.newest_address.date_label}`
+                : ''}
+              )
+            </p>
+          )}
+
+        {/* Match / candidate selection */}
+        {person.candidates.length === 0 && (
+          <p className="text-sm text-gray-600 mb-3">
+            Not in your database. Add them as a new contact — with the
+            details assigned to them above and a note covering all their
+            deals — or skip this person.
+          </p>
+        )}
+        {person.candidates.length === 1 && (
+          <div className="mb-3">
+            <ContactBox c={person.candidates[0]} />
+          </div>
+        )}
+        {person.candidates.length > 1 && (
+          <div className="space-y-2.5 mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Could be one of these — pick the right one
+            </p>
+            {person.candidates.map((c) => (
+              <label
+                key={c.contact_id}
+                className={`block border rounded-lg px-3.5 py-3 cursor-pointer transition ${
+                  selectedContact === c.contact_id
+                    ? 'border-[#0f2a44] ring-1 ring-[#0f2a44] bg-white'
+                    : 'bg-white hover:border-gray-300'
+                }`}
+              >
+                <span className="flex items-start gap-2.5">
+                  <input
+                    type="radio"
+                    name={`cand-${it.item_key}-${person.person_key}`}
+                    className="mt-1"
+                    checked={selectedContact === c.contact_id}
+                    onChange={() => onSelectContact(c.contact_id)}
+                  />
+                  <span className="flex-1">
+                    <span
+                      className="block font-semibold text-sm"
+                      style={{ color: NAVY }}
+                    >
+                      {c.name}
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      Matched on: {c.matched_on.join(' · ')}
+                    </span>
+                    <span className="block text-sm text-gray-600">
+                      {c.email || 'No email on file'}
+                      {c.phone ? ` · ${prettyPhone(c.phone)}` : ''}
+                      {c.address ? ` · ${c.address}` : ''}
+                    </span>
+                    <DiffList c={c} />
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Address choice */}
+        <div className="mb-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+            Their address
+          </p>
+          <div className="space-y-1.5">
+            {person.address_candidates.map((c) => {
+              const id = `addr-${it.item_key}-${person.person_key}-${c.value}`;
+              const checked =
+                addrChoice.choice === 'candidate' && addrChoice.value === c.value;
+              return (
+                <label
+                  key={id}
+                  className={`flex items-start gap-2.5 border rounded-lg px-3 py-2 cursor-pointer text-sm ${
+                    checked
+                      ? 'border-[#0f2a44] ring-1 ring-[#0f2a44] bg-white'
+                      : 'bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={`addr-${it.item_key}-${person.person_key}`}
+                    className="mt-0.5"
+                    checked={checked}
+                    onChange={() =>
+                      onAddrChoice({ choice: 'candidate', value: c.value })
+                    }
+                  />
+                  <span>
+                    <span className="text-gray-800">
+                      Add as new address: <strong>{c.value}</strong>
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      {c.source}
+                      {c.date_label ? ` · ${c.date_label}` : ''}
+                      {c.sold_later ? ' · later sold' : ''}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+            {base?.address && (
+              <label
+                className={`flex items-start gap-2.5 border rounded-lg px-3 py-2 cursor-pointer text-sm ${
+                  addrChoice.choice === 'keep'
+                    ? 'border-[#0f2a44] ring-1 ring-[#0f2a44] bg-white'
+                    : 'bg-white hover:border-gray-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={`addr-${it.item_key}-${person.person_key}`}
+                  className="mt-0.5"
+                  checked={addrChoice.choice === 'keep'}
+                  onChange={() => onAddrChoice({ choice: 'keep', value: '' })}
+                />
+                <span className="text-gray-800">
+                  Leave what&apos;s on file: <strong>{base.address}</strong>
+                </span>
+              </label>
+            )}
+            <label
+              className={`flex items-start gap-2.5 border rounded-lg px-3 py-2 cursor-pointer text-sm ${
+                addrChoice.choice === 'blank'
+                  ? 'border-[#0f2a44] ring-1 ring-[#0f2a44] bg-white'
+                  : 'bg-white hover:border-gray-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name={`addr-${it.item_key}-${person.person_key}`}
+                className="mt-0.5"
+                checked={addrChoice.choice === 'blank'}
+                onChange={() => onAddrChoice({ choice: 'blank', value: '' })}
+              />
+              <span className="text-gray-800">
+                Keep blank — I&apos;ll fill it in myself
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Decision buttons / saved state */}
+        {!decided ? (
+          <div className="flex flex-wrap gap-2">
+            {person.candidates.length > 0 && (
+              <button
+                type="button"
+                disabled={saving || !selectedContact}
+                onClick={() => onDecide('merge')}
+                className={btnPrimary}
+                style={{ background: RED }}
+              >
+                {saving
+                  ? 'Saving…'
+                  : `Update ${base?.name || 'this contact'}`}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onDecide('add')}
+              className={person.candidates.length > 0 ? btnGhost : btnPrimary}
+              style={person.candidates.length > 0 ? undefined : { background: RED }}
+            >
+              {saving
+                ? 'Saving…'
+                : person.candidates.length > 0
+                  ? 'Add as new instead'
+                  : 'Add as new contact'}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onDecide('skip')}
+              className={btnGhost}
+            >
+              Skip this person
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={onChange}
+              className={btnGhost}
+            >
+              {saving ? 'Saving…' : 'Change'}
+            </button>
+          </div>
+        )}
+
+        {/* Preview */}
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={onTogglePreview}
+            className="text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-[#0f2a44] transition"
+          >
+            {previewOpen ? '▾' : '▸'} What will go on their card
+          </button>
+          {previewOpen && (
+            <PreviewPanel
+              it={it}
+              person={person}
+              base={decided === 'add' ? null : decidedContact}
+              assignMap={assignMap}
+              addrChoice={addrChoice}
+              skipped={decided === 'skip'}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewPanel({
+  it,
+  person,
+  base,
+  assignMap,
+  addrChoice,
+  skipped,
+}: {
+  it: Item;
+  person: Person;
+  base: Candidate | null;
+  assignMap: Record<string, string>;
+  addrChoice: AddressChoice;
+  skipped: boolean;
+}) {
+  if (skipped) {
+    return (
+      <div className="mt-2 border rounded-lg px-3.5 py-3 bg-gray-50 text-sm text-gray-500">
+        Skipped — nothing will go on their card.
+      </div>
+    );
+  }
+  const after = computeAfter(it, person, base, assignMap, addrChoice);
+  const note = buildNote(person, addrChoice, base);
+  const rows: { label: string; value: string; changed: boolean }[] = [
+    { label: 'Name', value: after.name, changed: false },
+    {
+      label: 'Email',
+      value: after.email || '—',
+      changed: after.changed.email,
+    },
+    ...(after.email2
+      ? [
+          {
+            label: 'Second email',
+            value: after.email2,
+            changed: after.changed.email2,
+          },
+        ]
+      : []),
+    {
+      label: 'Phone',
+      value: after.phone || '—',
+      changed: after.changed.phone,
+    },
+    ...(after.phone2
+      ? [
+          {
+            label: 'Second phone',
+            value: after.phone2,
+            changed: after.changed.phone2,
+          },
+        ]
+      : []),
+    {
+      label: 'Address',
+      value: after.address || '— (left blank)',
+      changed: after.changed.address,
+    },
+  ];
+  return (
+    <div className="mt-2 border rounded-lg px-3.5 py-3 bg-gray-50">
+      <dl className="space-y-1.5 text-sm mb-3">
+        {rows.map((r) => (
+          <div
+            key={r.label}
+            className={`flex gap-2 rounded px-1.5 py-0.5 ${
+              r.changed ? 'bg-amber-100/70' : ''
+            }`}
+          >
+            <dt className="w-28 shrink-0 text-gray-400">{r.label}</dt>
+            <dd className="text-gray-800 break-all">
+              {r.value}
+              {r.changed && (
+                <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                  {base ? 'will change' : 'new'}
+                </span>
+              )}
+            </dd>
+          </div>
         ))}
-      </ul>
-    </span>
+      </dl>
+      <p className="text-xs font-semibold text-gray-500 mb-1">
+        Note that will be added:
+      </p>
+      <pre className="whitespace-pre-wrap text-[13px] text-gray-700 bg-white border rounded-lg px-3 py-2.5 font-sans">
+        {note}
+      </pre>
+    </div>
+  );
+}
+
+// Legacy panel — items seeded before the per-person rework (no persons
+// array in the payload). Same choices as the original page.
+function LegacyPanel({
+  it,
+  saving,
+  selectedContact,
+  onSelect,
+  onDecide,
+  decidedOpen,
+  onCollapse,
+}: {
+  it: Item;
+  saving: boolean;
+  selectedContact: string;
+  onSelect: (cid: string) => void;
+  onDecide: (d: 'add' | 'merge' | 'skip' | null, cid?: string | null) => void;
+  decidedOpen: boolean;
+  onCollapse: () => void;
+}) {
+  if (it.match_status === 'na') {
+    return (
+      <>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          You weren&apos;t their agent on this one — nothing to import.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onDecide('skip')}
+            className={btnPrimary}
+            style={{ background: NAVY }}
+          >
+            {saving ? 'Saving…' : 'Confirm skip'}
+          </button>
+          {decidedOpen && (
+            <button type="button" onClick={onCollapse} className={btnGhost}>
+              Close
+            </button>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  if (it.match_status === 'none') {
+    return (
+      <>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Not in your database. Add them as a new contact — with the details
+          from the file and a note on this deal — or skip.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onDecide('add')}
+            className={btnPrimary}
+            style={{ background: RED }}
+          >
+            {saving ? 'Saving…' : 'Add as new contact'}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onDecide('skip')}
+            className={btnGhost}
+          >
+            Skip
+          </button>
+          {decidedOpen && (
+            <button type="button" onClick={onCollapse} className={btnGhost}>
+              Close
+            </button>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  if (it.match_status === 'strong' && it.match_candidates[0]) {
+    return (
+      <>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+          Already in your database
+        </p>
+        <div className="mb-3">
+          <ContactBox c={it.match_candidates[0]} />
+        </div>
+        <p className="text-xs text-gray-400 leading-relaxed mb-3">
+          Updating fills in blanks only — anything already on the contact
+          stays exactly as it is.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onDecide('merge', it.match_candidates[0].contact_id)}
+            className={btnPrimary}
+            style={{ background: RED }}
+          >
+            {saving ? 'Saving…' : 'Update this contact'}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onDecide('skip')}
+            className={btnGhost}
+          >
+            Skip
+          </button>
+          {decidedOpen && (
+            <button type="button" onClick={onCollapse} className={btnGhost}>
+              Close
+            </button>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // possible
+  return (
+    <>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+        Could be one of these — pick the right one
+      </p>
+      <div className="space-y-2.5 mb-4">
+        {it.match_candidates.map((c) => (
+          <label
+            key={c.contact_id}
+            className={`block bg-white border rounded-lg px-3.5 py-3 cursor-pointer transition ${
+              selectedContact === c.contact_id
+                ? 'border-[#0f2a44] ring-1 ring-[#0f2a44]'
+                : 'hover:border-gray-300'
+            }`}
+          >
+            <span className="flex items-start gap-2.5">
+              <input
+                type="radio"
+                name={`cand-${it.item_key}`}
+                className="mt-1"
+                checked={selectedContact === c.contact_id}
+                onChange={() => onSelect(c.contact_id)}
+              />
+              <span className="flex-1">
+                <span
+                  className="block font-semibold text-sm"
+                  style={{ color: NAVY }}
+                >
+                  {c.name}
+                </span>
+                <span className="block text-xs text-gray-500">
+                  Matched on: {c.matched_on.join(' · ')}
+                </span>
+                <DiffList c={c} />
+              </span>
+            </span>
+          </label>
+        ))}
+        <label
+          className={`block bg-white border rounded-lg px-3.5 py-3 cursor-pointer transition ${
+            selectedContact === 'none'
+              ? 'border-[#0f2a44] ring-1 ring-[#0f2a44]'
+              : 'hover:border-gray-300'
+          }`}
+        >
+          <span className="flex items-start gap-2.5">
+            <input
+              type="radio"
+              name={`cand-${it.item_key}`}
+              className="mt-1"
+              checked={selectedContact === 'none'}
+              onChange={() => onSelect('none')}
+            />
+            <span className="text-sm text-gray-600">
+              None of these is the right person
+            </span>
+          </span>
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saving || !selectedContact || selectedContact === 'none'}
+          onClick={() => onDecide('merge', selectedContact)}
+          className={btnPrimary}
+          style={{ background: RED }}
+        >
+          {saving ? 'Saving…' : 'Update selected contact'}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => onDecide('add')}
+          className={btnGhost}
+        >
+          Add as new instead
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => onDecide('skip')}
+          className={btnGhost}
+        >
+          Skip
+        </button>
+        {decidedOpen && (
+          <button type="button" onClick={onCollapse} className={btnGhost}>
+            Close
+          </button>
+        )}
+      </div>
+    </>
   );
 }
