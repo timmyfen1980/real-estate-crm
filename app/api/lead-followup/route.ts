@@ -113,6 +113,7 @@ function agentIdentity(fullName: string | null, accountId: string) {
 
 function buildHtml(opts: {
   firstName: string;
+  skipGreeting?: boolean;
   bodyText: string;
   heroUrl: string | null;
   agent: { name: string; email: string; photo: string | null };
@@ -143,7 +144,7 @@ function buildHtml(opts: {
     }
     <tr><td height="10" style="background-color:#0f2a44; font-size:0; line-height:0;">&nbsp;</td></tr>
     <tr><td style="padding:30px 28px 32px; font-size:16px; line-height:1.6; color:#111111;">
-      <p style="font-size:20px; margin:0 0 20px 0; font-weight:600;">Hi ${escapeHtml(opts.firstName)},</p>
+      ${opts.skipGreeting ? '' : `<p style="font-size:20px; margin:0 0 20px 0; font-weight:600;">Hi ${escapeHtml(opts.firstName)},</p>`}
       <div style="font-size:16px; line-height:1.8; color:#111111;">
         ${paragraphs}
       </div>
@@ -245,8 +246,14 @@ export async function POST(req: NextRequest) {
     const heroUrl =
       account?.email_header_image_url || 'https://crm.thefcgroup.ca/api/email-hero';
 
+    // If the draft already opens with its own greeting (the market
+    // update template includes "Hi <name>," in the editable body so
+    // Tim/Aidan see it while editing), don't add a second one.
+    const bodyHasGreeting = /^hi\b/i.test(bodyText);
+
     const html = buildHtml({
       firstName: displayFirstName,
+      skipGreeting: bodyHasGreeting,
       bodyText,
       heroUrl,
       agent,
@@ -266,7 +273,9 @@ export async function POST(req: NextRequest) {
         to,
         subject,
         html,
-        text: `Hi ${displayFirstName},\n\n${bodyText}\n\n${agent.name}\n${agent.email}\n${TEAM_PHONE}\n${BROKERAGE}`,
+        text: bodyHasGreeting
+          ? `${bodyText}\n\n${agent.name}\n${agent.email}\n${TEAM_PHONE}\n${BROKERAGE}`
+          : `Hi ${displayFirstName},\n\n${bodyText}\n\n${agent.name}\n${agent.email}\n${TEAM_PHONE}\n${BROKERAGE}`,
         fallbackFrom: `${agent.name} <info@thefcgroup.ca>`,
         fallbackReplyTo: agent.email,
       });

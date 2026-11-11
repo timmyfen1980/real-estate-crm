@@ -59,6 +59,9 @@ What does the right home look like for you?`,
       }
     }
     case 'market_update': {
+      // The greeting is IN the draft on purpose (Tim, 2026-11-11): he
+      // wants to see "Hi <name>," while editing. The send route detects
+      // a body that already opens with a greeting and skips its own.
       // The Durham valley-bottom update (Tim, 2026-11-11 — copy approved
       // by Tim as a draft the same day; figures: TRREB Market Watch
       // October 2026 + the team's own MLS sold analysis, May vs October
@@ -66,7 +69,7 @@ What does the right home look like for you?`,
       // Refresh the numbers when reusing in a later season.
       return {
         subject: 'We\u2019re at the low — now is the time to buy in Durham',
-        body: `We're at the low.
+        body: `Hi ${lead.first_name},\n\nWe're at the low.
 
 Durham home prices slid all through 2026 — and everything we're watching says the turn is next. If you've been waiting for your moment to buy, this is it: prices are at the bottom of the valley, sellers are negotiating, and the spring market — when competition and prices climb — is one season away.
 
