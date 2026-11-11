@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 
 type TemplateKey =
   | 'open_house'
+  | 'market_update'
   | 'drip'
   | 'intro'
   | 'general'
@@ -14,6 +15,7 @@ type TemplateKey =
 
 const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   open_house: 'Open house follow-up',
+  market_update: 'Market update — Durham prices',
   drip: 'Drip check-in',
   intro: 'Intro',
   general: 'General check-in',
@@ -54,6 +56,31 @@ Scrolling through listings can be a grind, and half of them aren't what they loo
 And there's no pressure or obligation. If you just want honest advice on where the market's heading or what a home is really worth, I'm happy to be a resource.
 
 What does the right home look like for you?`,
+      }
+    }
+    case 'market_update': {
+      // The Durham valley-bottom update (Tim, 2026-11-11 — copy approved
+      // by Tim as a draft the same day; figures: TRREB Market Watch
+      // October 2026 + the team's own MLS sold analysis, May vs October
+      // 2026). Written for past open-house visitors and buyer leads.
+      // Refresh the numbers when reusing in a later season.
+      return {
+        subject: 'We\u2019re at the low — now is the time to buy in Durham',
+        body: `We're at the low.
+
+Durham home prices slid all through 2026 — and everything we're watching says the turn is next. If you've been waiting for your moment to buy, this is it: prices are at the bottom of the valley, sellers are negotiating, and the spring market — when competition and prices climb — is one season away.
+
+Here's the proof. Prices came down through 2026 — in some towns, a lot. Durham's benchmark price is down 5.1% from a year ago (TRREB, October). Looking at actual MLS sales, the average home in Oshawa sold for about $722,800 in May — by October that was $666,500. Same town, same kinds of homes, roughly $56,000 less than in the spring. Across Durham, the median detached home went from $850,000 in May to $835,000 in October.
+
+And right now, buyers hold the cards. Homes are selling for about 99% of asking — in the spring it was effectively full price — and taking about 29 days to sell instead of 24. There's room to negotiate on price, and room for conditions like financing and inspection.
+
+Here's why we don't expect this window to stay open. Durham sales rose 6.7% in October, and Whitby sales rose 12.5% — buyers are already coming back. And Durham has the least supply of any region in the GTA: just 3.6 months of inventory, the tightest in the Toronto area. Every spring, the competition for those homes jumps. The forecasters see it too: CREA expects Ontario prices to rise about 1.5% in 2027 with sales up over 5%, and CMHC expects Toronto-area average prices to climb from about $1.02M to $1.05M next year.
+
+In plain terms: on an $800,000 home, even a modest 2% rise is $16,000. Buy this winter and that lift works for you. Wait for spring, and you pay it to the seller — likely with more competition for the same house.
+
+Nobody can promise where prices go, and forecasts are forecasts. But falling prices, the thinnest supply in the GTA, returning demand, and spring ahead — that's exactly what a good buying window looks like.
+
+If you're thinking about it, just reply and tell me the town and budget you have in mind. I'll send you what's out there right now — including homes that have already taken price drops and weren't affordable in the spring. No pressure, no obligation.`,
       }
     }
     case 'new_listing': {

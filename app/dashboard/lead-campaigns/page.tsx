@@ -27,7 +27,10 @@ interface CampaignCreative {
   error: string | null;
 }
 
-const IG_USERNAME = 'timfennesseyrealestate';
+// All campaign posts go on the GROUP account first (Tim's standing
+// rule, 2026-11-05) — the preview and the "Posting as" line must say
+// so for every user, not the personal account this used to name.
+const IG_USERNAME = 'fennesseycomeaugroup';
 const IG_AVATAR_URL =
   'https://zftihampsyucluajcnmo.supabase.co/storage/v1/object/public/account-assets/a540905b-7cd7-4dd6-bba0-162c07978bd6/team-logo.png';
 
