@@ -19,6 +19,7 @@ import {
   Handshake,
   Image as ImageIcon,
   LayoutDashboard,
+  LifeBuoy,
   Link2,
   ListChecks,
   ListTodo,
@@ -551,6 +552,19 @@ const handleLogout = async () => {
           )}
 
         </nav>
+
+        {/* Sidebar footer — account-level furniture: Help & Training sits
+            at the bottom of the sidebar (Account itself is the avatar in
+            the header), visible on every screen without competing with
+            the daily-work nav above. */}
+        <div className="mt-auto border-t px-4 py-4">
+          <Link href="/dashboard/help" className={navItemClass('/dashboard/help')}>
+            <span className="flex items-center gap-3">
+              <LifeBuoy className={iconClass} />
+              <span>Help & Training</span>
+            </span>
+          </Link>
+        </div>
       </aside>
 
       {/* Right Side */}

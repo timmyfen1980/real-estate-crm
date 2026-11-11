@@ -13,12 +13,18 @@
 // offer package, update_offer_fields writes each answer into its deal,
 // get_offer_status reads it back, generate_offer_forms builds the PDFs.
 // She drafts and points; she never sends email.
+//
+// Help & Training: search_help answers how-to questions from the guide
+// in lib/helpContent (the same module text the /dashboard/help page
+// renders), ends how-to answers with a button to the module's page, and
+// runs "teach me" walkthroughs one step at a time.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { validateDeal, validate801, validateRep, validateListing } from "@/lib/offerPdf";
+import { HELP_MODULES, TEAM_OVERLAY, getHelpModule, searchHelpModules } from "@/lib/helpContent";
 
 const FC_ACCOUNT_ID = "a540905b-7cd7-4dd6-bba0-162c07978bd6";
 const MODEL = "gpt-4o-mini";
@@ -1275,6 +1281,82 @@ async function deriveActiveIntake(
   return { packageId: picked.id, deal: picked.deal, forms: picked.deal.intake_forms };
 }
 
+// ---------------------------------------------------------------------------
+// help — search_help over lib/helpContent (core modules; the team overlay
+// rides along in the system prompt, so answers speak the team's rules).
+// Two modes: query (best-matching modules, full steps for the top match)
+// and teach (module_id + step → exactly one step, with advance chips).
+// ---------------------------------------------------------------------------
+
+async function searchHelp(args: any) {
+  const moduleId = typeof args?.module_id === "string" ? args.module_id : "";
+  const step = typeof args?.step === "number" ? args.step : null;
+  if (moduleId) {
+    const mod = getHelpModule(moduleId);
+    if (!mod) {
+      return {
+        error: "unknown module",
+        known_modules: HELP_MODULES.map((m) => ({ id: m.id, title: m.title })),
+      };
+    }
+    const base = {
+      module_id: mod.id,
+      title: mod.title,
+      page_link: mod.link,
+      page_link_label: mod.linkLabel,
+    };
+    if (step !== null) {
+      const idx = Math.min(Math.max(Math.round(step), 1), mod.steps.length);
+      const isLast = idx >= mod.steps.length;
+      return {
+        ...base,
+        mode: "teach",
+        step: idx,
+        total_steps: mod.steps.length,
+        step_text: mod.steps[idx - 1],
+        is_last_step: isLast,
+        ...(isLast ? { try_it: mod.tryIt } : {}),
+        suggestions: isLast ? ["Finish"] : ["Done — next step", "Stop teaching"],
+      };
+    }
+    return {
+      ...base,
+      mode: "full",
+      summary: mod.summary,
+      body: mod.body,
+      steps: mod.steps,
+      try_it: mod.tryIt,
+      watch_out: mod.watchOut,
+    };
+  }
+  const q = typeof args?.query === "string" ? args.query : "";
+  const matches = searchHelpModules(q, 3);
+  if (!matches.length) {
+    return {
+      matches: [],
+      note:
+        "No help module matched. Say so plainly and offer the closest topics: " +
+        HELP_MODULES.map((m) => m.title).join(", ") +
+        ".",
+    };
+  }
+  const first = matches[0];
+  return {
+    matches: matches.map((m, i) => ({
+      module_id: m.id,
+      title: m.title,
+      summary: m.summary,
+      page_link: m.link,
+      page_link_label: m.linkLabel,
+      ...(i === 0
+        ? { steps: m.steps, try_it: m.tryIt, watch_out: m.watchOut }
+        : {}),
+    })),
+    page_link: first.link,
+    page_link_label: first.linkLabel,
+  };
+}
+
 const TOOLS = [
   {
     type: "function",
@@ -1332,6 +1414,31 @@ const TOOLS = [
           name: { type: "string", description: "The person's name as the user said it" },
         },
         required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_help",
+      description:
+        "Look up how to DO something in this CRM — the built-in Help & Training guide (core modules plus this team's own rules). Use it for ANY how-to, 'how do I…', 'where is…' or 'teach me…' question instead of guessing: getting around, contacts, leads, tasks, client files and checklists, FINTRAC forms (630/635), offers and signing, email drips / follow-ups / the newsletter, open houses, lead campaigns and the giveaway, hours and invoicing, brand images, and the team's golden rules. Call with `query` (their words) for a normal how-to answer — it returns the best-matching modules with steps for the top match. For a TEACH-ME walkthrough, call with `module_id` and `step` (starting at 1) to get exactly one step at a time. Module ids: golden-rules, getting-around, contacts, leads, tasks, client-files, fintrac, offers, email, open-houses, lead-campaigns, hours-invoicing, brand-images.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The user's how-to question, in their words (query mode)",
+          },
+          module_id: {
+            type: "string",
+            description: "A module id from the list above (teach mode, with step)",
+          },
+          step: {
+            type: "number",
+            description: "Step number to fetch in teach mode, starting at 1",
+          },
+        },
       },
     },
   },
@@ -1451,6 +1558,8 @@ async function runTool(name: string, args: any, ctx: ToolCtx) {
       return searchListings(args || {});
     case "find_contact":
       return findContact(args || {});
+    case "search_help":
+      return searchHelp(args || {});
     case "start_offer":
       return { workspace: "/dashboard/offers/new", mls: args?.mls || null };
     case "begin_offer_intake":
@@ -1532,6 +1641,32 @@ export async function POST(req: NextRequest) {
         .filter((m) => m && (m.role === "user" || m.role === "assistant") && m.content)
         .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) })),
     ];
+    // HELP & TRAINING — Rea is also the built-in trainer. The guide text
+    // itself stays in lib/helpContent and is fetched via search_help (kept
+    // out of the prompt so it never goes stale); this team's own rules
+    // (the overlay) ride along here so every answer speaks them.
+    messages.push({
+      role: "system",
+      content:
+        `HELP & TRAINING: you teach this CRM as well as use it. For ANY how-to question ` +
+        `("how do I…", "where is…", "what does X do") call search_help with their words FIRST and ` +
+        `answer from the module it returns — plain steps, in order, no invented clicks or menu names. ` +
+        `When search_help returns a page_link, a button to that page is attached under your message ` +
+        `automatically: end the answer by pointing to it in one short line (e.g. "I've put a button ` +
+        `under this message that takes you straight there."). If search_help finds no module, say so ` +
+        `honestly and name the closest topics it offers — never fake a procedure. ` +
+        `TEACH ME: when they ask to be taught or walked through something ("teach me client files", ` +
+        `a tapped Teach-me chip, or a "Teach me: <module>" message from the Help page), run a ` +
+        `walkthrough: call search_help with that module_id and step 1, present ONLY that one step ` +
+        `(numbered "Step 1 of N"), and invite them to tap "Done — next step" when they've done it. ` +
+        `Each time they say done / next, call search_help again with the SAME module_id and the next ` +
+        `step number — never present two steps at once and never dump the whole module. On the last ` +
+        `step, add the module's try_it exercise as the finish line, mention the page button, and wrap ` +
+        `up warmly. If they say stop, stop at once. If you are unsure which module they mean, call ` +
+        `search_help with query first and teach the top match. ` +
+        `TEAM RULES (${TEAM_OVERLAY.team} — this team's overlay, read with the guide): ` +
+        TEAM_OVERLAY.rules.map((r) => `${r.title}: ${r.text}`).join(" "),
+    });
     // If an intake is already on the go in this conversation, pin it back
     // into the model's context: the package_id only ever lived in tool
     // results, which the client doesn't persist. Without this note the
@@ -1625,6 +1760,14 @@ export async function POST(req: NextRequest) {
         if (call.function.name === "search_listings" && (result as any).listings) {
           for (const l of (result as any).listings.slice(0, 5)) {
             links.push({ label: `${l.address} — $${Number(l.price).toLocaleString()}`, href: l.link });
+          }
+        }
+        if (call.function.name === "search_help") {
+          if (result?.page_link && !links.some((l) => l.href === result.page_link)) {
+            links.push({ label: result.page_link_label || "Open the page", href: result.page_link });
+          }
+          if (Array.isArray(result?.suggestions)) {
+            suggestions = result.suggestions;
           }
         }
         messages.push({

@@ -9,7 +9,7 @@
 // voice (Web Speech API), typing, or tapping a suggested answer.
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { MessageCircle, Mic, MicOff, Send, Volume2, VolumeX, X } from 'lucide-react'
 
 interface ChatLink {
@@ -27,7 +27,7 @@ interface Msg {
 const GREETING: Msg = {
   role: 'assistant',
   content:
-    "Hi, I'm Rea. Ask me what's due, who's gone quiet, or what's closing — or tap the mic and say \"put together a buyer package and an offer for 123 Main Street\" and I'll build it with you, one question at a time.",
+    "Hi, I'm Rea. Ask me what's due, who's gone quiet, or what's closing — or tap the mic and say \"put together a buyer package and an offer for 123 Main Street\" and I'll build it with you, one question at a time. You can also ask me how anything in the CRM works — say \"teach me client files\" and I'll walk you through it, one step at a time.",
 }
 
 const CHIPS = [
@@ -35,10 +35,35 @@ const CHIPS = [
   'Which of my leads need attention?',
   "What's closing soon?",
   'Put together a buyer package and an offer',
+  'Teach me client files',
+  'Teach me FINTRAC forms',
 ]
+
+// "Help with this page" — maps the page the user is standing on to the
+// help topic that covers it, so the chip can ask about that topic.
+const PAGE_TOPICS: [string, string][] = [
+  ['/dashboard/checklists', 'client files and checklists'],
+  ['/dashboard/offers', 'offers'],
+  ['/dashboard/leads', 'leads'],
+  ['/dashboard/contacts', 'contacts'],
+  ['/dashboard/tasks', 'tasks'],
+  ['/dashboard/open-houses', 'open houses'],
+  ['/dashboard/lead-campaigns', 'lead campaigns'],
+  ['/dashboard/campaigns', 'email drips, follow-ups and the newsletter'],
+  ['/dashboard/brand-images', 'brand images'],
+  ['/dashboard/beth-hours', 'my hours and invoices'],
+  ['/dashboard/giveaway', 'the giveaway'],
+]
+
+function topicForPath(pathname: string | null): string | null {
+  if (!pathname) return null
+  const hit = PAGE_TOPICS.find(([prefix]) => pathname.startsWith(prefix))
+  return hit ? hit[1] : null
+}
 
 export default function ReaChat() {
   const router = useRouter()
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([GREETING])
   const [input, setInput] = useState('')
@@ -140,6 +165,24 @@ export default function ReaChat() {
   }
 
   sendRef.current = send
+
+  // Help & Training page bridge: anything on the page can ask Rea a
+  // question by dispatching window CustomEvent('rea-chat:ask',
+  // { detail: { message } }) — the panel opens and the message sends
+  // itself, so "Teach me this" buttons start a walkthrough hands-free.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {}
+      const text = typeof detail.message === 'string' ? detail.message.trim() : ''
+      if (!text) return
+      setOpen(true)
+      // Give the panel a beat to open before sending through the ref
+      // (sendRef always points at the latest send, so no stale state).
+      setTimeout(() => sendRef.current(text), 60)
+    }
+    window.addEventListener('rea-chat:ask', handler)
+    return () => window.removeEventListener('rea-chat:ask', handler)
+  }, [])
 
   const stopListening = () => {
     try {
@@ -297,6 +340,14 @@ export default function ReaChat() {
               {chip}
             </button>
           ))}
+          {topicForPath(pathname) && (
+            <button
+              onClick={() => send(`Help with this page — how do I use the ${topicForPath(pathname)} part of the CRM?`)}
+              className="text-xs border border-[#0f2a44] text-[#0f2a44] rounded-full px-2.5 py-1 hover:bg-[#0f2a44] hover:text-white transition"
+            >
+              Help with this page
+            </button>
+          )}
         </div>
       )}
 
