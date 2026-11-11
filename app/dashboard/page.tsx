@@ -88,6 +88,14 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [isOwner, setIsOwner] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  // "New here?" pointer line — dismissible per user (Tim, 2026-11-11):
+  // once a user closes it, it stays closed for them. Starts hidden and
+  // is revealed by loadDashboard only if this user has not dismissed
+  // it, so it never flashes for users who already closed it. Persisted
+  // in localStorage keyed by user id (no schema change needed); making
+  // it follow a user across devices would need a server-side
+  // preferences field — a later productization step.
+  const [newHereDismissed, setNewHereDismissed] = useState(true)
   const [collapsed, setCollapsed] = useState({
     attention: false, // default open (safe fallback)
   })
@@ -128,6 +136,9 @@ export default function Dashboard() {
     const owner = membership.role === 'owner'
     setIsOwner(owner)
     setCurrentUserId(user.id)
+    setNewHereDismissed(
+      window.localStorage.getItem(`fc-newhere-dismissed-${user.id}`) === '1'
+    )
 
     // Email follow-ups (per user): the signed-in user's own unreplied
     // inbox mail flagged by the inbox scanners. Fail-quiet — if the
@@ -414,12 +425,34 @@ export default function Dashboard() {
     <div className="bg-white border border-gray-200 rounded-xl shadow-md p-4">
       <div className="space-y-4">
         {/* GETTING STARTED — one pointer line for a first-timer (Beth):
-            where client documents and offers live. */}
-        <p className="text-sm text-gray-500 px-1">
-          New here? Client documents live in <span className="font-medium text-gray-700">Client Files</span> (sidebar).
-          Offers are built under <span className="font-medium text-gray-700">Prepare an Offer</span>.
-          Rea, bottom-right, can answer questions and start things for you.
-        </p>
+            where client documents and offers live. Dismissible per user
+            via the ✕ (see newHereDismissed above). */}
+        {!newHereDismissed && (
+          <div className="flex items-start gap-2 px-1">
+            <p className="text-sm text-gray-500 flex-1">
+              New here? Client documents live in <span className="font-medium text-gray-700">Client Files</span> (sidebar).
+              Offers are built under <span className="font-medium text-gray-700">Prepare an Offer</span>.
+              Rea, bottom-right, can answer questions and start things for you.
+            </p>
+            <button
+              type="button"
+              aria-label="Dismiss this tip"
+              title="Don't show this again"
+              onClick={() => {
+                setNewHereDismissed(true)
+                if (currentUserId) {
+                  window.localStorage.setItem(
+                    `fc-newhere-dismissed-${currentUserId}`,
+                    '1'
+                  )
+                }
+              }}
+              className="text-gray-400 hover:text-gray-600 text-base leading-none px-1 shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* READY FOR REVIEW — shown only while packages are waiting. */}
         {reviewCount !== null && reviewCount > 0 && (
