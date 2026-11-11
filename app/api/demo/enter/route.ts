@@ -59,7 +59,11 @@ export async function GET() {
     options: { redirectTo: DEMO_REDIRECT },
   });
 
-  const actionLink = (data as any)?.properties?.action_link as string | undefined;
+  // The auth API returns action_link at the top level of its raw
+  // response; supabase-js lifts it into data.properties. Accept either
+  // shape so a library version change can't silently break the door.
+  const actionLink = ((data as any)?.properties?.action_link ??
+    (data as any)?.action_link) as string | undefined;
   if (error || !actionLink) {
     return NextResponse.json(
       { ok: false, error: 'Could not open the practice demo — please try again.' },
