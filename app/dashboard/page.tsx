@@ -432,7 +432,22 @@ export default function Dashboard() {
             <p className="text-sm text-gray-500 flex-1">
               New here? Client documents live in <span className="font-medium text-gray-700">Client Files</span> (sidebar).
               Offers are built under <span className="font-medium text-gray-700">Prepare an Offer</span>.
-              Rea, bottom-right, can answer questions and start things for you.
+              Rea, bottom-right, can answer questions and start things for you.{' '}
+              <button
+                type="button"
+                className="font-medium text-blue-700 underline"
+                onClick={() => {
+                  try {
+                    window.localStorage.setItem('fc-tour-active', '1')
+                    window.localStorage.setItem('fc-tour-step', '0')
+                    window.dispatchEvent(new CustomEvent('fc-tour:start'))
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              >
+                Take the guided tour →
+              </button>
             </p>
             <button
               type="button"

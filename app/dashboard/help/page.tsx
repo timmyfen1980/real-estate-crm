@@ -9,6 +9,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
   BookOpen,
@@ -28,6 +29,7 @@ import {
   type HelpAudience,
   type HelpModule,
 } from '@/lib/helpContent'
+import { TOUR_STEPS } from '@/lib/tourSteps'
 
 const NAVY = '#0f2a44'
 const RED = '#d22630'
@@ -144,7 +146,22 @@ function ModuleCard({
 }
 
 export default function HelpPage() {
+  const router = useRouter()
   const [query, setQuery] = useState('')
+
+  // Hand control to GuidedTour (mounted in the dashboard layout):
+  // persist the tour state, let it know to (re)start at step 1,
+  // then go to the first step's page.
+  function startTour() {
+    try {
+      window.localStorage.setItem('fc-tour-active', '1')
+      window.localStorage.setItem('fc-tour-step', '0')
+      window.dispatchEvent(new CustomEvent('fc-tour:start'))
+    } catch {
+      /* private mode — the layout mount still reads the keys */
+    }
+    router.push(TOUR_STEPS[0].route)
+  }
   const [audience, setAudience] = useState<HelpAudience | 'everyone'>('everyone')
   const [openId, setOpenId] = useState<string | null>('golden-rules')
 
@@ -192,35 +209,30 @@ export default function HelpPage() {
         Ask Rea instead
       </button>
 
-      {/* Practice demo — the training sandbox. Entering signs the user
-          in as Dana Mercer, the demo broker of "Demo Realty Group" (a
-          separate practice account): see /api/demo/enter. */}
+      {/* Guided Tour — the look-and-learn walk through the real CRM
+          (lib/tourSteps.ts + app/components/GuidedTour.tsx). Replaced
+          the practice demo on 2026-11-11 at Tim's direction. */}
       <div className="bg-white border rounded-xl shadow-sm p-5 mb-10">
         <h2 className="text-lg font-bold mb-2 flex items-center gap-2" style={{ color: NAVY }}>
-          <GraduationCap size={18} /> Practice Demo — learn by doing
+          <GraduationCap size={18} /> Guided Tour — see the whole system in a few minutes
         </h2>
-        <p className="text-sm text-gray-600 mb-2">
-          A complete practice copy of the CRM, loaded with a pretend brokerage —{' '}
-          <strong>Demo Realty Group</strong> — its own clients, leads, client files, tasks and
-          open houses. Work through the modules below in there: click anything, file anything,
-          make mistakes. Nothing in the practice demo is real, and it can never email a real
-          person.
-        </p>
         <p className="text-sm text-gray-600 mb-4">
-          The button signs you in as <strong>Dana Mercer</strong>, the demo broker, so you see
-          the whole system the way an owner would. When you&apos;re done practising, sign out
-          (top right) and sign back in as yourself — your real account is exactly where you
-          left it. If the practice data gets messy, ask Tim or Rea to reset it.
+          New here, or showing a teammate around? The guided tour walks you through the real
+          CRM one screen at a time — your dashboard, leads, tasks, client files, offers and
+          campaigns — pointing at what matters on each one. It only navigates and explains:
+          it never clicks, submits, or sends anything, so you can&apos;t break or send a
+          thing by taking it. Go at your own pace, end it any time with the ✕ on the tour
+          card, and restart it here whenever you like.
         </p>
-        <a
-          href="/api/demo/enter"
+        <button
+          onClick={startTour}
           className="inline-flex items-center gap-2 text-sm font-medium text-white rounded-full px-5 py-2.5 transition hover:opacity-90"
           style={{ backgroundColor: NAVY }}
         >
           <GraduationCap size={16} />
-          Enter the practice demo
+          Start the guided tour
           <ArrowRight size={15} />
-        </a>
+        </button>
       </div>
 
       {/* Quick start cards */}
