@@ -115,6 +115,9 @@ const [notLeadReason, setNotLeadReason] = useState('not_interested')
 const [pauseDrips, setPauseDrips] = useState(true)
 const [notLeadSaving, setNotLeadSaving] = useState(false)
 const [notLeadError, setNotLeadError] = useState<string | null>(null)
+const [deleteOpen, setDeleteOpen] = useState(false)
+const [deleting, setDeleting] = useState(false)
+const [deleteError, setDeleteError] = useState<string | null>(null)
 const [taskModalOpen, setTaskModalOpen] = useState(false)
 const [followUpOpen, setFollowUpOpen] = useState(false)
 const [convertModalOpen, setConvertModalOpen] = useState(false)
@@ -426,6 +429,36 @@ const markNotLead = async () => {
   setNotLeadSaving(false)
   setNotLeadOpen(false)
   router.push('/dashboard/leads')
+}
+
+// DELETE CONTACT (Tim, 2026-11-11): permanently removes the contact
+// behind this lead — the contact, all their leads, tasks, notes, drip
+// enrollments and email history. Deals are kept but unlinked. The
+// server route does the FK-safe cleanup; on success we leave for the
+// Leads list because this lead no longer exists.
+const deleteContactForever = async () => {
+  if (!lead || deleting) return
+  setDeleting(true)
+  setDeleteError(null)
+  try {
+    const res = await fetch(`/api/leads/${lead.id}/delete-contact`, {
+      method: 'POST',
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      throw new Error(
+        (data && data.error) || 'Could not delete this contact — please try again.'
+      )
+    }
+    router.push('/dashboard/leads')
+  } catch (err) {
+    setDeleteError(
+      err instanceof Error
+        ? err.message
+        : 'Could not delete this contact — please try again.'
+    )
+    setDeleting(false)
+  }
 }
 
 // DEAL STATUS UPDATE
@@ -973,6 +1006,18 @@ const toggleEnrollment = async (enrollment: any) => {
     Not a lead anymore?
   </button>
 
+  {lead.contact_id && (
+    <button
+      onClick={() => {
+        setDeleteError(null)
+        setDeleteOpen(true)
+      }}
+      className="text-sm text-red-600 underline hover:text-red-800 text-left"
+    >
+      Delete contact
+    </button>
+  )}
+
   {/* Convert moved to Deals page */}
 
   {deal && (
@@ -1376,6 +1421,49 @@ const toggleEnrollment = async (enrollment: any) => {
           className="px-4 py-2 bg-black text-white rounded disabled:opacity-50"
         >
           {notLeadSaving ? 'Saving...' : 'Confirm'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{deleteOpen && lead && (
+  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-lg w-full max-w-md space-y-4">
+      <h2 className="text-xl font-semibold">Delete contact</h2>
+
+      <p className="text-sm text-gray-500">
+        This permanently deletes{' '}
+        <strong>
+          {lead.first_name} {lead.last_name}
+        </strong>{' '}
+        — their contact record, all of their leads, tasks, notes, drip
+        enrollments and email history, plus their client file and its
+        documents if they have one. Deals are kept, but unlinked from
+        them.
+      </p>
+
+      <p className="text-sm font-medium text-red-600">
+        This can&apos;t be undone.
+      </p>
+
+      {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+
+      <div className="flex justify-between">
+        <button
+          onClick={() => setDeleteOpen(false)}
+          disabled={deleting}
+          className="px-4 py-2 border rounded disabled:opacity-50"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={deleteContactForever}
+          disabled={deleting}
+          className="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
+        >
+          {deleting ? 'Deleting...' : 'Delete permanently'}
         </button>
       </div>
     </div>
