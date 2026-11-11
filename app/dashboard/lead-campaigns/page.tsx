@@ -28,9 +28,10 @@ interface CampaignCreative {
 }
 
 // All campaign posts go on the GROUP account first (Tim's standing
-// rule, 2026-11-05) — the preview and the "Posting as" line must say
-// so for every user, not the personal account this used to name.
-const IG_USERNAME = 'fennesseycomeaugroup';
+// rule, 2026-11-05). The handle itself comes from the account's
+// Team & Brand settings (GET /api/lead-campaigns → instagram_handle);
+// this constant is only the fallback until that loads / when unset.
+const IG_FALLBACK = 'fennesseycomeaugroup';
 const IG_AVATAR_URL =
   'https://zftihampsyucluajcnmo.supabase.co/storage/v1/object/public/account-assets/a540905b-7cd7-4dd6-bba0-162c07978bd6/team-logo.png';
 
@@ -227,6 +228,7 @@ export default function LeadCampaignsPage() {
 
   // Campaign cards are collapsed by default — click a card header to expand it
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [igUsername, setIgUsername] = useState<string>(IG_FALLBACK);
   const toggleCampaign = (id: string) =>
     setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
 
@@ -237,6 +239,7 @@ export default function LeadCampaignsPage() {
       if (!res.ok) throw new Error(json.error || 'Could not load campaigns.');
       setCampaigns(json.campaigns || []);
       setIdeas(json.ideas || []);
+      if (json.instagram_handle) setIgUsername(json.instagram_handle);
       const drafts: Record<string, string> = {};
       for (const c of json.campaigns || []) {
         drafts[c.id] = c.caption || '';
@@ -1479,6 +1482,7 @@ export default function LeadCampaignsPage() {
           slides={preview.slides}
           caption={preview.caption}
           mode={preview.mode}
+          username={igUsername}
           onClose={() => setPreview(null)}
           onConfirm={confirmSend}
         />
@@ -1519,12 +1523,14 @@ function IgPreviewModal({
   slides,
   caption,
   mode,
+  username,
   onClose,
   onConfirm,
 }: {
   slides: string[];
   caption: string;
   mode: 'view' | 'send';
+  username: string;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -1602,7 +1608,7 @@ function IgPreviewModal({
             }}
           />
           <span style={{ fontWeight: 700, fontSize: '14px' }}>
-            {IG_USERNAME}
+            {username}
           </span>
           <span style={{ marginLeft: 'auto', display: 'flex', gap: '3px' }}>
             {[0, 1, 2].map((i) => (
@@ -1735,7 +1741,7 @@ function IgPreviewModal({
             wordBreak: 'break-word',
           }}
         >
-          <span style={{ fontWeight: 700 }}>{IG_USERNAME}</span>{' '}
+          <span style={{ fontWeight: 700 }}>{username}</span>{' '}
           {caption}
         </div>
         <div
@@ -1764,7 +1770,7 @@ function IgPreviewModal({
           <div
             style={{ fontSize: '13px', color: '#374151', marginBottom: '10px' }}
           >
-            Posting as @{IG_USERNAME} · {n}{' '}
+            Posting as @{username} · {n}{' '}
             {n === 1 ? 'image' : 'images'} · caption with tracked link
           </div>
           <div

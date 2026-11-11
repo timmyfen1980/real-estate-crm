@@ -141,8 +141,21 @@ export async function GET() {
       }
     }
 
+    // The account's Instagram posting handle (Team & Brand settings)
+    // so the preview names the right account for every team — the
+    // page falls back to its built-in default when this is empty.
+    let instagramHandle = '';
+    try {
+      const { getTeamIdentity } = await import('@/lib/teamIdentity');
+      const identity = await getTeamIdentity(supabase, ctx.accountId);
+      instagramHandle = identity.instagramHandle;
+    } catch {
+      instagramHandle = '';
+    }
+
     return NextResponse.json({
       ideas,
+      instagram_handle: instagramHandle,
       campaigns: rows.map((c: any) => ({ ...c, counts: counts[c.slug] })),
     });
   } catch (err: any) {

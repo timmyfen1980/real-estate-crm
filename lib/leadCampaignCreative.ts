@@ -31,6 +31,13 @@
 import sharp from 'sharp';
 import opentype from 'opentype.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  getTeamIdentity,
+  identityFooterLine,
+  identityRecoLines,
+  websiteHost,
+  type TeamIdentity,
+} from '@/lib/teamIdentity';
 
 // Instagram send state (layer 4). The CRM page only ever REQUESTS a
 // send; Rea (agent side) posts and writes the result back. Shape:
@@ -588,7 +595,8 @@ function textToPath(
 
 function overlaySvg(
   subject: CreativeSubject,
-  fonts: GraphicFonts | null
+  fonts: GraphicFonts | null,
+  footerText: string = FOOTER_TEXT
 ): Buffer {
   const cfg = PLAY_DESIGN[subject.play] || PLAY_DESIGN.general;
   const eyebrowText = [cfg.eyebrow, subject.city ? subject.city.toUpperCase() : '']
@@ -603,7 +611,6 @@ function overlaySvg(
   const lh = Math.round(cfg.size * 1.05);
   const firstBase = headLastBase - (cfg.lines.length - 1) * lh;
   const eyebrowBase = firstBase - cfg.size - 34;
-  const footerText = FOOTER_TEXT;
   const footerSize = fitFooterSize(fonts, footerText, 27);
   const strokeAttrs =
     'style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"';
@@ -670,7 +677,8 @@ async function fetchBuffer(url: string): Promise<Buffer> {
 // Compose the 1080×1350 designed graphic and return the PNG buffer.
 export async function composeCampaignGraphic(
   heroUrl: string,
-  subject: CreativeSubject
+  subject: CreativeSubject,
+  footerText: string = FOOTER_TEXT
 ): Promise<Buffer> {
   const heroBuf = await fetchBuffer(heroUrl);
   const hero = await sharp(heroBuf)
@@ -679,7 +687,7 @@ export async function composeCampaignGraphic(
 
   const fonts = await loadGraphicFonts();
   const composites: sharp.OverlayOptions[] = [
-    { input: overlaySvg(subject, fonts), top: 0, left: 0 },
+    { input: overlaySvg(subject, fonts, footerText), top: 0, left: 0 },
   ];
 
   // Duo cutout, bottom-right, with a soft fade at its bottom edge.
@@ -741,7 +749,12 @@ export async function generateCampaignGraphic(
     photos = [heroUrl, ...photos.filter((u) => u !== heroUrl)];
   }
   const subject = await deriveSubject(supabase, campaign);
-  const png = await composeCampaignGraphic(photos[0], subject);
+  const identity = await getTeamIdentity(supabase, campaign.account_id);
+  const png = await composeCampaignGraphic(
+    photos[0],
+    subject,
+    identityFooterLine(identity) || FOOTER_TEXT
+  );
 
   const path = `campaign-creatives/${campaign.id}/designed.png`;
   const { error: upError } = await supabase.storage
@@ -1115,7 +1128,8 @@ async function composeLeadSlide(
   subject: CreativeSubject,
   idea: any | null,
   play: string,
-  fonts: GraphicFonts | null
+  fonts: GraphicFonts | null,
+  footerText: string = FOOTER_TEXT
 ): Promise<Buffer> {
   const cfg = PLAY_DESIGN[play] || PLAY_DESIGN.market_update;
   const nameParts = String(campaign.name || '')
@@ -1163,7 +1177,7 @@ async function composeLeadSlide(
     </linearGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#sbg)"/>
-  ${slideFooter(fonts)}
+  ${slideFooter(fonts, footerText)}
   ${texts}
 </svg>`
   );
@@ -1196,7 +1210,8 @@ async function composeSubstanceSlide(
   play: string,
   region: string,
   stats: MarketStatLine[],
-  fonts: GraphicFonts | null
+  fonts: GraphicFonts | null,
+  footerText: string = FOOTER_TEXT
 ): Promise<Buffer> {
   let body = '';
   if (
@@ -1255,7 +1270,7 @@ async function composeSubstanceSlide(
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <rect width="${W}" height="${H}" fill="${NAVY}"/>
-  ${slideFooter(fonts)}
+  ${slideFooter(fonts, footerText)}
   ${body}
 </svg>`
   );
@@ -1300,7 +1315,8 @@ const EXPLAINERS: Record<string, { title: string; lines: string[] }> = {
 
 async function composeExplainerSlide(
   play: string,
-  fonts: GraphicFonts | null
+  fonts: GraphicFonts | null,
+  footerText: string = FOOTER_TEXT
 ): Promise<Buffer> {
   const cfg = EXPLAINERS[play] || EXPLAINERS.seller_push;
   let body = '';
@@ -1321,7 +1337,7 @@ async function composeExplainerSlide(
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <rect width="${W}" height="${H}" fill="${NAVY}"/>
-  ${slideFooter(fonts)}
+  ${slideFooter(fonts, footerText)}
   ${body}
 </svg>`
   );
@@ -1337,14 +1353,21 @@ const TEAM_PITCH: Record<string, string> = {
 
 async function composeTeamSlide(
   campaign: any,
-  fonts: GraphicFonts | null
+  fonts: GraphicFonts | null,
+  identity?: TeamIdentity
 ): Promise<Buffer> {
   const pitch =
     TEAM_PITCH[String(campaign.capture_type || '')] ||
     'Tap the link to get started';
-  const reco1 = 'Tim Fennessey, Broker · Aidan Comeau, Sales Representative';
-  const reco2 =
-    'RE/MAX HALLMARK FIRST GROUP REALTY LTD. · info@thefcgroup.ca · 905 668-3800';
+  const reco = identity
+    ? identityRecoLines(identity)
+    : {
+        line1: 'Tim Fennessey, Broker · Aidan Comeau, Sales Representative',
+        line2:
+          'RE/MAX HALLMARK FIRST GROUP REALTY LTD. · info@thefcgroup.ca · 905 668-3800',
+      };
+  const reco1 = reco.line1;
+  const reco2 = reco.line2;
   const reco2Size = fitFooterSize(fonts, reco2, 24, 0.3);
 
   // The stored team asset (brand/email-hero.jpg) is the canonical
@@ -1361,10 +1384,14 @@ async function composeTeamSlide(
   pitchLines.forEach((ln, i) => {
     texts += slideText(fonts, 'f800', ln, W / 2, bannerH + 268 + i * 72, 58, '#ffffff', 0, 'middle');
   });
+  const contactLine =
+    identity && identity.officePhone && websiteHost(identity)
+      ? `${identity.officePhone} · ${websiteHost(identity)}`
+      : '905 668-3800 · thefcgroup.ca';
   texts += slideText(
     fonts,
     'f600',
-    '905 668-3800 · thefcgroup.ca',
+    contactLine,
     W / 2,
     bannerH + 268 + pitchLines.length * 72 + 58,
     30,
@@ -1406,18 +1433,22 @@ export async function composeSlideSet(
   subject: CreativeSubject,
   idea: any | null,
   play: string,
-  stats: MarketStatLine[]
+  stats: MarketStatLine[],
+  identity?: TeamIdentity
 ): Promise<Buffer[]> {
   const fonts = await loadGraphicFonts();
   const region =
     (idea && typeof idea.subject === 'string' && idea.subject.trim()) ||
     subject.address ||
     '';
+  const footerText = identity
+    ? identityFooterLine(identity) || FOOTER_TEXT
+    : FOOTER_TEXT;
   const [s1, s2, s3, s4] = await Promise.all([
-    composeLeadSlide(campaign, subject, idea, play, fonts),
-    composeSubstanceSlide(play, region, stats, fonts),
-    composeExplainerSlide(play, fonts),
-    composeTeamSlide(campaign, fonts),
+    composeLeadSlide(campaign, subject, idea, play, fonts, footerText),
+    composeSubstanceSlide(play, region, stats, fonts, footerText),
+    composeExplainerSlide(play, fonts, footerText),
+    composeTeamSlide(campaign, fonts, identity),
   ]);
   return [s1, s2, s3, s4];
 }
@@ -1457,7 +1488,15 @@ export async function generateCampaignSlides(
       play === 'market_update' || play === 'buyer_market' || play === 'buyer_qualify'
         ? await loadMarketStats(supabase, campaign.account_id)
         : [];
-    const buffers = await composeSlideSet(campaign, subject, idea, play, stats);
+    const identity = await getTeamIdentity(supabase, campaign.account_id);
+    const buffers = await composeSlideSet(
+      campaign,
+      subject,
+      idea,
+      play,
+      stats,
+      identity
+    );
     const v = Date.now();
     const urls: string[] = [];
     for (let i = 0; i < buffers.length; i++) {

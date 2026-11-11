@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import TeamIdentityCard from '@/app/components/TeamIdentityCard'
 
 export default function AccountPage() {
   const router = useRouter()
@@ -676,6 +677,8 @@ const renderHeroImageBlock = () => (
     </div>
   </div>
 </div>
+
+        <TeamIdentityCard />
 
        <div className="border border-black p-10 mb-12">
   <h2 className="text-xl font-semibold mb-8">Team</h2>
