@@ -23,7 +23,8 @@
 // a heavy block), red eyebrow, big white headline, the price big and
 // clean (never a strikethrough, never an old price), address, the
 // Tim+Aidan duo cutout bottom-right, and the navy footer bar with the
-// red rule — "Tim Fennessey, Broker · 905 493-7355 · thefcgroup.ca".
+// red rule — the FOOTER_TEXT standard (both names, info@ email,
+// office number 905 668-3800).
 // Colours are navy #0f2a44 + red #d22630 ONLY. No separate
 // "Fennessey Comeau Group" text — the logo lockup already says it.
 
@@ -394,6 +395,32 @@ const NAVY = '#0f2a44';
 const RED = '#d22630';
 const FOOTER_TOP = 1272;
 
+// Footer standard (Tim, 2026-11-11): BOTH names with their RECO
+// titles, the info@ email, and the OFFICE number 905 668-3800 —
+// mass materials never carry Tim's direct line. The line is longer
+// than the old Tim-only footer, so footer sizes auto-fit the width.
+const FOOTER_TEXT =
+  'Tim Fennessey, Broker · Aidan Comeau, Sales Representative · info@thefcgroup.ca · 905 668-3800';
+
+function fitFooterSize(
+  fonts: GraphicFonts | null,
+  text: string,
+  start: number,
+  ls = 0.5
+): number {
+  let size = start;
+  if (fonts) {
+    while (size > 12 && measureText(fonts.f600, text, size, ls) > W - 48)
+      size -= 1;
+  } else {
+    size = Math.max(
+      12,
+      Math.min(start, Math.floor((W - 48) / (text.length * 0.54)))
+    );
+  }
+  return size;
+}
+
 const PLAY_DESIGN: Record<
   string,
   { eyebrow: string; lines: string[]; size: number }
@@ -576,8 +603,8 @@ function overlaySvg(
   const lh = Math.round(cfg.size * 1.05);
   const firstBase = headLastBase - (cfg.lines.length - 1) * lh;
   const eyebrowBase = firstBase - cfg.size - 34;
-  const footerText =
-    'Tim Fennessey, Broker · 905 493-7355 · thefcgroup.ca';
+  const footerText = FOOTER_TEXT;
+  const footerSize = fitFooterSize(fonts, footerText, 27);
   const strokeAttrs =
     'style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"';
 
@@ -596,8 +623,8 @@ function overlaySvg(
     if (addressText) {
       texts += `<path d="${textToPath(fonts.f700, addressText, 56, addressBase, 44)}" fill="#ffffff"/>`;
     }
-    const fw = measureText(fonts.f600, footerText, 27, 0.5);
-    footer = `<path d="${textToPath(fonts.f600, footerText, (W - fw) / 2, FOOTER_TOP + 51, 27, 0.5)}" fill="#ffffff"/>`;
+    const fw = measureText(fonts.f600, footerText, footerSize, 0.5);
+    footer = `<path d="${textToPath(fonts.f600, footerText, (W - fw) / 2, FOOTER_TOP + 51, footerSize, 0.5)}" fill="#ffffff"/>`;
   } else {
     if (eyebrowText) {
       texts += `<text x="58" y="${eyebrowBase}" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="6" fill="${RED}">${esc(eyebrowText)}</text>`;
@@ -611,7 +638,7 @@ function overlaySvg(
     if (addressText) {
       texts += `<text x="56" y="${addressBase}" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${esc(addressText)}</text>`;
     }
-    footer = `<text x="${W / 2}" y="${FOOTER_TOP + 51}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" letter-spacing="0.5" fill="#ffffff">${esc(footerText)}</text>`;
+    footer = `<text x="${W / 2}" y="${FOOTER_TOP + 51}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${footerSize}" font-weight="600" letter-spacing="0.5" fill="#ffffff">${esc(footerText)}</text>`;
   }
 
   return Buffer.from(
@@ -1018,12 +1045,13 @@ function fitSize(
 
 function slideFooter(
   fonts: GraphicFonts | null,
-  text = 'Tim Fennessey, Broker · 905 493-7355 · thefcgroup.ca'
+  text = FOOTER_TEXT
 ): string {
+  const size = fitFooterSize(fonts, text, 27);
   return (
     `<rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>` +
     `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>` +
-    slideText(fonts, 'f600', text, W / 2, FOOTER_TOP + 51, 27, '#ffffff', 0.5, 'middle')
+    slideText(fonts, 'f600', text, W / 2, FOOTER_TOP + 51, size, '#ffffff', 0.5, 'middle')
   );
 }
 
@@ -1315,7 +1343,9 @@ async function composeTeamSlide(
     TEAM_PITCH[String(campaign.capture_type || '')] ||
     'Tap the link to get started';
   const reco1 = 'Tim Fennessey, Broker · Aidan Comeau, Sales Representative';
-  const reco2 = 'RE/MAX HALLMARK FIRST GROUP REALTY LTD.';
+  const reco2 =
+    'RE/MAX HALLMARK FIRST GROUP REALTY LTD. · info@thefcgroup.ca · 905 668-3800';
+  const reco2Size = fitFooterSize(fonts, reco2, 24, 0.3);
 
   // The stored team asset (brand/email-hero.jpg) is the canonical
   // 600x200 email banner — kitchen | logo | team triptych — NOT a
@@ -1334,7 +1364,7 @@ async function composeTeamSlide(
   texts += slideText(
     fonts,
     'f600',
-    '905 493-7355 · thefcgroup.ca',
+    '905 668-3800 · thefcgroup.ca',
     W / 2,
     bannerH + 268 + pitchLines.length * 72 + 58,
     30,
@@ -1346,7 +1376,7 @@ async function composeTeamSlide(
     `<rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>` +
     `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>` +
     slideText(fonts, 'f600', reco1, W / 2, FOOTER_TOP + 34, 24, '#ffffff', 0.3, 'middle') +
-    slideText(fonts, 'f600', reco2, W / 2, FOOTER_TOP + 64, 24, '#ffffff', 0.3, 'middle');
+    slideText(fonts, 'f600', reco2, W / 2, FOOTER_TOP + 64, reco2Size, '#ffffff', 0.3, 'middle');
 
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
