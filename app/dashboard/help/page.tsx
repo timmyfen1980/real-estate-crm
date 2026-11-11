@@ -192,6 +192,37 @@ export default function HelpPage() {
         Ask Rea instead
       </button>
 
+      {/* Practice demo — the training sandbox. Entering signs the user
+          in as Dana Mercer, the demo broker of "Demo Realty Group" (a
+          separate practice account): see /api/demo/enter. */}
+      <div className="bg-white border rounded-xl shadow-sm p-5 mb-10">
+        <h2 className="text-lg font-bold mb-2 flex items-center gap-2" style={{ color: NAVY }}>
+          <GraduationCap size={18} /> Practice Demo — learn by doing
+        </h2>
+        <p className="text-sm text-gray-600 mb-2">
+          A complete practice copy of the CRM, loaded with a pretend brokerage —{' '}
+          <strong>Demo Realty Group</strong> — its own clients, leads, client files, tasks and
+          open houses. Work through the modules below in there: click anything, file anything,
+          make mistakes. Nothing in the practice demo is real, and it can never email a real
+          person.
+        </p>
+        <p className="text-sm text-gray-600 mb-4">
+          The button signs you in as <strong>Dana Mercer</strong>, the demo broker, so you see
+          the whole system the way an owner would. When you&apos;re done practising, sign out
+          (top right) and sign back in as yourself — your real account is exactly where you
+          left it. If the practice data gets messy, ask Tim or Rea to reset it.
+        </p>
+        <a
+          href="/api/demo/enter"
+          className="inline-flex items-center gap-2 text-sm font-medium text-white rounded-full px-5 py-2.5 transition hover:opacity-90"
+          style={{ backgroundColor: NAVY }}
+        >
+          <GraduationCap size={16} />
+          Enter the practice demo
+          <ArrowRight size={15} />
+        </a>
+      </div>
+
       {/* Quick start cards */}
       <h2 className="text-lg font-bold mb-3 flex items-center gap-2" style={{ color: NAVY }}>
         <BookOpen size={18} /> Quick Start — by role
