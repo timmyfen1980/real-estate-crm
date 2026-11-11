@@ -2,6 +2,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PDFDocument } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 
+// Field mapping for FINTRAC Form 635 (Receipt of Funds Record) — the
+// values are the REAL widget names inside the stored blank template
+// (forms/fintrac-635-blank.pdf), from field-mapping-fintrac.json.
+// Fixed 2026-11-11: this route used to write friendly names that do not
+// exist in the template, so every write missed (caught and skipped) and
+// the generated form filed blank.
+const FIELD_MAP: Record<string, string> = {
+  transaction_property_address: 'form635.0.0',
+  transaction_property_address_line2: 'form635.0.1',
+  sales_rep_broker_name: 'form635.1.0',
+  fund1_amount: 'form635.2.1',
+  fund1_currency: 'form635.3.0',
+  fund1_date_of_receipt: 'form635.3.1',
+  fund1_purpose: 'form635.5.0',
+  provider_full_legal_name: 'Text1',
+  provider_address_line1: 'Text2.0',
+  provider_address_line2: 'Text2.1',
+  provider_date_of_birth: 'Text2.2',
+  provider_occupation: 'Text2.3.0',
+  provider_date_verified: 'Text2.3.1',
+  d11_document_identifier_number: 'Text5',
+  d11_issuing_jurisdiction: 'Text6',
+  d11_issuing_country: 'Text7',
+  d11_document_expiry_date: 'Text8',
+};
+
+// How the funds arrived (the checklist page prompts electronic /
+// in_person / mail) → the form's "method of receipt" checkboxes
+const METHOD_BOXES: Record<string, string> = {
+  electronic: 'form635ch.4.1',
+  in_person: 'form635ch.3.1',
+  mail: 'form635ch.4.0',
+};
+
+// Provider identification section D.1.1 — driver's licence checkbox
+const PROVIDER_LICENCE_BOX = 'Check Box3.0';
+
 export async function POST(request: NextRequest) {
   try {
     const { contact_id, client_file_id, funds_amount, funds_method, funds_date } = await request.json();
@@ -48,50 +85,89 @@ export async function POST(request: NextRequest) {
     const pdfDoc = await PDFDocument.load(formBytes);
     const form = pdfDoc.getForm();
 
-    const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
-    const address = `${contact.address || ''}, ${contact.city || ''}, ${contact.province || ''} ${contact.postal_code || ''}`.trim();
+    // Context for the header block: the transaction property from the
+    // client file (when generating from one) and the sales rep from the
+    // contact's assigned user. Best-effort — a miss leaves the line
+    // blank rather than failing the whole form.
+    let propertyAddress = '';
+    if (client_file_id) {
+      const { data: cfHead } = await supabase
+        .from('client_files')
+        .select('property_address')
+        .eq('id', client_file_id)
+        .single();
+      propertyAddress = (cfHead?.property_address || '').trim();
+    }
+    let repName = '';
+    if (contact.assigned_user_id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', contact.assigned_user_id)
+        .single();
+      if (prof) {
+        repName = (prof.full_name || `${prof.first_name || ''} ${prof.last_name || ''}`).trim();
+      }
+    }
 
-    // Fill individual info (field names from mapping)
-    const fieldValues: Record<string, string> = {
-      'individual_full_legal_name': fullName,
-      'individual_address_line1': address,
-      'individual_date_of_birth': contact.birthday || contact.date_of_birth || '',
-      'fund1_amount': funds_amount || '',
+    // Fill the form. Core writes are STRICT (no catch): if a widget
+    // name ever stops matching the stored template, generation fails
+    // loudly instead of filing a blank form.
+    const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+    const cityLine = `${contact.city || ''}, ${contact.province || ''} ${contact.postal_code || ''}`.replace(/^, /, '').trim();
+    const addrLine1 = (contact.address || '').trim() || cityLine;
+    const addrLine2 = (contact.address || '').trim() ? cityLine : '';
+    const slashDate = (iso: any) => {
+      const s = typeof iso === 'string' ? iso.slice(0, 10) : '';
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.replace(/-/g, '/') : '';
+    };
+    const todayLong = new Date().toLocaleDateString('en-US', {
+      timeZone: 'America/Toronto',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const amountNum = parseFloat(String(funds_amount).replace(/[$,]/g, ''));
+    const amountText = Number.isFinite(amountNum)
+      ? amountNum.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : String(funds_amount);
+
+    const setText = (key: string, value: string) => {
+      if (!value) return;
+      form.getTextField(FIELD_MAP[key]).setText(value);
     };
 
-    // Add funds date if provided
-    if (funds_date) {
-      // Try common date field names
-      for (const dateField of ['fund1_date', 'date_funds_received', 'funds_received_date']) {
-        try {
-          form.getTextField(dateField).setText(funds_date);
-          break;
-        } catch (e) { /* try next */ }
-      }
-    }
+    setText('transaction_property_address', propertyAddress);
+    setText('sales_rep_broker_name', repName);
+    setText('fund1_amount', amountText);
+    setText('fund1_currency', 'CAD');
+    setText('fund1_date_of_receipt', funds_date || '');
+    setText('fund1_purpose', propertyAddress ? `Deposit — purchase of ${propertyAddress}` : 'Deposit');
 
-    for (const [fieldName, value] of Object.entries(fieldValues)) {
+    // Provider of the funds (Part D) — the client themselves
+    setText('provider_full_legal_name', fullName);
+    setText('provider_address_line1', addrLine1);
+    setText('provider_address_line2', addrLine2);
+    setText('provider_date_of_birth', slashDate(contact.birthday || contact.date_of_birth || ''));
+    setText('provider_occupation', contact.occupation || '');
+    setText('provider_date_verified', todayLong);
+    setText('d11_document_identifier_number', contact.licence_number || '');
+    setText('d11_issuing_jurisdiction', contact.licence_province || 'Ontario');
+    setText('d11_issuing_country', 'Canada');
+    setText('d11_document_expiry_date', slashDate(contact.licence_expiry || ''));
+    if (contact.licence_number) {
       try {
-        form.getTextField(fieldName).setText(value);
+        form.getCheckBox(PROVIDER_LICENCE_BOX).check();
       } catch (e) {
-        console.log(`Field ${fieldName} not found, skipping`);
+        console.log('Provider licence checkbox not found, skipping');
       }
     }
 
-    // Check funds method checkbox
+    // Check the funds method (delivery) checkbox
     if (funds_method) {
-      const methodMap: Record<string, string> = {
-        'electronic': 'fund1_method_electronically',
-        'in_person': 'fund1_method_in_person',
-        'mail': 'fund1_method_mail',
-      };
-      const checkboxName = methodMap[funds_method.toLowerCase()];
+      const checkboxName = METHOD_BOXES[String(funds_method).toLowerCase()];
       if (checkboxName) {
-        try {
-          form.getCheckBox(checkboxName).check();
-        } catch (e) {
-          console.log(`Checkbox ${checkboxName} not found`);
-        }
+        form.getCheckBox(checkboxName).check();
       }
     }
 

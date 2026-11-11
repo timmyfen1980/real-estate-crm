@@ -2,19 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PDFDocument } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 
-// Field mapping for FINTRAC Form 630 Page 0 (Individual ID Record)
-// Based on field-mapping-fintrac.json
+// Field mapping for FINTRAC Form 630 (Individual ID Record) — the values
+// are the REAL widget names inside the stored blank template
+// (forms/fintrac-630-blank.pdf), from field-mapping-fintrac.json.
+// Fixed 2026-11-11: this map used to point each key at a friendly name
+// that does not exist in the template, so every write missed (caught and
+// skipped) and the generated form filed blank.
 const FIELD_MAP: Record<string, string> = {
-  individual_full_legal_name: 'individual_full_legal_name',
-  individual_address_line1: 'individual_address_line1',
-  individual_date_of_birth: 'individual_date_of_birth',
-  individual_occupation: 'individual_occupation',
-  a1_id_type_drivers_licence: 'a1_id_type_drivers_licence',
-  a1_document_identifier_number: 'a1_document_identifier_number',
-  a1_issuing_jurisdiction: 'a1_issuing_jurisdiction',
-  a1_issuing_country: 'a1_issuing_country',
-  a1_document_expiry_date: 'a1_document_expiry_date',
+  transaction_property_address: 'form630.0.0',
+  transaction_property_address_line2: 'form630.0.1',
+  sales_rep_broker_name: 'form630.1.0',
+  date_information_verified: 'form630.1.1',
+  individual_full_legal_name: 'form630.2.0',
+  individual_address_line1: 'form630.2.1',
+  individual_address_line2: 'form630.3.0',
+  individual_date_of_birth: 'form630.3.1',
+  individual_occupation: 'form630.4.0',
+  a1_id_type_drivers_licence: 'Check Box2.0',
+  a1_document_identifier_number: 'form630.4.1',
+  a1_issuing_jurisdiction: 'form630.5.0',
+  a1_issuing_country: 'form630.5.1',
+  a1_document_expiry_date: 'form630.6.1',
 };
+
+// D.1 purpose of transaction — residential property (the standard case
+// for this brokerage's buyer/seller files)
+const PURPOSE_RESIDENTIAL_BOX = 'Check Box1.6.1.1.1.0.1';
 
 // Risk questionnaire — all "No" (no issues) by default
 // Field names from field-mapping-fintrac.json
@@ -98,36 +111,73 @@ export async function POST(request: NextRequest) {
     const pdfDoc = await PDFDocument.load(formBytes);
     const form = pdfDoc.getForm();
 
-    // Fill the fields
-    const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
-    const address = `${contact.address || ''}, ${contact.city || ''}, ${contact.province || ''} ${contact.postal_code || ''}`.trim();
-
-    const fieldValues: Record<string, string> = {
-      individual_full_legal_name: fullName,
-      individual_address_line1: address,
-      individual_date_of_birth: contact.birthday || contact.date_of_birth || '',
-      individual_occupation: contact.occupation || '',
-      a1_document_identifier_number: contact.licence_number || '',
-      a1_issuing_jurisdiction: contact.licence_province || 'Ontario',
-      a1_issuing_country: 'Canada',
-      a1_document_expiry_date: contact.licence_expiry || '',
-    };
-
-    for (const [fieldName, value] of Object.entries(fieldValues)) {
-      try {
-        const field = form.getTextField(FIELD_MAP[fieldName]);
-        field.setText(value);
-      } catch (e) {
-        console.log(`Field ${fieldName} not found, skipping`);
+    // Context for the form's header block: the transaction property from
+    // the client file (when generating from one) and the sales rep from
+    // the contact's assigned user. Both are best-effort — a miss leaves
+    // that line blank rather than failing the whole form.
+    let propertyAddress = '';
+    if (client_file_id) {
+      const { data: cfHead } = await supabase
+        .from('client_files')
+        .select('property_address')
+        .eq('id', client_file_id)
+        .single();
+      propertyAddress = (cfHead?.property_address || '').trim();
+    }
+    let repName = '';
+    if (contact.assigned_user_id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', contact.assigned_user_id)
+        .single();
+      if (prof) {
+        repName = (prof.full_name || `${prof.first_name || ''} ${prof.last_name || ''}`).trim();
       }
     }
 
-    // Check the driver's licence checkbox
+    // Fill the fields. Core writes are STRICT (no catch): if a widget
+    // name ever stops matching the stored template, generation fails
+    // loudly instead of filing a blank form.
+    const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+    const cityLine = `${contact.city || ''}, ${contact.province || ''} ${contact.postal_code || ''}`.replace(/^, /, '').trim();
+    const addrLine1 = (contact.address || '').trim() || cityLine;
+    const addrLine2 = (contact.address || '').trim() ? cityLine : '';
+    const slashDate = (iso: any) => {
+      const s = typeof iso === 'string' ? iso.slice(0, 10) : '';
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.replace(/-/g, '/') : '';
+    };
+    const todayLong = new Date().toLocaleDateString('en-US', {
+      timeZone: 'America/Toronto',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    const setText = (key: string, value: string) => {
+      if (!value) return;
+      form.getTextField(FIELD_MAP[key]).setText(value);
+    };
+
+    setText('transaction_property_address', propertyAddress);
+    setText('sales_rep_broker_name', repName);
+    setText('date_information_verified', todayLong);
+    setText('individual_full_legal_name', fullName);
+    setText('individual_address_line1', addrLine1);
+    setText('individual_address_line2', addrLine2);
+    setText('individual_date_of_birth', slashDate(contact.birthday || contact.date_of_birth || ''));
+    setText('individual_occupation', contact.occupation || '');
+    setText('a1_document_identifier_number', contact.licence_number || '');
+    setText('a1_issuing_jurisdiction', contact.licence_province || 'Ontario');
+    setText('a1_issuing_country', 'Canada');
+    setText('a1_document_expiry_date', slashDate(contact.licence_expiry || ''));
+
+    // Check the driver's licence checkbox + the D.1 residential purpose
     try {
-      const checkbox = form.getCheckBox(FIELD_MAP['a1_id_type_drivers_licence']);
-      checkbox.check();
+      form.getCheckBox(FIELD_MAP['a1_id_type_drivers_licence']).check();
+      form.getCheckBox(PURPOSE_RESIDENTIAL_BOX).check();
     } catch (e) {
-      console.log('Drivers licence checkbox not found');
+      console.log('Checkbox not found, skipping');
     }
 
     // Auto-fill risk questionnaire — zero-score answers (Q1+Q5=Yes, rest=No)
