@@ -5,7 +5,11 @@
 // against the live contacts. Decisions are PER PERSON: each named client
 // on an item gets their own match, their own choice (update that contact
 // / add as new / skip this person), their own file-detail assignments
-// (which email/phone belongs to whom) and their own address choice.
+// (which email belongs to whom) and their own address choice.
+// Phone numbers are OUT of scope for this cleanup (Tim, Nov 12, 2026):
+// Google Contacts wins — a number already on a contact is never changed
+// here. Emails, addresses, birthdays and home-purchase anniversaries
+// (newest purchase only) are what get added.
 // Decisions are recorded via /api/past-clients-review; nothing is
 // applied to contacts from this page.
 
@@ -37,11 +41,12 @@ type TimelineEvent = {
   price: string;
   date_label: string;
   date_iso: string | null;
+  source?: string;
 };
 
 type AddressCandidate = {
   value: string;
-  kind: 'purchase' | 'mail' | 'moved-to';
+  kind: 'purchase' | 'mail' | 'moved-to' | 'database-current';
   date_label: string;
   date_iso: string | null;
   source: string;
@@ -64,9 +69,32 @@ type Person = {
   } | null;
   mail_address: { address: string; date_label: string } | null;
   repeats: string[];
+  // v3 enrichment (Nov 12, 2026) — birthdays, purchase anniversaries,
+  // Google Contacts facts. All optional; absent on older payloads.
+  birthday_status?: 'already_on_contact' | 'candidate' | 'none';
+  birthday_existing?: string | null;
+  birthday_candidate?: {
+    date: string | null;
+    month_day: string;
+    source: string;
+  } | null;
+  anniversary_status?: 'already_on_contact' | 'candidate' | 'none';
+  anniversary_existing?: string | null;
+  anniversary_candidate?: {
+    date: string;
+    address: string;
+    source?: string;
+  } | null;
+  anniversary_note?: string;
+  google_phone?: string | null;
+  google_email?: string | null;
 };
 
-type FileDetailEmail = { value: string; default_person: string | null };
+type FileDetailEmail = {
+  value: string;
+  default_person: string | null;
+  source?: string;
+};
 type FileDetailPhone = { value: string; digits: string; default_person: string | null };
 
 type Payload = {
@@ -379,9 +407,12 @@ export default function PastClientsPage() {
         Your past clients from the old files, checked against your contacts.
         Every person gets their own decision — update their contact, add
         them as new, or skip them — and you choose which of the file&apos;s
-        emails and phones belong to whom, and what happens with their
-        address. Nothing changes in your contacts until you say go — this
-        page just records your choices.
+        emails belong to whom, and what happens with their address.
+        Phone numbers are never changed in this cleanup: if Google
+        Contacts has their cell, it stays exactly as it is. Birthdays and
+        home purchase anniversaries (from their newest purchase) get
+        added where we found them. Nothing changes in your contacts
+        until you say go — this page just records your choices.
       </p>
 
       {/* Progress */}
@@ -530,14 +561,16 @@ const btnPrimary = `${btnBase} text-white hover:opacity-90`;
 const btnGhost = `${btnBase} border bg-white text-gray-600 hover:bg-gray-50`;
 
 function DiffList({ c }: { c: Candidate }) {
-  if (!c.diff_adds?.length) return null;
+  // Phone changes are out of scope for this cleanup — never list them.
+  const adds = (c.diff_adds || []).filter((d) => !/phone/i.test(d));
+  if (!adds.length) return null;
   return (
     <span className="block mt-2">
       <span className="block text-xs font-semibold text-gray-500 mb-1">
         An update would add:
       </span>
       <ul className="list-disc pl-4 space-y-0.5">
-        {c.diff_adds.map((d, i) => (
+        {adds.map((d, i) => (
           <li key={i} className="text-[13px] text-gray-600">
             {d}
           </li>
@@ -545,6 +578,37 @@ function DiffList({ c }: { c: Candidate }) {
       </ul>
     </span>
   );
+}
+
+const MONTHS_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+const MONTHS_LONG = [
+  'January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December',
+];
+
+// '2016-06-10' -> 'Jun 10, 2016' (string-split only, no timezone drift)
+function fmtISO(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  return `${MONTHS_SHORT[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
+}
+
+// '04-24' -> 'April 24' (birthday whose birth year is unknown)
+function fmtMonthDay(md: string | null | undefined): string {
+  if (!md) return '';
+  const m = /^(\d{2})-(\d{2})$/.exec(md);
+  if (!m) return md;
+  return `${MONTHS_LONG[Number(m[1]) - 1]} ${Number(m[2])}`;
+}
+
+function birthdayLabel(person: Person): string {
+  const c = person.birthday_candidate;
+  if (!c) return '';
+  return c.date ? fmtISO(c.date) : fmtMonthDay(c.month_day);
 }
 
 function ContactBox({ c }: { c: Candidate }) {
@@ -569,7 +633,7 @@ function ContactBox({ c }: { c: Candidate }) {
 function timelineText(person: Person): { text: string; tail: string } {
   const evs = [
     ...person.timeline.map((e) => ({
-      label: `${e.role} ${e.address}`,
+      label: `${e.role} ${e.address}${e.source ? ' (sales database)' : ''}`,
       date: e.date_label,
       iso: e.date_iso || '',
       sold: e.role === 'Sold',
@@ -597,6 +661,8 @@ function timelineText(person: Person): { text: string; tail: string } {
 function addrSourceText(c: AddressCandidate): string {
   if (c.kind === 'purchase') return `bought ${c.date_label}`;
   if (c.kind === 'mail') return `from old mail, ${c.date_label} — unverified`;
+  if (c.kind === 'database-current')
+    return `current address in Tim's sales database, as of ${c.date_label}`;
   return 'moved to, per the file';
 }
 
@@ -614,7 +680,21 @@ function buildNote(
     lines.push(
       `• ${verb} ${e.address}${e.city ? `, ${e.city}` : ''}${
         e.price ? ` for ${e.price}` : ''
-      } (${e.date_label || 'date unknown'}).`
+      } (${e.date_label || 'date unknown'}${e.source ? '; sales database' : ''}).`
+    );
+  }
+  if (person.birthday_candidate) {
+    lines.push(
+      `Birthday: ${birthdayLabel(person)} (from ${person.birthday_candidate.source}).`
+    );
+  }
+  if (person.anniversary_candidate) {
+    lines.push(
+      `Home purchase anniversary: ${fmtISO(person.anniversary_candidate.date)} — newest purchase, ${person.anniversary_candidate.address}${
+        person.anniversary_candidate.source === "Tim's sales database"
+          ? " (per Tim's sales database)"
+          : ''
+      }.`
     );
   }
   if (addr.choice === 'candidate' && addr.value) {
@@ -956,16 +1036,17 @@ function ItemCard({
                 </div>
               )}
 
-              {/* File detail assignment */}
-              {(fd.emails.length > 0 || fd.phones.length > 0) && (
+              {/* File detail assignment — emails only. Phone numbers are
+                  out of scope for this cleanup (Nov 12, 2026). */}
+              {fd.emails.length > 0 && (
                 <div className="mb-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">
-                    File contact details — whose are they?
+                    File email addresses — whose are they?
                   </p>
                   <p className="text-xs text-gray-400 mb-2.5">
-                    Each email and phone from the file goes to one person, or
-                    to nobody. Change any of them, then use Save choices (or
-                    decide a person) to keep the changes.
+                    Each email goes to one person, or to nobody. Change any
+                    of them, then use Save choices (or decide a person) to
+                    keep the changes.
                   </p>
                   <div className="space-y-2">
                     {fd.emails.map((e) => (
@@ -973,25 +1054,11 @@ function ItemCard({
                         key={`e:${e.value}`}
                         label={e.value}
                         kindLabel="email"
+                        sub={e.source ? `from ${e.source}` : undefined}
                         persons={persons}
                         value={assignMap[`e:${e.value}`] || 'none'}
                         onChange={(pk) =>
                           setAssignMap((m) => ({ ...m, [`e:${e.value}`]: pk }))
-                        }
-                      />
-                    ))}
-                    {fd.phones.map((ph) => (
-                      <AssignRow
-                        key={`p:${ph.digits}`}
-                        label={ph.value}
-                        kindLabel="phone"
-                        persons={persons}
-                        value={assignMap[`p:${ph.digits}`] || 'none'}
-                        onChange={(pk) =>
-                          setAssignMap((m) => ({
-                            ...m,
-                            [`p:${ph.digits}`]: pk,
-                          }))
                         }
                       />
                     ))}
@@ -1114,12 +1181,14 @@ function buildPDWith(
 function AssignRow({
   label,
   kindLabel,
+  sub,
   persons,
   value,
   onChange,
 }: {
   label: string;
   kindLabel: string;
+  sub?: string;
   persons: Person[];
   value: string;
   onChange: (personKey: string) => void;
@@ -1131,6 +1200,7 @@ function AssignRow({
           {kindLabel}
         </span>
         {label}
+        {sub && <span className="block text-xs text-gray-400">{sub}</span>}
       </span>
       <span className="ml-auto flex flex-wrap gap-1.5">
         {persons.length <= 3 ? (
@@ -1288,6 +1358,42 @@ function PersonSection({
               )
             </p>
           )}
+        {person.birthday_candidate && (
+          <p className="text-xs text-gray-600 mb-1.5">
+            🎂 Birthday: {birthdayLabel(person)} — from{' '}
+            {person.birthday_candidate.source} — will be added
+          </p>
+        )}
+        {person.birthday_status === 'already_on_contact' && (
+          <p className="text-xs text-gray-500 mb-1.5">
+            🎂 Birthday already on their contact
+            {person.birthday_existing
+              ? ` (${fmtISO(person.birthday_existing)})`
+              : ''}
+          </p>
+        )}
+        {person.anniversary_candidate && (
+          <p className="text-xs text-gray-600 mb-1.5">
+            🏠 Home purchase anniversary: {fmtISO(person.anniversary_candidate.date)}{' '}
+            ({person.anniversary_candidate.address}) — will be set from
+            their newest purchase
+            {person.anniversary_candidate.source === "Tim's sales database"
+              ? " (per Tim's sales database)"
+              : ''}
+          </p>
+        )}
+        {person.anniversary_status === 'already_on_contact' && (
+          <p className="text-xs text-gray-500 mb-1.5">
+            🏠 Home purchase anniversary already set:{' '}
+            {fmtISO(person.anniversary_existing)}
+          </p>
+        )}
+        {person.google_phone && (
+          <p className="text-xs text-gray-400 mb-1.5">
+            Google Contacts has their cell: {person.google_phone} — numbers
+            aren&apos;t changed in this cleanup
+          </p>
+        )}
 
         {/* Match / candidate selection */}
         {person.candidates.length === 0 && (
@@ -1564,6 +1670,44 @@ function PreviewPanel({
       value: after.address || '— (left blank)',
       changed: after.changed.address,
     },
+    ...(person.birthday_status === 'already_on_contact'
+      ? [
+          {
+            label: 'Birthday',
+            value: fmtISO(person.birthday_existing) || '—',
+            changed: false,
+          },
+        ]
+      : person.birthday_candidate
+        ? [
+            {
+              label: 'Birthday',
+              value: `${birthdayLabel(person)} (from ${person.birthday_candidate.source})`,
+              changed: true,
+            },
+          ]
+        : []),
+    ...(person.anniversary_status === 'already_on_contact'
+      ? [
+          {
+            label: 'Home purchase anniversary',
+            value: fmtISO(person.anniversary_existing) || '—',
+            changed: false,
+          },
+        ]
+      : person.anniversary_candidate
+        ? [
+            {
+              label: 'Home purchase anniversary',
+              value: `${fmtISO(person.anniversary_candidate.date)} — ${person.anniversary_candidate.address}${
+                person.anniversary_candidate.source === "Tim's sales database"
+                  ? " (Tim's sales database)"
+                  : ''
+              }`,
+              changed: true,
+            },
+          ]
+        : []),
   ];
   return (
     <div className="mt-2 border rounded-lg px-3.5 py-3 bg-gray-50">
