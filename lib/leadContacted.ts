@@ -152,7 +152,6 @@ export async function stampLeadContacted(
   let noteWritten = true;
   const { error: noteError } = await supabase.from('notes').insert({
     lead_id: lead.id,
-    account_id: accountId,
     user_id: userId,
     content: LEAD_CONTACT_NOTE[source],
   });

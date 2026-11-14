@@ -615,7 +615,6 @@ const { data: propertyData, error: propertyError } = await supabase
       .insert([
         {
           lead_id: lead.id,
-          account_id: lead.account_id,
           user_id: userData.user.id,
           content: newNote
         }

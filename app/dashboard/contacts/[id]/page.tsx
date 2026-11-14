@@ -564,7 +564,6 @@ const removeCampaign = async (
             .insert([
               {
                 contact_id: contactId,
-                account_id: membership.account_id,
                 user_id: userData.user.id,
                 content: stop
                   ? 'Follow-ups stopped — no more outreach tasks, check-ins or drip emails for this contact.'
@@ -604,7 +603,6 @@ const removeCampaign = async (
       .insert([
         {
           contact_id: contactId,
-          account_id: membership.account_id,
           user_id: userData.user.id,
           content: newNote
         }
