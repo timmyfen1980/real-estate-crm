@@ -18,7 +18,6 @@ import {
   Eraser,
   Gift,
   Handshake,
-  History,
   Image as ImageIcon,
   LayoutDashboard,
   LifeBuoy,
@@ -431,13 +430,6 @@ const handleLogout = async () => {
             <span className="flex items-center gap-3">
               <ListChecks className={iconClass} />
               <span>Client Files</span>
-            </span>
-          </Link>
-
-          <Link href="/dashboard/past-clients" className={navItemClass('/dashboard/past-clients')}>
-            <span className="flex items-center gap-3">
-              <History className={iconClass} />
-              <span>Past Client Review</span>
             </span>
           </Link>
 
