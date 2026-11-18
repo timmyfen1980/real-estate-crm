@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Eraser,
   Gift,
+  GraduationCap,
   Handshake,
   Image as ImageIcon,
   LayoutDashboard,
@@ -488,19 +489,23 @@ const handleLogout = async () => {
                 </span>
               </Link>
 
-              <Link href="/dashboard/email-health" className={navItemClass('/dashboard/email-health')}>
-                <span className="flex items-center gap-3">
-                  <Activity className={iconClass} />
-                  <span>Email Health</span>
-                </span>
-              </Link>
+              {userRole === 'owner' && (
+                <Link href="/dashboard/email-health" className={navItemClass('/dashboard/email-health')}>
+                  <span className="flex items-center gap-3">
+                    <Activity className={iconClass} />
+                    <span>Email Health</span>
+                  </span>
+                </Link>
+              )}
 
-              <Link href="/dashboard/email-cleanup" className={navItemClass('/dashboard/email-cleanup')}>
-                <span className="flex items-center gap-3">
-                  <Eraser className={iconClass} />
-                  <span>Email Cleanup</span>
-                </span>
-              </Link>
+              {userRole === 'owner' && (
+                <Link href="/dashboard/email-cleanup" className={navItemClass('/dashboard/email-cleanup')}>
+                  <span className="flex items-center gap-3">
+                    <Eraser className={iconClass} />
+                    <span>Email Cleanup</span>
+                  </span>
+                </Link>
+              )}
             </div>
           )}
 
@@ -548,6 +553,15 @@ const handleLogout = async () => {
               <span className="flex items-center gap-3">
                 <Clock className={iconClass} />
                 <span>Beth&apos;s Hours</span>
+              </span>
+            </Link>
+          )}
+
+          {(userRole === 'owner' || userEmail === 'beth@thefcgroup.ca') && (
+            <Link href="/dashboard/beth-training" className={navItemClass('/dashboard/beth-training')}>
+              <span className="flex items-center gap-3">
+                <GraduationCap className={iconClass} />
+                <span>Beth&apos;s Training</span>
               </span>
             </Link>
           )}
