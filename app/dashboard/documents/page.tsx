@@ -50,6 +50,7 @@ const SELLER_DOCS: TeamDoc[] = [
 const RENTER_DOCS: TeamDoc[] = [
   { name: 'Client File Quick Reference.pdf', size: '28 KB', path: 'team-docs/reference/Client File Quick Reference.pdf' },
   { name: 'TRESA Schedule A for Tenants.docx', size: '29 KB', path: 'team-docs/renter/TRESA Schedule A for Tenants.docx' },
+  { name: 'Confirmation of Co-operation and Representation - Form 324.pdf', size: '37 KB', path: 'team-docs/renter/Confirmation of Co-operation and Representation - Form 324.pdf' },
   { name: 'Tenant Representation Agreement - Form 372.pdf', size: '56 KB', path: 'team-docs/renter/Tenant Representation Agreement - Form 372.pdf' },
   { name: 'Listing Agreement - Lease - Form 272.pdf', size: '80 KB', path: 'team-docs/renter/Listing Agreement - Lease - Form 272.pdf' },
   { name: 'FINTRAC - Individual Identification Information Record.pdf', size: '154 KB', path: 'team-docs/renter/FINTRAC - Individual Identification Information Record.pdf' },
