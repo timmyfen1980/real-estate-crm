@@ -89,7 +89,7 @@ const SOCIAL_TEMPLATES: SocialTemplate[] = [
   { name: 'Just Leased', file: 'tpl-just-leased.png', format: 'Carousel · slide 1', use: 'For lease deals: monthly rent, specs and the swipe invite.' },
   { name: 'Market Update', file: 'tpl-market-update.png', format: 'Single image', use: 'Monthly stats and rate-decision posts: three numbers, the team, and a what-it-means line.' },
   { name: 'Testimonial', file: 'tpl-testimonial.png', format: 'Single image', use: 'Quote card for a client review. Also generated automatically in the Testimonials manager.' },
-  { name: 'Announcement — Flexible', file: 'tpl-announcement.png', format: 'Single image', use: 'The replaceable slot: swap the headline and paragraph for community news, events and one-offs.' },
+  { name: 'Announcement — Closing Slide', file: 'tpl-announcement.png', format: 'Carousel · page 2 / last · or single', use: 'The universal closing page: ends multi-slide posts (Just Sold, Market Update, announcements) — swap the headline and paragraph. Also works as a single announcement post.' },
 ];
 
 export default function BrandImagesPage() {
