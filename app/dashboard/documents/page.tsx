@@ -10,6 +10,7 @@ interface TeamDoc {
 }
 
 const BUYER_DOCS: TeamDoc[] = [
+  { name: 'Client File Quick Reference.pdf', size: '28 KB', path: 'team-docs/reference/Client File Quick Reference.pdf' },
   { name: 'New Home Utility.docx', size: '517 KB', path: 'team-docs/buyer/New Home Utility.docx' },
   { name: 'New Home Utility.pdf', size: '117 KB', path: 'team-docs/buyer/New Home Utility.pdf' },
   { name: 'Sched A Buyer rep.pdf', size: '681 KB', path: 'team-docs/buyer/Sched A Buyer rep.pdf' },
@@ -28,6 +29,7 @@ const BUYER_DOCS: TeamDoc[] = [
 ];
 
 const SELLER_DOCS: TeamDoc[] = [
+  { name: 'Client File Quick Reference.pdf', size: '28 KB', path: 'team-docs/reference/Client File Quick Reference.pdf' },
   { name: 'tresa-schedule-a-listing-agreement.docx', size: '27 KB', path: 'team-docs/seller/tresa-schedule-a-listing-agreement.docx' },
   { name: 'Listing Agreement - Sale - Form 271.pdf', size: '80 KB', path: 'team-docs/seller/Listing Agreement - Sale - Form 271.pdf' },
   { name: 'FINTRAC - Individual Identification Information Record.pdf', size: '495 KB', path: 'team-docs/seller/FINTRAC - Individual Identification Information Record.pdf' },
@@ -46,6 +48,7 @@ const SELLER_DOCS: TeamDoc[] = [
 ];
 
 const RENTER_DOCS: TeamDoc[] = [
+  { name: 'Client File Quick Reference.pdf', size: '28 KB', path: 'team-docs/reference/Client File Quick Reference.pdf' },
   { name: 'Tenant Representation Agreement - Form 372.pdf', size: '56 KB', path: 'team-docs/renter/Tenant Representation Agreement - Form 372.pdf' },
   { name: 'Listing Agreement - Lease - Form 272.pdf', size: '80 KB', path: 'team-docs/renter/Listing Agreement - Lease - Form 272.pdf' },
   { name: 'FINTRAC - Individual Identification Information Record.pdf', size: '154 KB', path: 'team-docs/renter/FINTRAC - Individual Identification Information Record.pdf' },
