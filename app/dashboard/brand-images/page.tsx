@@ -65,6 +65,33 @@ async function postUpload(imageId: string, blob: Blob) {
   return data || {};
 }
 
+const TEMPLATE_BASE =
+  'https://zftihampsyucluajcnmo.supabase.co/storage/v1/object/public/account-assets/brand/social-templates';
+
+interface SocialTemplate {
+  name: string;
+  file: string;
+  format: string;
+  use: string;
+}
+
+const SOCIAL_TEMPLATES: SocialTemplate[] = [
+  { name: 'Open House Cover', file: 'tpl-open-house-cover.png', format: 'Carousel · slide 1', use: 'First image of every open house post. Generic on purpose — never carries an address, price or time.' },
+  { name: 'Open House Listing Slide', file: 'tpl-open-house-slide.png', format: 'Carousel · slide 2', use: 'The listing itself: photo set, price, address, specs and the open house day and time.' },
+  { name: 'Just Listed — Hero', file: 'tpl-just-listed-1.png', format: 'Carousel · slide 1', use: 'New listing opener: price, address, specs and the swipe invite.' },
+  { name: 'Just Listed — Interior Feature', file: 'tpl-just-listed-interior.png', format: 'Carousel · middle', use: 'Full-photo slide with one feature callout. Repeat for each room or feature worth showing.' },
+  { name: 'Team Closing Slide', file: 'tpl-team-closing.png', format: 'Carousel · last', use: 'Ends every listing carousel: the team, a price recap and the book-a-showing call to action.' },
+  { name: 'Just Listed — Single Image', file: 'tpl-just-listed-single.png', format: 'Single image', use: 'One-image version for when there is no carousel.' },
+  { name: 'Just Sold — Hero', file: 'tpl-just-sold-1.png', format: 'Carousel · slide 1', use: 'Sold price and how fast it went. No client names without their permission.' },
+  { name: 'Just Sold — Story', file: 'tpl-just-sold-2.png', format: 'Carousel · slide 2', use: 'How the sale came together, with the team. Fair framing when the buyer is also our client.' },
+  { name: 'New Price', file: 'tpl-new-price.png', format: 'Single or carousel · slide 1', use: 'Price change announcement. Never shows the old price struck through.' },
+  { name: 'Coming Soon', file: 'tpl-coming-soon.png', format: 'Single image', use: 'Pre-listing teaser: area and home type only — no price, no address.' },
+  { name: 'Just Leased', file: 'tpl-just-leased.png', format: 'Carousel · slide 1', use: 'For lease deals: monthly rent, specs and the swipe invite.' },
+  { name: 'Market Update', file: 'tpl-market-update.png', format: 'Single image', use: 'Monthly stats and rate-decision posts: three numbers, the team, and a what-it-means line.' },
+  { name: 'Testimonial', file: 'tpl-testimonial.png', format: 'Single image', use: 'Quote card for a client review. Also generated automatically in the Testimonials manager.' },
+  { name: 'Announcement — Flexible', file: 'tpl-announcement.png', format: 'Single image', use: 'The replaceable slot: swap the headline and paragraph for community news, events and one-offs.' },
+];
+
 export default function BrandImagesPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [membersError, setMembersError] = useState('');
@@ -192,6 +219,36 @@ export default function BrandImagesPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold">Social Media Templates</h2>
+        <p className="text-gray-600 text-sm mt-1 mb-1">
+          Every social post is built from one of these fixed templates, in the dark
+          charcoal style. The listing photos and details change — the layout, logo
+          position, team placement and footer never do, so every post looks like ours.
+        </p>
+        <p className="text-gray-500 text-xs mb-5">
+          Rea builds posts from these templates. Samples below use 8 Calais Street.
+          All templates are 1080×1350 (Instagram portrait).
+        </p>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {SOCIAL_TEMPLATES.map((t) => (
+            <div key={t.file} className="rounded-lg border border-gray-200 overflow-hidden">
+              <img
+                src={`${TEMPLATE_BASE}/${t.file}`}
+                alt={t.name}
+                className="w-full block"
+                style={{ aspectRatio: '4 / 5', objectFit: 'cover' }}
+              />
+              <div className="p-3">
+                <p className="font-semibold text-sm">{t.name}</p>
+                <p className="text-xs font-medium text-red-700 mt-0.5">{t.format}</p>
+                <p className="text-xs text-gray-600 mt-1 leading-5">{t.use}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
