@@ -32,6 +32,7 @@ const SELLER_DOCS: TeamDoc[] = [
   { name: 'Client File Quick Reference.pdf', size: '28 KB', path: 'team-docs/reference/Client File Quick Reference.pdf' },
   { name: 'tresa-schedule-a-listing-agreement.docx', size: '27 KB', path: 'team-docs/seller/tresa-schedule-a-listing-agreement.docx' },
   { name: 'Listing Agreement - Sale - Form 271.pdf', size: '80 KB', path: 'team-docs/seller/Listing Agreement - Sale - Form 271.pdf' },
+  { name: 'Amendment to Listing Agreement - Form 240.pdf', size: '31 KB', path: 'team-docs/seller/Amendment to Listing Agreement - Form 240.pdf' },
   { name: 'FINTRAC - Individual Identification Information Record.pdf', size: '495 KB', path: 'team-docs/seller/FINTRAC - Individual Identification Information Record.pdf' },
   { name: 'FINTRAC 635 - Receipt of Funds Record.pdf', size: '121 KB', path: 'team-docs/seller/FINTRAC 635 - Receipt of Funds Record.pdf' },
   { name: 'FINTRAC 636 - Beneficial Ownership.pdf', size: '85 KB', path: 'team-docs/seller/FINTRAC 636 - Beneficial Ownership.pdf' },
