@@ -24,7 +24,6 @@ const BUYER_DOCS: TeamDoc[] = [
   { name: 'FINTRAC 639 - Risk Assessment.pdf', size: '232 KB', path: 'team-docs/buyer/FINTRAC 639 - Risk Assessment.pdf' },
   { name: 'LEASE CLAUSES.docx', size: '14 KB', path: 'team-docs/buyer/LEASE CLAUSES.docx' },
   { name: 'OFFER CLAUSES.docx', size: '32 KB', path: 'team-docs/buyer/OFFER CLAUSES.docx' },
-  { name: 'Team Fennessey Information Package.pdf', size: '1.3 MB', path: 'team-docs/buyer/Team Fennessey Information Package.pdf' },
   { name: 'RECO-Information-Guide.pdf', size: '2.3 MB', path: 'team-docs/buyer/RECO-Information-Guide.pdf' },
 ];
 
@@ -59,7 +58,7 @@ const RENTER_DOCS: TeamDoc[] = [
 ];
 
 const FOLDERS = [
-  { id: 'buyer', title: 'Buyer File', description: 'Buyer representation, offer clauses, FINTRAC forms, info package', docs: BUYER_DOCS },
+  { id: 'buyer', title: 'Buyer File', description: 'Buyer representation, offer clauses, FINTRAC forms', docs: BUYER_DOCS },
   { id: 'seller', title: 'Seller File', description: 'Listing agreement, seller presentation, trade forms, FINTRAC', docs: SELLER_DOCS },
   { id: 'renter', title: 'Renter File', description: 'Tenant representation, lease listing agreement, FINTRAC forms', docs: RENTER_DOCS },
 ];
