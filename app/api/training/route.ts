@@ -15,6 +15,88 @@ import {
 
 const EXERCISE_KEYS = new Set(TRAINING_EXERCISES.map((e) => e.key));
 
+// Keep Tim's task list in step with Beth's training. When Beth marks an
+// exercise complete it is ready for review, so Tim (the account owner)
+// gets a task for it; when he marks it reviewed the task completes.
+// Uncomplete / unreview reverse the task the same way. Task sync is
+// best-effort — the training progress row is the source of truth, so a
+// task failure is logged, never thrown back at Beth or Tim.
+async function syncTrainingReviewTask(
+  supabase: any,
+  exerciseKey: string,
+  action: string,
+  note?: string | null
+) {
+  try {
+    const exercise = TRAINING_EXERCISES.find((e) => e.key === exerciseKey);
+    if (!exercise) return;
+    const title = `Review Beth's training: ${exercise.title}`;
+
+    const { data: owner } = await supabase
+      .from('account_users')
+      .select('user_id')
+      .eq('account_id', FC_ACCOUNT_ID)
+      .eq('role', 'owner')
+      .single();
+    if (!owner?.user_id) return;
+
+    const { data: existing } = await supabase
+      .from('tasks')
+      .select('id, status')
+      .eq('account_id', FC_ACCOUNT_ID)
+      .eq('source', 'training_review')
+      .eq('title', title);
+    const pending = (existing || []).filter((t: any) => t.status === 'pending');
+    const pendingIds = pending.map((t: any) => t.id);
+
+    if (action === 'complete' || action === 'unreview') {
+      if (pendingIds.length === 0) {
+        const dueDate = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Toronto',
+        }).format(new Date());
+        const { error } = await supabase.from('tasks').insert([
+          {
+            account_id: FC_ACCOUNT_ID,
+            assigned_user_id: owner.user_id,
+            created_by: BETH_USER_ID,
+            title,
+            description: note
+              ? `Beth marked this training exercise complete — it's ready for your review. Her note: ${note}`
+              : `Beth marked this training exercise complete — it's ready for your review.`,
+            due_date: dueDate,
+            priority: 'medium',
+            status: 'pending',
+            source: 'training_review',
+            auto_generated: true,
+          },
+        ]);
+        if (error)
+          console.error('training review task insert failed:', error.message);
+      }
+    } else if (action === 'uncomplete') {
+      if (pendingIds.length > 0) {
+        const { error } = await supabase
+          .from('tasks')
+          .delete()
+          .in('id', pendingIds);
+        if (error)
+          console.error('training review task delete failed:', error.message);
+      }
+    } else if (action === 'review') {
+      if (pendingIds.length > 0) {
+        const { error } = await supabase
+          .from('tasks')
+          .update({ status: 'completed' })
+          .in('id', pendingIds);
+        if (error)
+          console.error('training review task complete failed:', error.message);
+      }
+    }
+  } catch (e) {
+    console.error('syncTrainingReviewTask failed:', e);
+  }
+}
+
 export async function GET() {
   try {
     const auth = await requireTrainingAccess();
@@ -89,6 +171,15 @@ export async function POST(req: NextRequest) {
       .select('exercise_key, note, completed_at, reviewed_at, updated_at')
       .single();
     if (error) throw error;
+
+    if (
+      action === 'complete' ||
+      action === 'uncomplete' ||
+      action === 'review' ||
+      action === 'unreview'
+    ) {
+      await syncTrainingReviewTask(ctx.supabase, exerciseKey, action, data?.note);
+    }
 
     return NextResponse.json({ ok: true, progress: data });
   } catch (err: any) {
