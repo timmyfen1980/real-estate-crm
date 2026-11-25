@@ -38,7 +38,7 @@ const SELLER_DOCS: TeamDoc[] = [
   { name: 'FINTRAC 636 - Beneficial Ownership.pdf', size: '85 KB', path: 'team-docs/seller/FINTRAC 636 - Beneficial Ownership.pdf' },
   { name: 'FINTRAC 639 - Risk Assessment.pdf', size: '232 KB', path: 'team-docs/seller/FINTRAC 639 - Risk Assessment.pdf' },
   { name: 'New Home Utility.pdf', size: '117 KB', path: 'team-docs/seller/New Home Utility.pdf' },
-  { name: 'Fennessey Comeau Group - Selling Is What We Do.pdf', size: '2.9 MB', path: 'team-docs/seller/Fennessey Comeau Group - Selling Is What We Do.pdf' },
+  { name: 'Fennessey Comeau Group - Selling Is What We Do.pdf', size: '3.6 MB', path: 'team-docs/seller/Fennessey Comeau Group - Selling Is What We Do.pdf' },
   { name: 'RECO-Information-Guide.pdf', size: '2.3 MB', path: 'team-docs/seller/RECO-Information-Guide.pdf' },
   { name: 'brokerbay-new-listing-info-sheet.pdf', size: '2.6 MB', path: 'team-docs/seller/brokerbay-new-listing-info-sheet.pdf' },
   { name: 'deposit-instructions-durham-region.pdf', size: '207 KB', path: 'team-docs/seller/deposit-instructions-durham-region.pdf' },
