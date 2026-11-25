@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Lead Campaigns, layer 3 — creative actions (session auth; any
-// account member). POST /api/lead-campaigns/[id]/creative
+// account member; Rea may also call with the agent secret). POST /api/lead-campaigns/[id]/creative
 //   JSON { action: 'fetch_photos' }              → (re)fetch photos
 //   JSON { action: 'generate', hero_url? }       → (re)build the
 //        designed graphic; hero_url (must be one of the campaign's
@@ -15,6 +15,7 @@
 // authenticated policies).
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import {
   CAMPAIGN_SELECT,
   isUuid,
@@ -29,6 +30,37 @@ import {
   generateCampaignGraphic,
   parseCreative,
 } from '@/lib/leadCampaignCreative';
+
+
+// Rea (agent secret) access — lets Rea regenerate campaign creative
+// after design-standard changes without a dashboard session. Resolves
+// to the account owner's context.
+async function agentContext(req: NextRequest): Promise<any | null> {
+  const auth = req.headers.get('authorization') || '';
+  if (
+    !process.env.REA_AGENT_SECRET ||
+    auth !== `Bearer ${process.env.REA_AGENT_SECRET}`
+  ) {
+    return null;
+  }
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  const { data } = await supabase
+    .from('account_users')
+    .select('account_id, user_id')
+    .eq('role', 'owner')
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    userId: data.user_id,
+    accountId: data.account_id,
+    role: 'owner',
+    supabase,
+  };
+}
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -52,7 +84,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireLeadCampaignAccess();
+    const agentCtx = await agentContext(req);
+    const auth = agentCtx
+      ? { ok: true as const, ctx: agentCtx }
+      : await requireLeadCampaignAccess();
     if (!auth.ok) return auth.response;
     const { ctx } = auth;
     const supabase = ctx.supabase;

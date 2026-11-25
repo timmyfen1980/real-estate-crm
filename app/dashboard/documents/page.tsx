@@ -11,6 +11,7 @@ interface TeamDoc {
 
 const BUYER_DOCS: TeamDoc[] = [
   { name: 'Client File Quick Reference.pdf', size: '28 KB', path: 'team-docs/reference/Client File Quick Reference.pdf' },
+  { name: 'Fennessey Comeau Group - Buyer Information Package.pdf', size: '631 KB', path: 'team-docs/buyer/Fennessey Comeau Group - Buyer Information Package.pdf' },
   { name: 'New Home Utility.docx', size: '517 KB', path: 'team-docs/buyer/New Home Utility.docx' },
   { name: 'New Home Utility.pdf', size: '117 KB', path: 'team-docs/buyer/New Home Utility.pdf' },
   { name: 'Sched A Buyer rep.pdf', size: '681 KB', path: 'team-docs/buyer/Sched A Buyer rep.pdf' },

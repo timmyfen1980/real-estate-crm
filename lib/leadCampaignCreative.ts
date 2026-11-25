@@ -19,13 +19,15 @@
 //
 // The designed graphic follows Tim's approved listing-graphic standard
 // (the 928 Black Cherry set): full-bleed house photo, transparent FC
-// logo lockup top-left, a SOFT navy fade rising from the bottom (never
+// logo lockup top-left, a SOFT charcoal fade rising from the bottom (never
 // a heavy block), red eyebrow, big white headline, the price big and
 // clean (never a strikethrough, never an old price), address, the
-// Tim+Aidan duo cutout bottom-right, and the navy footer bar with the
+// Tim+Aidan duo cutout bottom-right, and the charcoal footer bar with the
 // red rule — the FOOTER_TEXT standard (both names, info@ email,
 // office number 905 668-3800).
-// Colours are navy #0f2a44 + red #d22630 ONLY. No separate
+// Colours are charcoal #16171a + red #d22630 ONLY — the dark
+// standard (Tim, 2026-11-25; replaced the old navy #0f2a44 scheme).
+// No separate
 // "Fennessey Comeau Group" text — the logo lockup already says it.
 
 import sharp from 'sharp';
@@ -398,7 +400,7 @@ export async function fetchCampaignPhotos(
 
 const W = 1080;
 const H = 1350;
-const NAVY = '#0f2a44';
+const CHARCOAL = '#16171a';
 const RED = '#d22630';
 const FOOTER_TOP = 1272;
 
@@ -613,7 +615,7 @@ function overlaySvg(
   const eyebrowBase = firstBase - cfg.size - 34;
   const footerSize = fitFooterSize(fonts, footerText, 27);
   const strokeAttrs =
-    'style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"';
+    'style="paint-order:stroke" stroke="rgba(0,0,0,0.35)" stroke-width="5"';
 
   let texts = '';
   let footer = '';
@@ -637,10 +639,10 @@ function overlaySvg(
       texts += `<text x="58" y="${eyebrowBase}" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="6" fill="${RED}">${esc(eyebrowText)}</text>`;
     }
     cfg.lines.forEach((ln, i) => {
-      texts += `<text x="54" y="${firstBase + i * lh}" font-family="Arial, Helvetica, sans-serif" font-size="${cfg.size}" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5">${esc(ln)}</text>`;
+      texts += `<text x="54" y="${firstBase + i * lh}" font-family="Arial, Helvetica, sans-serif" font-size="${cfg.size}" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(0,0,0,0.35)" stroke-width="5">${esc(ln)}</text>`;
     });
     if (subject.price) {
-      texts += `<text x="54" y="${priceBase}" font-family="Arial, Helvetica, sans-serif" font-size="118" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5">${esc(subject.price)}</text>`;
+      texts += `<text x="54" y="${priceBase}" font-family="Arial, Helvetica, sans-serif" font-size="118" font-weight="800" fill="#ffffff" style="paint-order:stroke" stroke="rgba(0,0,0,0.35)" stroke-width="5">${esc(subject.price)}</text>`;
     }
     if (addressText) {
       texts += `<text x="56" y="${addressBase}" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${esc(addressText)}</text>`;
@@ -652,16 +654,16 @@ function overlaySvg(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0.34" stop-color="${NAVY}" stop-opacity="0"/>
-      <stop offset="0.56" stop-color="${NAVY}" stop-opacity="0.45"/>
-      <stop offset="0.78" stop-color="${NAVY}" stop-opacity="0.88"/>
-      <stop offset="0.94" stop-color="${NAVY}" stop-opacity="0.97"/>
-      <stop offset="1" stop-color="${NAVY}" stop-opacity="0.97"/>
+      <stop offset="0.34" stop-color="${CHARCOAL}" stop-opacity="0"/>
+      <stop offset="0.56" stop-color="${CHARCOAL}" stop-opacity="0.45"/>
+      <stop offset="0.78" stop-color="${CHARCOAL}" stop-opacity="0.88"/>
+      <stop offset="0.94" stop-color="${CHARCOAL}" stop-opacity="0.97"/>
+      <stop offset="1" stop-color="${CHARCOAL}" stop-opacity="0.97"/>
     </linearGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#fade)"/>
   <rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>
-  <rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>
+  <rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${CHARCOAL}"/>
   ${footer}
   ${texts}
 </svg>`
@@ -998,14 +1000,14 @@ function slideText(
   stroke = false
 ): string {
   const strokeAttrs = stroke
-    ? ' style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"'
+    ? ' style="paint-order:stroke" stroke="rgba(0,0,0,0.35)" stroke-width="5"'
     : '';
   if (fonts) {
     let sx = x;
     if (anchor === 'middle') {
       sx = x - measureText(fonts[weight], str, size, ls) / 2;
     }
-    return `<path d="${textToPath(fonts[weight], str, sx, y, size, ls)}" fill="${fill}"${stroke ? ' style="paint-order:stroke" stroke="rgba(8,17,30,0.35)" stroke-width="5"' : ''}/>`;
+    return `<path d="${textToPath(fonts[weight], str, sx, y, size, ls)}" fill="${fill}"${stroke ? ' style="paint-order:stroke" stroke="rgba(0,0,0,0.35)" stroke-width="5"' : ''}/>`;
   }
   return `<text x="${x}" y="${y}"${anchor === 'middle' ? ' text-anchor="middle"' : ''} font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight === 'f600' ? 600 : weight === 'f700' ? 700 : 800}"${ls ? ` letter-spacing="${ls}"` : ''} fill="${fill}"${strokeAttrs}>${esc(str)}</text>`;
 }
@@ -1063,7 +1065,7 @@ function slideFooter(
   const size = fitFooterSize(fonts, text, 27);
   return (
     `<rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>` +
-    `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>` +
+    `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${CHARCOAL}"/>` +
     slideText(fonts, 'f600', text, W / 2, FOOTER_TOP + 51, size, '#ffffff', 0.5, 'middle')
   );
 }
@@ -1108,7 +1110,7 @@ async function brandOverlays(): Promise<sharp.OverlayOptions[]> {
   return out;
 }
 
-async function navyBase(): Promise<Buffer> {
+async function darkBase(): Promise<Buffer> {
   return sharp({
     create: {
       width: W,
@@ -1172,8 +1174,8 @@ async function composeLeadSlide(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="sbg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${NAVY}" stop-opacity="1"/>
-      <stop offset="1" stop-color="#0a1e33" stop-opacity="1"/>
+      <stop offset="0" stop-color="${CHARCOAL}" stop-opacity="1"/>
+      <stop offset="1" stop-color="#0a0a0c" stop-opacity="1"/>
     </linearGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#sbg)"/>
@@ -1181,7 +1183,7 @@ async function composeLeadSlide(
   ${texts}
 </svg>`
   );
-  const base = await navyBase();
+  const base = await darkBase();
   return sharp(base)
     .composite([{ input: svg, top: 0, left: 0 }, ...(await brandOverlays())])
     .png()
@@ -1226,7 +1228,7 @@ async function composeSubstanceSlide(
         body += `<rect x="58" y="${y - 108}" width="${W - 116}" height="2" fill="rgba(255,255,255,0.18)"/>`;
       }
       body += slideText(fonts, 'f800', s.value, 56, y, 92, '#ffffff');
-      body += slideText(fonts, 'f600', s.label, 58, y + 52, 27, '#c9d6e4', 2);
+      body += slideText(fonts, 'f600', s.label, 58, y + 52, 27, '#c9cdd4', 2);
       y += 238;
     });
   } else if (play === 'buyer_market') {
@@ -1269,12 +1271,12 @@ async function composeSubstanceSlide(
 
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${W}" height="${H}" fill="${NAVY}"/>
+  <rect width="${W}" height="${H}" fill="${CHARCOAL}"/>
   ${slideFooter(fonts, footerText)}
   ${body}
 </svg>`
   );
-  const base = await navyBase();
+  const base = await darkBase();
   return sharp(base).composite([{ input: svg, top: 0, left: 0 }]).png().toBuffer();
 }
 
@@ -1336,12 +1338,12 @@ async function composeExplainerSlide(
 
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${W}" height="${H}" fill="${NAVY}"/>
+  <rect width="${W}" height="${H}" fill="${CHARCOAL}"/>
   ${slideFooter(fonts, footerText)}
   ${body}
 </svg>`
   );
-  const base = await navyBase();
+  const base = await darkBase();
   return sharp(base).composite([{ input: svg, top: 0, left: 0 }]).png().toBuffer();
 }
 
@@ -1401,7 +1403,7 @@ async function composeTeamSlide(
   );
   const footer =
     `<rect x="0" y="${FOOTER_TOP - 4}" width="${W}" height="4" fill="${RED}"/>` +
-    `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${NAVY}"/>` +
+    `<rect x="0" y="${FOOTER_TOP}" width="${W}" height="${H - FOOTER_TOP}" fill="${CHARCOAL}"/>` +
     slideText(fonts, 'f600', reco1, W / 2, FOOTER_TOP + 34, 24, '#ffffff', 0.3, 'middle') +
     slideText(fonts, 'f600', reco2, W / 2, FOOTER_TOP + 64, reco2Size, '#ffffff', 0.3, 'middle');
 
@@ -1412,7 +1414,7 @@ async function composeTeamSlide(
 </svg>`
   );
 
-  const base = await navyBase();
+  const base = await darkBase();
   const composites: sharp.OverlayOptions[] = [{ input: svg, top: 0, left: 0 }];
   try {
     const banner = await sharp(await fetchBuffer(TEAM_PHOTO_URL))
@@ -1421,7 +1423,7 @@ async function composeTeamSlide(
       .toBuffer();
     composites.push({ input: banner, top: 0, left: 0 });
   } catch {
-    // banner is garnish — the slide still reads fine on navy
+    // banner is garnish — the slide still reads fine on charcoal
   }
   return sharp(base).composite(composites).png().toBuffer();
 }
