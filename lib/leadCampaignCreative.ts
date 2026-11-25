@@ -84,6 +84,10 @@ export interface CampaignCreative {
   // (empty for photo campaigns). slides[0] is also designed_url and
   // slides[1..] are mirrored into photo_urls.
   slides: string[];
+  // Source photos a slide set can draw on (uploaded or fetched):
+  // slide 1 uses photos[0] full-bleed, slides 2-3 use the next ones
+  // under a charcoal tint. Empty = the plain dark set.
+  photos: string[];
   // Layer 5: plain-words reason the last slide generation failed
   // (null when the creative is healthy).
   error: string | null;
@@ -95,6 +99,7 @@ export const EMPTY_CREATIVE: CampaignCreative = {
   approved: false,
   instagram: { ...EMPTY_INSTAGRAM },
   slides: [],
+  photos: [],
   error: null,
 };
 
@@ -129,6 +134,12 @@ export function parseCreative(raw: any): CampaignCreative {
     approved: raw.approved === true,
     instagram: parseInstagram(raw.instagram),
     slides,
+    photos: (Array.isArray(raw.photos)
+      ? raw.photos.filter(
+          (u: any) => typeof u === 'string' && u.trim().length > 0
+        )
+      : []
+    ).slice(0, MAX_PHOTOS),
     error:
       typeof raw.error === 'string' && raw.error ? raw.error : null,
   };
@@ -772,6 +783,7 @@ export async function generateCampaignGraphic(
     designed_url: `${pub.publicUrl}?v=${Date.now()}`,
     approved: false,
     slides: [],
+    photos: creative.photos,
     error: null,
     // A regenerated graphic is a NEW creative: any earlier send state
     // belongs to the old image, so reset it — the new one must be
@@ -797,6 +809,9 @@ export async function addUploadedPhoto(
   const next: CampaignCreative = {
     ...creative,
     photo_urls: [...creative.photo_urls, url],
+    photos: creative.photos.includes(url)
+      ? creative.photos
+      : [...creative.photos, url].slice(0, MAX_PHOTOS),
   };
   await saveCreative(supabase, campaign.account_id, campaign.id, next);
   return next;
@@ -1123,6 +1138,21 @@ async function darkBase(): Promise<Buffer> {
     .toBuffer();
 }
 
+// A campaign photo as a full-canvas slide base (cover-cropped).
+// Fail-soft: any problem returns null and the caller uses darkBase.
+async function photoBase(url: string | null | undefined): Promise<Buffer | null> {
+  if (!url) return null;
+  try {
+    const buf = await fetchBuffer(url);
+    return await sharp(buf)
+      .resize({ width: W, height: H, fit: 'cover' })
+      .png()
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 // --- The four slides --------------------------------------------------------
 
 async function composeLeadSlide(
@@ -1131,7 +1161,8 @@ async function composeLeadSlide(
   idea: any | null,
   play: string,
   fonts: GraphicFonts | null,
-  footerText: string = FOOTER_TEXT
+  footerText: string = FOOTER_TEXT,
+  photoUrl: string | null = null
 ): Promise<Buffer> {
   const cfg = PLAY_DESIGN[play] || PLAY_DESIGN.market_update;
   const nameParts = String(campaign.name || '')
@@ -1170,12 +1201,18 @@ async function composeLeadSlide(
     texts += slideText(fonts, 'f700', subline, 56, subBase, 44, '#ffffff');
   }
 
+  const photo = await photoBase(photoUrl);
+  const stops = photo
+    ? `<stop offset="0" stop-color="${CHARCOAL}" stop-opacity="0.22"/>
+      <stop offset="0.45" stop-color="${CHARCOAL}" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#0a0a0c" stop-opacity="0.97"/>`
+    : `<stop offset="0" stop-color="${CHARCOAL}" stop-opacity="1"/>
+      <stop offset="1" stop-color="#0a0a0c" stop-opacity="1"/>`;
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="sbg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${CHARCOAL}" stop-opacity="1"/>
-      <stop offset="1" stop-color="#0a0a0c" stop-opacity="1"/>
+      ${stops}
     </linearGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#sbg)"/>
@@ -1183,7 +1220,7 @@ async function composeLeadSlide(
   ${texts}
 </svg>`
   );
-  const base = await darkBase();
+  const base = photo || (await darkBase());
   return sharp(base)
     .composite([{ input: svg, top: 0, left: 0 }, ...(await brandOverlays())])
     .png()
@@ -1213,7 +1250,8 @@ async function composeSubstanceSlide(
   region: string,
   stats: MarketStatLine[],
   fonts: GraphicFonts | null,
-  footerText: string = FOOTER_TEXT
+  footerText: string = FOOTER_TEXT,
+  photoUrl: string | null = null
 ): Promise<Buffer> {
   let body = '';
   if (
@@ -1269,14 +1307,15 @@ async function composeSubstanceSlide(
     });
   }
 
+  const photo = await photoBase(photoUrl);
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${W}" height="${H}" fill="${CHARCOAL}"/>
+  <rect width="${W}" height="${H}" fill="${CHARCOAL}"${photo ? ' fill-opacity="0.87"' : ''}/>
   ${slideFooter(fonts, footerText)}
   ${body}
 </svg>`
   );
-  const base = await darkBase();
+  const base = photo || (await darkBase());
   return sharp(base).composite([{ input: svg, top: 0, left: 0 }]).png().toBuffer();
 }
 
@@ -1318,7 +1357,8 @@ const EXPLAINERS: Record<string, { title: string; lines: string[] }> = {
 async function composeExplainerSlide(
   play: string,
   fonts: GraphicFonts | null,
-  footerText: string = FOOTER_TEXT
+  footerText: string = FOOTER_TEXT,
+  photoUrl: string | null = null
 ): Promise<Buffer> {
   const cfg = EXPLAINERS[play] || EXPLAINERS.seller_push;
   let body = '';
@@ -1336,14 +1376,15 @@ async function composeExplainerSlide(
     y += lines.length * 58 + 56;
   });
 
+  const photo = await photoBase(photoUrl);
   const svg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${W}" height="${H}" fill="${CHARCOAL}"/>
+  <rect width="${W}" height="${H}" fill="${CHARCOAL}"${photo ? ' fill-opacity="0.87"' : ''}/>
   ${slideFooter(fonts, footerText)}
   ${body}
 </svg>`
   );
-  const base = await darkBase();
+  const base = photo || (await darkBase());
   return sharp(base).composite([{ input: svg, top: 0, left: 0 }]).png().toBuffer();
 }
 
@@ -1436,7 +1477,8 @@ export async function composeSlideSet(
   idea: any | null,
   play: string,
   stats: MarketStatLine[],
-  identity?: TeamIdentity
+  identity?: TeamIdentity,
+  photos: string[] = []
 ): Promise<Buffer[]> {
   const fonts = await loadGraphicFonts();
   const region =
@@ -1447,9 +1489,9 @@ export async function composeSlideSet(
     ? identityFooterLine(identity) || FOOTER_TEXT
     : FOOTER_TEXT;
   const [s1, s2, s3, s4] = await Promise.all([
-    composeLeadSlide(campaign, subject, idea, play, fonts, footerText),
-    composeSubstanceSlide(play, region, stats, fonts, footerText),
-    composeExplainerSlide(play, fonts, footerText),
+    composeLeadSlide(campaign, subject, idea, play, fonts, footerText, photos[0] || null),
+    composeSubstanceSlide(play, region, stats, fonts, footerText, photos[1] || photos[0] || null),
+    composeExplainerSlide(play, fonts, footerText, photos[2] || photos[0] || null),
     composeTeamSlide(campaign, fonts, identity),
   ]);
   return [s1, s2, s3, s4];
@@ -1497,7 +1539,8 @@ export async function generateCampaignSlides(
       idea,
       play,
       stats,
-      identity
+      identity,
+      prev.photos
     );
     const v = Date.now();
     const urls: string[] = [];
@@ -1512,6 +1555,7 @@ export async function generateCampaignSlides(
       approved: false,
       instagram: { ...EMPTY_INSTAGRAM },
       slides: urls,
+      photos: prev.photos,
       error: null,
     };
     await saveCreative(supabase, campaign.account_id, campaign.id, next);
