@@ -1116,7 +1116,7 @@ async function darkBase(): Promise<Buffer> {
       width: W,
       height: H,
       channels: 4,
-      background: { r: 15, g: 42, b: 68, alpha: 1 },
+      background: { r: 22, g: 23, b: 26, alpha: 1 },
     },
   })
     .png()
