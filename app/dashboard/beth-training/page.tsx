@@ -24,6 +24,7 @@ interface TrainingData {
   viewer: { isOwner: boolean; isBeth: boolean };
   exercises: TrainingExercise[];
   progress: ProgressRow[];
+  files?: Record<string, { id: string }>;
 }
 
 const NAVY = '#0f2a44';
@@ -207,6 +208,22 @@ export default function BethTrainingPage() {
                   <span className="rounded-full px-3 py-1.5 text-xs font-semibold text-white" style={{ background: NAVY }}>
                     ✓ Reviewed by Tim {fmtDate(row!.reviewed_at)}
                   </span>
+                )}
+                {done && data.files?.[ex.key] && (
+                  <a
+                    href={`/dashboard/checklists/${data.files[ex.key].id}`}
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  >
+                    Open the practice file →
+                  </a>
+                )}
+                {ex.key === 'start-documents' && (
+                  <a
+                    href="/dashboard/documents"
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  >
+                    Open the Documents library →
+                  </a>
                 )}
 
                 <span className="ml-auto flex gap-2">

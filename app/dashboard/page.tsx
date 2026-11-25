@@ -109,6 +109,10 @@ export default function Dashboard() {
   // packages endpoint unreachable) — fails quiet like the cards above.
   const [reviewCount, setReviewCount] = useState<number | null>(null)
 
+  // Beth's Training ready-for-review count (owner only): null = banner
+  // hidden — fails quiet like the cards above.
+  const [trainingReadyCount, setTrainingReadyCount] = useState<number | null>(null)
+
   // Closings Ahead: null = card hidden. No CRM code references a
   // closing_date column on deals, so the query is expected to error and
   // the card stays hidden until such a column exists — fail quiet.
@@ -172,6 +176,24 @@ export default function Dashboard() {
       }
     } catch {
       // Fail quiet: no review line.
+    }
+
+    // Beth's Training (owner only, fail-quiet): exercises Beth has
+    // completed that Tim has not reviewed yet — powers the banner
+    // under the header so a review pops up instead of waiting to be
+    // discovered on the training page.
+    if (owner) {
+      try {
+        const tRes = await fetch('/api/training')
+        const tData = await tRes.json()
+        if (tRes.ok && Array.isArray(tData.progress)) {
+          setTrainingReadyCount(
+            tData.progress.filter((r: any) => r.completed_at && !r.reviewed_at).length
+          )
+        }
+      } catch {
+        // Fail quiet: no training banner.
+      }
     }
 
     const leadQuery = supabase
@@ -480,6 +502,22 @@ export default function Dashboard() {
             </Link>{' '}
             <span className="text-gray-500">waiting in Offers for an agent to check.</span>
           </p>
+        )}
+
+        {/* BETH'S TRAINING READY FOR REVIEW — owner only, shown only
+            while exercises are waiting for Tim's review. */}
+        {isOwner && trainingReadyCount !== null && trainingReadyCount > 0 && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-3">
+            <span className="text-sm font-medium text-amber-900">
+              🎓 Beth has {trainingReadyCount} training exercise{trainingReadyCount === 1 ? '' : 's'} ready for your review
+            </span>
+            <Link
+              href="/dashboard/beth-training"
+              className="ml-auto shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+            >
+              Review now →
+            </Link>
+          </div>
         )}
 
         {/* COMMAND BAR — PERFORMANCE MODE */}

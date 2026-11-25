@@ -23,6 +23,10 @@ export interface TrainingExercise {
   intro: string;
   steps: string[];
   doneWhen: string;
+  // Name fragment of the fake client this exercise is built around
+  // (e.g. 'Tina Buyer' for TRAINING Tina Buyer). Used to find the
+  // practice client file Beth created so it can be linked directly.
+  fakeClient?: string;
 }
 
 export const TRAINING_EXERCISES: TrainingExercise[] = [
@@ -42,6 +46,7 @@ export const TRAINING_EXERCISES: TrainingExercise[] = [
   },
   {
     key: 'fake-buyer-file',
+    fakeClient: 'Tina Buyer',
     title: 'Create a fake BUYER file',
     minutes: '20 min',
     intro:
@@ -58,6 +63,7 @@ export const TRAINING_EXERCISES: TrainingExercise[] = [
   },
   {
     key: 'fake-seller-file',
+    fakeClient: 'Sam Seller',
     title: 'Create a fake SELLER file',
     minutes: '20 min',
     intro:
@@ -73,6 +79,7 @@ export const TRAINING_EXERCISES: TrainingExercise[] = [
   },
   {
     key: 'fake-tenant-file',
+    fakeClient: 'Terry Tenant',
     title: 'Create a fake TENANT file',
     minutes: '20 min',
     intro:
@@ -88,6 +95,7 @@ export const TRAINING_EXERCISES: TrainingExercise[] = [
   },
   {
     key: 'fake-landlord-file',
+    fakeClient: 'Laura Landlord',
     title: 'Create a fake LANDLORD file',
     minutes: '15 min',
     intro:
@@ -103,6 +111,7 @@ export const TRAINING_EXERCISES: TrainingExercise[] = [
   },
   {
     key: 'licence-portal-test',
+    fakeClient: 'Tina Buyer',
     title: 'Test the driver’s licence link like a client',
     minutes: '15 min',
     intro:
@@ -118,6 +127,7 @@ export const TRAINING_EXERCISES: TrainingExercise[] = [
   },
   {
     key: 'fintrac-generate-test',
+    fakeClient: 'Tina Buyer',
     title: 'Generate the FINTRAC forms',
     minutes: '15 min',
     intro:

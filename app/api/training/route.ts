@@ -61,8 +61,8 @@ async function syncTrainingReviewTask(
             created_by: BETH_USER_ID,
             title,
             description: note
-              ? `Beth marked this training exercise complete — it's ready for your review. Her note: ${note}`
-              : `Beth marked this training exercise complete — it's ready for your review.`,
+              ? `Beth marked this training exercise complete — it's ready for your review. Her note: ${note} Review it here: https://crm.thefcgroup.ca/dashboard/beth-training`
+              : `Beth marked this training exercise complete — it's ready for your review. Review it here: https://crm.thefcgroup.ca/dashboard/beth-training`,
             due_date: dueDate,
             priority: 'medium',
             status: 'pending',
@@ -110,10 +110,36 @@ export async function GET() {
       .eq('user_id', BETH_USER_ID);
     if (error) throw error;
 
+    // For exercises built around a fake client, find the newest matching
+    // practice file so the reviewer can jump straight to Beth's work
+    // from the training page instead of hunting through Contacts.
+    // Fail-quiet: any problem here just means no file links.
+    const files: Record<string, { id: string }> = {};
+    try {
+      const { data: fileRows } = await ctx.supabase
+        .from('client_files')
+        .select('id, client_names, created_at')
+        .ilike('client_names', '%training%')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      for (const ex of TRAINING_EXERCISES) {
+        if (!ex.fakeClient) continue;
+        const match = (fileRows || []).find((f: any) =>
+          String(f.client_names || '')
+            .toLowerCase()
+            .includes(ex.fakeClient!.toLowerCase())
+        );
+        if (match) files[ex.key] = { id: match.id };
+      }
+    } catch {
+      // No file links this load.
+    }
+
     return NextResponse.json({
       viewer: { isOwner: ctx.isOwner, isBeth: ctx.isBeth },
       exercises: TRAINING_EXERCISES,
       progress: rows || [],
+      files,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
