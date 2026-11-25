@@ -38,14 +38,13 @@ const SELLER_DOCS: TeamDoc[] = [
   { name: 'FINTRAC 636 - Beneficial Ownership.pdf', size: '85 KB', path: 'team-docs/seller/FINTRAC 636 - Beneficial Ownership.pdf' },
   { name: 'FINTRAC 639 - Risk Assessment.pdf', size: '232 KB', path: 'team-docs/seller/FINTRAC 639 - Risk Assessment.pdf' },
   { name: 'New Home Utility.pdf', size: '117 KB', path: 'team-docs/seller/New Home Utility.pdf' },
-  { name: 'Tim Fennessey - Selling is what I do!.pptx', size: '11 MB', path: 'team-docs/seller/Tim Fennessey - Selling is what I do!.pptx' },
+  { name: 'Fennessey Comeau Group - Selling Is What We Do.pdf', size: '2.9 MB', path: 'team-docs/seller/Fennessey Comeau Group - Selling Is What We Do.pdf' },
   { name: 'RECO-Information-Guide.pdf', size: '2.3 MB', path: 'team-docs/seller/RECO-Information-Guide.pdf' },
   { name: 'brokerbay-new-listing-info-sheet.pdf', size: '2.6 MB', path: 'team-docs/seller/brokerbay-new-listing-info-sheet.pdf' },
   { name: 'deposit-instructions-durham-region.pdf', size: '207 KB', path: 'team-docs/seller/deposit-instructions-durham-region.pdf' },
   { name: 'rough-trade-letter-size-fillable.pdf', size: '397 KB', path: 'team-docs/seller/rough-trade-letter-size-fillable.pdf' },
   { name: 'Sched B.pdf', size: '2.1 MB', path: 'team-docs/seller/Sched B.pdf' },
   { name: 'transaction-templates-amp-forms-2024.pdf', size: '154 KB', path: 'team-docs/seller/transaction-templates-amp-forms-2024.pdf' },
-  { name: 'Tim Fennessey - Selling is what I do!.pdf', size: '2.8 MB', path: 'team-docs/seller/Tim Fennessey - Selling is what I do!.pdf' },
 ];
 
 const RENTER_DOCS: TeamDoc[] = [
