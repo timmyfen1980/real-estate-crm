@@ -142,6 +142,39 @@ export const TRAINING_EXERCISES: TrainingExercise[] = [
     ],
     doneWhen: 'Both FINTRAC forms are generated on the fake buyer file and you have read them over.',
   },
+  {
+    key: 'offer-package-build',
+    fakeClient: 'Tina Buyer',
+    title: 'Build an offer package and prep it for signing',
+    minutes: '25 min',
+    intro:
+      'The client file holds the checklist — the actual offer paperwork is built in an offer package linked to the file. Practise on your fake buyer: “TRAINING Tina Buyer”, buying “123 Practice Street, Whitby” for $500,000 with a $25,000 deposit (the details you put on her file in Exercise 2).',
+    steps: [
+      'Open your TRAINING Tina Buyer file and click “Start offer package”. The package opens with the property and buyer already filled in from the file, and the offer forms (100, 801, Confirmation of Co-operation) inside it as tabs.',
+      'Work through the Form 100 tab’s questions: price $500,000, deposit $25,000, and make up a closing date about 60 days out. Forms save themselves into the package as you work — if a form is ever missing, its tab’s “Save to package” button adds it on the spot.',
+      'Open the Package Files tab and confirm your forms are sitting in the Unsigned group. Everything in a package is kept apart as signed or unsigned — that split is what lets the whole unsigned set go out for signing together.',
+      'Find “Add from Library — later-stage forms” and add a Notice of Fulfillment (Form 124) to the package, then fill in its questions the same way. The Waiver (123), Amendment (120) and Disclosure of Interest (161) live there too — they are the forms added as a deal moves along.',
+      'Click “Send for signature — iinked Sign” and add Tina as the signer (her training email, tina.training@example.com). This only prepares a DRAFT in iinked and opens the editor — nothing is sent. On a real deal Tim places the signature spots in the editor and sends it from there, so stop at the draft: do NOT send it.',
+      'Come back to the package and, in the note box below, write the name of the package you created.',
+    ],
+    doneWhen: 'An offer package exists on the Tina Buyer file with the Form 100 filled in, a Form 124 added from the Library, and an iinked draft prepared but NOT sent.',
+  },
+  {
+    key: 'signed-copy-filing',
+    fakeClient: 'Tina Buyer',
+    title: 'File a signed copy back — the executed copy rules',
+    minutes: '15 min',
+    intro:
+      'The rule that runs the whole filing system: a prepared form is only a draft until it is signed. Once it is signed, the SIGNED copy becomes the copy of record — it replaces the unsigned copy in the offer package AND on the client file checklist, so nobody ever works from the wrong version.',
+    steps: [
+      'Start with the offer package from Exercise 8. Pretend Tina signed the Notice of Fulfillment (Form 124) on paper and the signed copy was scanned back to you — for practice, download the Form 124 PDF from the package and treat that file as the “signed” copy.',
+      'In the package’s Package Files tab, find the Form 124 in the Unsigned group and use “Mark signed” to move it into the Signed group. (When a package is signed through iinked instead, the signed copies and the audit certificate come back and land in the Signed group on their own — this manual step is for paper signatures.)',
+      'Now the client file: open the TRAINING Tina Buyer file, find the “Notice of Fulfillment of Conditions (NOF)” row in Stage 3 — Firm, and use “Replace file” on that row to put the signed copy in place of anything unsigned there.',
+      'Check both places agree: the package shows the 124 under Signed, and the checklist row opens the signed copy. If the two ever disagree on a real deal, the signed copy wins — the unsigned one is the one to fix.',
+      'In the note box below, write which document you marked signed.',
+    ],
+    doneWhen: 'The Form 124 shows under Signed in the package, and the buyer file’s Notice of Fulfillment row holds the signed copy.',
+  },
 ];
 
 export interface TrainingContext {
